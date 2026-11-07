@@ -3,6 +3,7 @@
 > **Do risco ao resgate, cuidado em cada corrida.**
 
 **Global Solution 2026.2 - CitizenTech - Engenharia de Software (3º ano) - FIAP Paulista**
+
 **Integrante:** Renan Dias Utida - RM 558540 - Turma 3ESPW
 
 ---
