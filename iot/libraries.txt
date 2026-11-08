@@ -1,0 +1,14 @@
+# Wokwi Library List
+# See https://docs.wokwi.com/guides/libraries
+# HelmCare - Renan Dias Utida - RM 558540 - 3ESPW
+
+# Etapa 1: sensores e display
+Adafruit MPU6050
+Adafruit Unified Sensor
+Adafruit SSD1306
+Adafruit GFX Library
+DHT sensor library
+
+# Etapa 2: rede (ja listadas para nao precisar mexer depois)
+PubSubClient
+ArduinoJson
