@@ -1,6 +1,6 @@
 # HelmCare - Contrato de Integração
 
-**Versão 1.1 - 07/11/2026**
+**Versão 1.2 - 08/11/2026**
 
 Este documento define como as partes do HelmCare conversam entre si: nomes, tópicos MQTT, endpoints, payloads, estados e regras. **Todas as disciplinas seguem este contrato.** Mudanças só entram por meio da conversa central de coordenação, que gera uma nova versão.
 
@@ -50,7 +50,7 @@ Este documento define como as partes do HelmCare conversam entre si: nomes, tóp
 | `FichaMedica` | `id`, `entregadorId`, `tipoSanguineo`, `alergias`, `condicoesCriticas`, `medicamentos` | **PII sensível (saúde)** |
 | `Dispositivo` | `id`, `codigo` (ex.: `HC-0001`), `entregadorId`, `qrToken` | O `qrToken` é o que vai no QR Code do capacete |
 | `Turno` | `id`, `entregadorId`, `inicio`, `fim`, `indiceRisco`, `faixaRisco`, `protecaoAtiva` | |
-| `EventoImpacto` | `id`, `dispositivoId`, `ocorridoEm`, `picoG`, `orientacaoAnormal`, `pilotandoAntes`, `presencaAntes`, `resultado` | Registro de cada impacto, inclusive falsos positivos |
+| `EventoImpacto` | `id`, `dispositivoId`, `ocorridoEm`, `picoG`, `orientacaoAnormal`, `pilotandoAntes`, `presencaAntes`, `resultado` | Registro de cada impacto, inclusive falsos positivos e ignorados. `resultado` fica vazio enquanto o desfecho não chega (ver seção 6.2) |
 | `Ocorrencia` | `id`, `entregadorId`, `eventoImpactoId`, `estado`, `camada`, `latitude`, `longitude`, `criadaEm`, `aceitaEm`, `encerradaEm`, `tempoAteAceiteSegundos` | É o SOS. `tempoAteAceiteSegundos` é o indicador de impacto. |
 | `Voluntario` | `id`, `entregadorId`, `tipo`, `disponivel`, `latitude`, `longitude` | Todo voluntário também é um entregador cadastrado |
 | `AceiteSocorro` | `id`, `ocorrenciaId`, `voluntarioId`, `aceitoEm` | |
@@ -70,7 +70,7 @@ Este documento define como as partes do HelmCare conversam entre si: nomes, tóp
 | `TipoVoluntario` | `ENTREGADOR`, `VIGIA_MOTO` |
 | `OrigemAcessoCofre` | `SOS_ATIVO`, `EMERGENCIA_MANUAL` |
 | `TipoEventoMqtt` | `IMPACTO_DETECTADO`, `CONTAGEM_INICIADA`, `CANCELADO`, `FALSO_POSITIVO`, `SOS` |
-| `TipoComandoMqtt` | `ARMAR`, `DESARMAR`, `SOCORRO_A_CAMINHO`, `ENCERRAR` |
+| `TipoComandoMqtt` | `ARMAR`, `DESARMAR`, `CANCELAR`, `SOCORRO_A_CAMINHO`, `ENCERRAR` |
 
 ---
 
@@ -81,16 +81,16 @@ Todas configuráveis (arquivo de configuração ou variável de ambiente), com e
 | Constante | Valor | Onde é usada |
 |---|---|---|
 | `JANELA_OBSERVACAO_S` | 10 | ESP32 |
-| `CONTAGEM_CANCELAMENTO_S` | 15 | ESP32 e app |
-| `LIMIAR_IMPACTO_G` | 3,0 (calibrar no Wokwi) | ESP32 |
+| `CONTAGEM_CANCELAMENTO_S` | 15 | ESP32, API e app |
+| `LIMIAR_IMPACTO_G` | 2,5 (calibrado no Wokwi, onde cada eixo do MPU6050 vai só até ±2 g e a aceleração total máxima é 3,46 g) | ESP32 |
 | `VELOCIDADE_PILOTAGEM_KMH` | 15 | ESP32 (velocidade simulada) |
 | `RAIO_CAMADA_1_KM` | 2 | API |
 | `TEMPO_ACEITE_CAMADA_1_S` | 60 | API |
 | Camada 2 | Toda a rede de voluntários disponíveis | API |
 | `TTL_ACESSO_COFRE_MIN` | 60 | API |
 | `META_TEMPO_ACEITE_S` | 120 | API, app e pitch |
-| `INTERVALO_TELEMETRIA_S` | 10 | ESP32 |
-| `INTERVALO_POLLING_APP_S` | 5 | App (consulta de chamados e status) |
+| `INTERVALO_TELEMETRIA_S` | 10 | ESP32 (telemetria e reenvio do SOS) |
+| `INTERVALO_POLLING_APP_S` | 5 | App (consulta de chamados, status e alerta) |
 | Coordenadas simuladas do capacete | `-23.5641`, `-46.6525` (região da Av. Paulista) | ESP32 |
 
 ---
@@ -98,7 +98,9 @@ Todas configuráveis (arquivo de configuração ou variável de ambiente), com e
 ## 6. MQTT (capacete e API)
 
 **Raiz dos tópicos:** `helmcare-rdu/v1/{codigoDispositivo}`
-O prefixo `helmcare-rdu` evita colisão com outros usuários do broker público. QoS 1. **Nenhum dado pessoal trafega no MQTT**, apenas o código do dispositivo.
+O prefixo `helmcare-rdu` evita colisão com outros usuários do broker público. **Nenhum dado pessoal trafega no MQTT**, apenas o código do dispositivo.
+
+**QoS:** os comandos (API para o capacete) são publicados e assinados em QoS 1. O capacete publica telemetria e eventos em QoS 0, limite da biblioteca PubSubClient usada nas aulas. A API assina esses tópicos em QoS 1, mas a entrega efetiva fica em QoS 0. Para o evento mais importante, o SOS, vale a regra de reenvio da seção 6.2.
 
 ### 6.1 Telemetria (ESP32 para a API)
 
@@ -138,6 +140,23 @@ Tópico `helmcare-rdu/v1/HC-0001/evento`, a cada mudança de estado:
 }
 ```
 
+**Regras dos eventos:**
+
+- **Detecção:** um impacto acontece quando a aceleração total passa de `LIMIAR_IMPACTO_G`. O campo `orientacaoAnormal` (inclinação maior que 60°) é só informativo e não bloqueia a detecção, porque uma queda real pode terminar com o capacete na posição normal.
+- **Dados do impacto:** todos os eventos de um mesmo impacto repetem `picoG`, `orientacaoAnormal`, `pilotandoAntes`, `presencaAntes`, `latitude` e `longitude`. O `ts` é o instante de cada evento.
+- **Reenvio do SOS:** enquanto estiver em `SOS_ENVIADO`, o capacete republica o evento `SOS` com o **mesmo** `ts` a cada `INTERVALO_TELEMETRIA_S`, até receber `SOCORRO_A_CAMINHO` ou `ENCERRAR`. A API trata eventos com o mesmo `dispositivo`, `tipo` e `ts` como um só (idempotência).
+
+**Como a API registra cada evento:**
+
+| Evento | Quando o capacete envia | O que a API faz |
+|---|---|---|
+| `IMPACTO_DETECTADO` com `pilotandoAntes` e `presencaAntes` falsos | Impacto descartado. O capacete volta para `ARMADO` | Grava o `EventoImpacto` com `resultado` = `IGNORADO` |
+| `IMPACTO_DETECTADO` com pelo menos um dos dois verdadeiro | Começa a observação de 10 s | Grava o `EventoImpacto` com `resultado` vazio |
+| `FALSO_POSITIVO` | A velocidade de moto voltou durante a observação | `resultado` = `FALSO_POSITIVO` |
+| `CONTAGEM_INICIADA` | Começa a contagem de 15 s | Guarda `contagemTerminaEm` = `ts` + `CONTAGEM_CANCELAMENTO_S`, exibido em `GET /turnos/{id}/alerta` |
+| `CANCELADO` | Botão do capacete ou comando `CANCELAR` durante a contagem | `resultado` = `CANCELADO_PELO_ENTREGADOR` |
+| `SOS` | Fim da contagem sem cancelamento | `resultado` = `SOS_ENVIADO` e cria a `Ocorrencia` em `SOS_CAMADA_1` |
+
 ### 6.3 Comandos (API para o ESP32)
 
 Tópico `helmcare-rdu/v1/HC-0001/comando`:
@@ -146,7 +165,15 @@ Tópico `helmcare-rdu/v1/HC-0001/comando`:
 { "tipo": "SOCORRO_A_CAMINHO", "ts": "2026-11-12T21:16:40Z" }
 ```
 
-O capacete mostra o comando no OLED (por exemplo, "Socorro a caminho").
+| Comando | Efeito no capacete |
+|---|---|
+| `ARMAR` | De `DESARMADO` para `ARMADO` |
+| `DESARMAR` | Para `DESARMADO`, a partir de qualquer estado, exceto `SOS_ENVIADO` |
+| `CANCELAR` | Só vale em `CONTAGEM`: vai para `CANCELADO`, publica o evento `CANCELADO` e volta para `ARMADO`. Fora da contagem, é ignorado |
+| `SOCORRO_A_CAMINHO` | Em `SOS_ENVIADO`: mostra "Socorro a caminho" no OLED e para o reenvio do SOS |
+| `ENCERRAR` | Em `SOS_ENVIADO`: para o reenvio do SOS e volta para `ARMADO`, porque o turno continua |
+
+`FALSO_POSITIVO` e `CANCELADO` também voltam para `ARMADO`.
 
 ---
 
@@ -162,6 +189,8 @@ O capacete mostra o comando no OLED (por exemplo, "Socorro a caminho").
 | POST | `/turnos` | Inicia um turno e devolve o Índice de Risco |
 | POST | `/turnos/{id}/encerrar` | Encerra o turno |
 | GET | `/turnos/{id}/risco` | Índice de Risco atual do turno |
+| GET | `/turnos/{id}/alerta` | Estado do alerta de queda do capacete no turno (tela de alerta do app) |
+| POST | `/turnos/{id}/alerta/cancelar` | Cancela o alerta durante a contagem (a API publica o comando `CANCELAR`) |
 | GET | `/trechos-criticos` | Repassa a lista do Serviço de Risco |
 | PUT | `/voluntarios/{id}/disponibilidade` | Atualiza a disponibilidade e a posição do voluntário |
 | GET | `/ocorrencias/proximas?latitude=&longitude=` | Chamados visíveis para um voluntário (localização aproximada) |
@@ -192,6 +221,19 @@ Resposta:
   "explicacao": "Risco alto: chuva prevista às 21h e o seu horário tem histórico de sinistros graves."
 }
 ```
+
+**Exemplo: `GET /turnos/{id}/alerta`**
+
+Resposta, durante a contagem:
+```json
+{ "estadoCapacete": "CONTAGEM", "contagemTerminaEm": "2026-11-12T21:16:17Z", "ocorrenciaId": null }
+```
+
+- `estadoCapacete` usa o `EstadoDispositivo` e é o último estado recebido do capacete, por evento ou por telemetria.
+- `contagemTerminaEm` só vem preenchido em `CONTAGEM`. Com ele, o app mostra a contagem regressiva sem depender do intervalo de polling.
+- `ocorrenciaId` só vem preenchido depois do SOS, para o app abrir a tela da ocorrência.
+
+**`POST /turnos/{id}/alerta/cancelar`:** responde `202 Accepted` quando o capacete está em `CONTAGEM` (o comando `CANCELAR` foi publicado) e `409 Conflict`, em ProblemDetails, em qualquer outro estado. Depois do SOS, o cancelamento é pela rota `POST /ocorrencias/{id}/cancelar`, e a API envia `ENCERRAR` ao capacete.
 
 ---
 
@@ -271,7 +313,8 @@ Máscaras padrão: CPF `***.***.***-12`, telefone `(11) *****-1234`.
 - `README.md` na raiz, com a Ficha da CitizenTech no início, e um `README.md` em cada pasta.
 - `prompts.md` na raiz, com uma seção por disciplina.
 - Em `ml/`: `README.md`, o notebook, `RELATORIO_ML.md`, `requirements.txt`, `dados/` (com `brutos/` ignorada pelo Git e `processados/` versionada, contendo a base horária sem dados pessoais), `modelo/` (seção 8.1) e `figuras/`.
-- Branches: `main` + `feature/<disciplina>-<tarefa>` (ex.: `feature/api-sos-escalonado`).
+- Em `iot/`: `README.md`, `integrantes.txt`, `wokwi.txt` (link público do projeto), `sketch.ino`, `config.h` (pinos e constantes), `diagram.json`, `libraries.txt`, `evidencias/` e, como acréscimo, `nodered/flows.json` (dashboard só de leitura).
+- Branches: `main` + `feature/<disciplina>-<tarefa>` (ex.: `feature/api-sos-escalonado`), sempre criadas a partir da `main` atualizada e fechadas com PR e merge.
 - Commits no padrão Conventional Commits: `feat:`, `fix:`, `docs:`, `test:`, `chore:`.
 
 ---
@@ -289,3 +332,4 @@ Máscaras padrão: CPF `***.***.***-12`, telefone `(11) *****-1234`.
 |---|---|---|
 | 1.0 | 06/11/2026 | Versão inicial |
 | 1.1 | 07/11/2026 | Seção 8.1 (artefatos do modelo de ML, o que o modelo prevê, variáveis de entrada e pendências do P95 e da agregação do turno); nota sobre a chuva na fórmula do índice; estrutura da pasta `ml/`; `prompts.md` sem a seção de coordenação |
+| 1.2 | 08/11/2026 | MQTT: o capacete publica em QoS 0 (PubSubClient) e reenvia o SOS até a confirmação, com idempotência na API; comando `CANCELAR`; rotas `GET /turnos/{id}/alerta` e `POST /turnos/{id}/alerta/cancelar`; regras de registro de cada evento (inclusive o impacto `IGNORADO`); efeito de cada comando no capacete; detecção só pelo pico, com `orientacaoAnormal` informativa; `LIMIAR_IMPACTO_G` calibrado em 2,5 g; estrutura da pasta `iot/` |
