@@ -67,3 +67,7 @@ ml/dados/brutos/*
 *.log
 logs/
 !infra/evidencias/**
+# ML: em processados/, só a base horária agregada (sem dados pessoais) é versionada
+ml/dados/processados/*
+!ml/dados/processados/.gitkeep
+!ml/dados/processados/base_horaria.parquet
