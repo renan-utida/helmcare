@@ -74,4 +74,43 @@ public sealed class Voluntario : Entidade
         Latitude = disponivel ? posicao!.Value.Latitude : null;
         Longitude = disponivel ? posicao!.Value.Longitude : null;
     }
+
+    /// <summary>
+    /// Indica se este voluntário pode aceitar a ocorrência: precisa estar disponível e com posição,
+    /// a ocorrência precisa estar aguardando aceite e não pode ser do próprio entregador, e, na
+    /// camada 1, a distância até a queda precisa ser menor ou igual ao raio. Na camada 2 o raio
+    /// não vale, porque toda a rede é acionada.
+    /// </summary>
+    /// <param name="ocorrencia">Ocorrência a atender.</param>
+    /// <param name="raioCamada1Km">Raio da camada 1 (<c>RAIO_CAMADA_1_KM</c>), finito e não negativo.</param>
+    /// <returns><see langword="true"/> se o voluntário pode aceitar.</returns>
+    /// <exception cref="ValidacaoDominioException">Quando o raio é inválido.</exception>
+    public bool PodeAtender(Ocorrencia ocorrencia, double raioCamada1Km)
+    {
+        ArgumentNullException.ThrowIfNull(ocorrencia);
+
+        if (!double.IsFinite(raioCamada1Km) || raioCamada1Km < 0)
+        {
+            throw new ValidacaoDominioException("O raio da camada 1 deve ser um número não negativo.");
+        }
+
+        if (!Disponivel || Latitude is not { } latitude || Longitude is not { } longitude)
+        {
+            return false;
+        }
+
+        if (!ocorrencia.EstaAguardandoAceite || ocorrencia.EntregadorId == EntregadorId)
+        {
+            return false;
+        }
+
+        if (ocorrencia.Camada == Ocorrencia.CamadaRedeToda)
+        {
+            return true;
+        }
+
+        var posicao = new Coordenada(latitude, longitude);
+        var local = new Coordenada(ocorrencia.Latitude, ocorrencia.Longitude);
+        return posicao.DistanciaKmAte(local) <= raioCamada1Km;
+    }
 }
