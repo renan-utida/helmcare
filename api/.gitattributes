@@ -1,0 +1,14 @@
+# Finais de linha da API HelmCare (api/)
+# Força LF em todos os arquivos de texto desta pasta, como no template do professor.
+# Sem isto, o Git no Windows faria checkout em CRLF e o build acusaria IDE0055 (formatação).
+* text=auto eol=lf
+
+# Binários: nunca converter
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary
+*.dll  binary
+*.exe  binary

@@ -6,7 +6,7 @@ O núcleo do sistema, em ASP.NET Core. Recebe os eventos do capacete via MQTT, o
 
 ## Tecnologias
 
-ASP.NET Core - Entity Framework Core (com migrations) - LINQ - async/await - injeção de dependência - xUnit - Scalar/Swagger - PostgreSQL
+ASP.NET Core - Entity Framework Core (com migrations) - LINQ - async/await - injeção de dependência - MSTest - Scalar/Swagger - PostgreSQL
 
 ## Como executar
 *(a preencher)*

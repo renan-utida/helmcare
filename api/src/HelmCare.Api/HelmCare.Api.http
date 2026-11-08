@@ -1,0 +1,5 @@
+@baseUrl = http://localhost:5000
+
+### Health check da API
+GET {{baseUrl}}/api/v1/saude
+Accept: application/json

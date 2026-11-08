@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/HelmCare.Api/HelmCare.Api.csproj" />
+    <Project Path="src/HelmCare.Dominio/HelmCare.Dominio.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/HelmCare.Testes/HelmCare.Testes.csproj" />
+  </Folder>
+</Solution>
