@@ -1,6 +1,6 @@
 # HelmCare - Contrato de Integração
 
-**Versão 1.0 - 06/11/2026**
+**Versão 1.1 - 07/11/2026**
 
 Este documento define como as partes do HelmCare conversam entre si: nomes, tópicos MQTT, endpoints, payloads, estados e regras. **Todas as disciplinas seguem este contrato.** Mudanças só entram por meio da conversa central de coordenação, que gera uma nova versão.
 
@@ -17,7 +17,7 @@ Este documento define como as partes do HelmCare conversam entre si: nomes, tóp
 | Serviço de Risco | FastAPI (Python) | `http://localhost:8000/risco/v1` | `servico-risco/` |
 | Banco de dados | PostgreSQL | `localhost:5432` (bancos `helmcare_api` e `helmcare_risco`) | |
 | App do entregador | Expo (React Native + TypeScript) | Consome apenas a API principal | `mobile/` |
-| Modelo de ML | XGBoost (arquivo exportado) | Carregado pelo Serviço de Risco | `ml/` |
+| Modelo de ML | XGBoost (artefatos em `ml/modelo/`, ver seção 8.1) | Carregado pelo Serviço de Risco | `ml/` |
 | Infra | Debian + Shell Script + systemd + nginx | nginx na porta 80: `/api` e `/cofre` para a API, `/risco` para o Serviço de Risco | `infra/` |
 
 **Regra de arquitetura:** o app **nunca** chama o Serviço de Risco diretamente. A API principal funciona como porta de entrada (gateway) e repassa as chamadas.
@@ -220,11 +220,35 @@ Resposta: o mesmo formato de `indiceRisco`, `faixaRisco`, `componentes` e `expli
 
 | Componente | Peso | Normalização para 0 a 100 |
 |---|---|---|
-| `sinistro` | 50% | Previsão do modelo dividida pelo percentil 95 histórico da faixa horária, limitada a 100 |
+| `sinistro` | 50% | Previsão do modelo dividida pelo percentil 95 histórico (ver seção 8.1), limitada a 100 |
 | `chuva` | 25% | 0 mm/h = 0; 10 mm/h ou mais = 100; linear entre eles |
 | `calor` | 25% | Índice de calor de 27 °C = 0; 41 °C ou mais = 100; linear entre eles |
 
 Faixas: 0 a 25 `BAIXO` - 26 a 50 `MODERADO` - 51 a 75 `ALTO` - 76 a 100 `MUITO_ALTO`.
+
+**A chuva aparece duas vezes, de propósito.** No componente `sinistro`, ela entra pelo modelo (o efeito da chuva no histórico de sinistros graves). No componente `chuva`, ela representa a exposição direta do entregador à condição do tempo. A `explicacao` devolvida ao entregador deve deixar essa diferença clara.
+
+### 8.1 Artefatos do modelo de ML
+
+Gerados pelo notebook de ML na pasta `ml/modelo/` e carregados pelo Serviço de Risco:
+
+| Arquivo | Conteúdo |
+|---|---|
+| `modelo_sinistros_xgb.json` | Modelo no formato nativo do XGBoost (mais estável entre versões do que um pickle) |
+| `metadados_modelo.json` | Ordem e codificação das variáveis, como converter a requisição do `POST /indice-turno` nelas, período de treino, métricas e versões das bibliotecas |
+| `p95_sinistros_graves.json` | Percentil 95 histórico usado na normalização do componente `sinistro` |
+| `trechos_criticos.json` | Logradouro, latitude, longitude e quantidade de sinistros graves, com pelo menos 50 trechos (para atender o parâmetro `?limite=`) |
+
+**O que o modelo prevê:** a quantidade esperada de sinistros graves com motocicletas na cidade de São Paulo em **uma hora local (0 a 23)**. O Serviço de Risco aplica o modelo a cada hora do turno.
+
+**Variáveis de entrada:** somente as que o Serviço de Risco consegue montar a partir da requisição: calendário (hora local, dia da semana, mês e feriado) e a previsão do tempo (`chuvaMmHora`, `temperaturaC` e `umidadePct`). Os feriados devem ser calculados da mesma forma no notebook e no Serviço de Risco, conforme descrito em `metadados_modelo.json`.
+
+**Pendências registradas:**
+
+| Ponto | Opções | Onde será decidido |
+|---|---|---|
+| Percentil 95 | Um P95 único sobre todas as horas (preserva a diferença entre horários, como 18h e 4h) ou um P95 por hora do dia | Item 10 do notebook de ML, com os números na mão. A preferência inicial é o P95 único. |
+| Agregação das horas do turno | Como combinar as previsões de cada hora do turno em um único componente `sinistro` (por exemplo, média ou maior valor) | Disciplina de SOA, na implementação do `POST /indice-turno` |
 
 ---
 
@@ -245,7 +269,8 @@ Máscaras padrão: CPF `***.***.***-12`, telefone `(11) *****-1234`.
 
 - Monorepo `helmcare` com as pastas `iot/`, `api/`, `servico-risco/`, `mobile/`, `ml/`, `infra/`, `cyber/` e `docs/`.
 - `README.md` na raiz, com a Ficha da CitizenTech no início, e um `README.md` em cada pasta.
-- `prompts.md` na raiz, com uma seção por disciplina e uma seção "Coordenação geral".
+- `prompts.md` na raiz, com uma seção por disciplina.
+- Em `ml/`: `README.md`, o notebook, `RELATORIO_ML.md`, `requirements.txt`, `dados/` (com `brutos/` ignorada pelo Git e `processados/` versionada, contendo a base horária sem dados pessoais), `modelo/` (seção 8.1) e `figuras/`.
 - Branches: `main` + `feature/<disciplina>-<tarefa>` (ex.: `feature/api-sos-escalonado`).
 - Commits no padrão Conventional Commits: `feat:`, `fix:`, `docs:`, `test:`, `chore:`.
 
@@ -263,3 +288,4 @@ Máscaras padrão: CPF `***.***.***-12`, telefone `(11) *****-1234`.
 | Versão | Data | Mudança |
 |---|---|---|
 | 1.0 | 06/11/2026 | Versão inicial |
+| 1.1 | 07/11/2026 | Seção 8.1 (artefatos do modelo de ML, o que o modelo prevê, variáveis de entrada e pendências do P95 e da agregação do turno); nota sobre a chuva na fórmula do índice; estrutura da pasta `ml/`; `prompts.md` sem a seção de coordenação |
