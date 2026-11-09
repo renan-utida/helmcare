@@ -1,6 +1,6 @@
 # HelmCare - Contrato de Integração
 
-**Versão 1.3 - 08/11/2026**
+**Versão 1.4 - 08/11/2026**
 
 Este documento define como as partes do HelmCare conversam entre si: nomes, tópicos MQTT, endpoints, payloads, estados e regras. **Todas as disciplinas seguem este contrato.** Mudanças só entram por meio da conversa central de coordenação, que gera uma nova versão.
 
@@ -38,6 +38,7 @@ Este documento define como as partes do HelmCare conversam entre si: nomes, tóp
 | Datas e horas | ISO 8601 em UTC (`2026-11-12T21:15:30Z`) |
 | Versionamento das APIs | Prefixo `/v1` |
 | Erros HTTP | ProblemDetails (RFC 7807) |
+| Códigos de resposta | Ver o quadro "Códigos padrão" da seção 7 |
 | Coordenadas | Graus decimais (`latitude`, `longitude`) |
 | Dados pessoais | **Somente simulados**, nunca de pessoas reais |
 
@@ -57,7 +58,7 @@ Este documento define como as partes do HelmCare conversam entre si: nomes, tóp
 | `Voluntario` | `id`, `entregadorId`, `tipo`, `disponivel`, `latitude`, `longitude` | Todo voluntário também é um entregador cadastrado |
 | `AceiteSocorro` | `id`, `ocorrenciaId`, `voluntarioId`, `aceitoEm` | |
 | `Socorrista` | `id`, `nome`, `registroProfissional`, `organizacao`, `verificado`, `usuarioId` | Perfil com acesso ao Cofre. `usuarioId` liga o socorrista ao usuário do Identity, usado no login |
-| `AcessoCofre` | `id`, `ocorrenciaId`, `entregadorId`, `socorristaId`, `origem`, `acessadoEm`, `expiraEm`, `ip` | Auditoria de todo acesso à ficha médica. `ocorrenciaId` fica vazio na emergência manual, por isso o `entregadorId` |
+| `AcessoCofre` | `id`, `ocorrenciaId`, `entregadorId`, `socorristaId`, `origem`, `concedido`, `motivo`, `acessadoEm`, `expiraEm`, `ip` | Auditoria de **toda tentativa** de um socorrista autenticado, concedida ou negada. `concedido` diz se a ficha foi liberada e `motivo` explica a negação (por exemplo, socorrista não verificado ou acesso expirado). `ocorrenciaId` fica vazio na emergência manual, por isso o `entregadorId` |
 | `EventoMqttProcessado` *(interna)* | `dispositivo`, `tipo`, `ts` | Garante a idempotência dos eventos MQTT (seção 6.2): a chave única é o trio |
 
 **Validações de cadastro (a API rejeita com 400):**
@@ -102,7 +103,7 @@ Todas configuráveis (arquivo de configuração ou variável de ambiente), com e
 | `TTL_ACESSO_COFRE_MIN` | 60 | API |
 | `META_TEMPO_ACEITE_S` | 120 | API, app e pitch |
 | `INTERVALO_TELEMETRIA_S` | 10 | ESP32 (telemetria e reenvio do SOS) |
-| `ALERTA_CALOR_C` | 32 (índice de calor, em °C) | ESP32 (aviso no OLED) e app (sugestão de pausa) |
+| `ALERTA_CALOR_C` | 32 (índice de calor, em °C). O aviso vale quando o índice é **maior ou igual** a 32 °C | ESP32 (aviso no OLED) e app (sugestão de pausa) |
 | `INTERVALO_POLLING_APP_S` | 5 | App (consulta de chamados, status e alerta) |
 | Coordenadas simuladas do capacete | `-23.5641`, `-46.6525` (região da Av. Paulista) | ESP32 |
 
@@ -137,6 +138,13 @@ Tópico `helmcare-rdu/v1/HC-0001/telemetria`, a cada 10 s em todo estado diferen
 
 `bateriaPct` é opcional (item "se der tempo").
 
+**Fórmula do índice de calor (`indiceCalorC`):** é o índice de calor da NOAA (regressão de Rothfusz, com a fórmula simplificada de Steadman quando o resultado fica abaixo de 80 °F, cerca de 26,7 °C, e os ajustes de umidade da NOAA), calculado em Fahrenheit e convertido para Celsius. É exatamente a função `computeHeatIndex(temperatura, umidade, false)` da biblioteca DHT sensor library (Adafruit), usada no capacete. O Serviço de Risco implementa a mesma fórmula para o componente `calor`, e os testes das duas partes usam estes valores de referência, medidos no Wokwi:
+
+| Temperatura | Umidade | Índice de calor |
+|---|---|---|
+| 33,4 °C | 58% | 39,8 °C |
+| 23,5 °C | 58% | 23,4 °C |
+
 ### 6.2 Eventos (ESP32 para a API)
 
 Tópico `helmcare-rdu/v1/HC-0001/evento`, a cada mudança de estado:
@@ -157,7 +165,7 @@ Tópico `helmcare-rdu/v1/HC-0001/evento`, a cada mudança de estado:
 
 **Regras dos eventos:**
 
-- **Detecção:** um impacto acontece quando a aceleração total passa de `LIMIAR_IMPACTO_G`. O campo `orientacaoAnormal` (inclinação maior que 60°) é só informativo e não bloqueia a detecção, porque uma queda real pode terminar com o capacete na posição normal.
+- **Detecção:** um impacto acontece quando a aceleração total é maior ou igual a `LIMIAR_IMPACTO_G`. O campo `orientacaoAnormal` (inclinação maior que 60°) é só informativo e não bloqueia a detecção, porque uma queda real pode terminar com o capacete na posição normal.
 - **Dados do impacto:** todos os eventos de um mesmo impacto repetem `picoG`, `orientacaoAnormal`, `pilotandoAntes`, `presencaAntes`, `latitude` e `longitude`. O `ts` é o instante de cada evento.
 - **Reenvio do SOS:** enquanto estiver em `SOS_ENVIADO`, o capacete republica o evento `SOS` com o **mesmo** `ts` a cada `INTERVALO_TELEMETRIA_S`, até receber `SOCORRO_A_CAMINHO` ou `ENCERRAR`. A API trata eventos com o mesmo `dispositivo`, `tipo` e `ts` como um só (idempotência).
 - **SOS sem impacto em aberto:** como os eventos saem em QoS 0, o `IMPACTO_DETECTADO` pode se perder. Se chegar um `SOS` sem impacto em aberto para o dispositivo, a API cria o `EventoImpacto` com os dados do próprio SOS, `ocorridoEm` = `ts` menos 25 s (`JANELA_OBSERVACAO_S` + `CONTAGEM_CANCELAMENTO_S`) e `ocorridoEmEstimado` = verdadeiro. Assim, nem o SOS nem o indicador de impacto se perdem.
@@ -202,12 +210,12 @@ Tópico `helmcare-rdu/v1/HC-0001/comando`:
 | PUT | `/entregadores/{id}/ficha-medica` | Cria ou atualiza a ficha médica |
 | POST | `/entregadores/{id}/contatos` | Adiciona um contato de emergência |
 | POST | `/dispositivos` | Vincula um capacete a um entregador |
-| POST | `/turnos` | Inicia um turno e devolve o Índice de Risco |
+| POST | `/turnos` | Inicia um turno e devolve o Índice de Risco. Com `protecaoAtiva` verdadeiro, a API publica `ARMAR` para o capacete do entregador |
 | POST | `/turnos/{id}/encerrar` | Encerra o turno. Com o capacete em `ARMADO`, a API envia `DESARMAR`. Com alerta em andamento (`OBSERVACAO`, `CONTAGEM` ou `SOS_ENVIADO`) ou ocorrência ativa, responde `409` |
 | GET | `/turnos/{id}/risco` | Índice de Risco atual do turno |
 | GET | `/turnos/{id}/alerta` | Estado do alerta de queda do capacete no turno (tela de alerta do app) |
 | POST | `/turnos/{id}/alerta/cancelar` | Cancela o alerta durante a contagem (a API publica o comando `CANCELAR`) |
-| GET | `/trechos-criticos` | Repassa a lista do Serviço de Risco |
+| GET | `/trechos-criticos?limite=10` | Repassa a lista do Serviço de Risco, com o mesmo parâmetro `limite` |
 | PUT | `/voluntarios/{id}/disponibilidade` | Atualiza a disponibilidade e a posição do voluntário |
 | GET | `/ocorrencias/proximas?latitude=&longitude=` | Chamados visíveis para um voluntário (localização aproximada) |
 | GET | `/ocorrencias/{id}` | Status de uma ocorrência e o cronômetro |
@@ -222,6 +230,28 @@ Tópico `helmcare-rdu/v1/HC-0001/comando`:
 
 A página web do Cofre fica **fora** do `/api/v1`, em `GET /cofre/{qrToken}` (HTML, sem dados se não houver emergência). As rotas JSON do Cofre ficam dentro: `/api/v1/cofre/{qrToken}/acesso` e `/api/v1/cofre/auditoria/{entregadorId}`.
 
+**Códigos padrão:**
+
+| Situação | Código |
+|---|---|
+| Criação de recurso (`POST /entregadores`, `/entregadores/{id}/contatos`, `/dispositivos`, `/turnos` e `/ocorrencias/{id}/aceites`) | `201 Created`, com o cabeçalho `Location` |
+| Leitura, `PUT` e ações sobre um recurso existente (encerrar, cancelar) | `200 OK`, com o recurso atualizado |
+| Comando enviado ao capacete sem esperar resposta (`POST /turnos/{id}/alerta/cancelar`) | `202 Accepted` |
+| Dados inválidos (validações da seção 3, parâmetros fora da faixa) | `400 Bad Request` |
+| Sem login onde ele é exigido (Cofre) | `401 Unauthorized` |
+| Autenticado, mas sem permissão (socorrista não verificado, acesso ao Cofre expirado) | `403 Forbidden` |
+| Id ou `qrToken` inexistente (entregador, turno, ocorrência, voluntário, dispositivo, Cofre) | `404 Not Found` |
+| Regra de negócio ou transição de estado inválida (segundo turno ativo, ocorrência já encerrada, alerta fora da contagem, aceite simultâneo) | `409 Conflict` |
+
+Todos os erros saem em ProblemDetails.
+
+**Regras do turno:**
+
+- **Proteção:** a requisição do `POST /turnos` aceita `protecaoAtiva` (opcional, padrão verdadeiro). Com ela verdadeira, o entregador precisa ter um capacete vinculado (senão, `409`), e a API publica `ARMAR` no tópico de comando. A proteção é desligada ao encerrar o turno, que publica `DESARMAR` (seção 7, `POST /turnos/{id}/encerrar`).
+- **Um turno ativo por entregador:** um segundo `POST /turnos` com outro turno ainda ativo responde `409` e não cria nada.
+
+**Trechos críticos:** o `limite` é opcional, com padrão 10 e valores aceitos de 1 a 50 (fora disso, `400`). A lista vem em ordem decrescente de quantidade de sinistros graves.
+
 **Regras do SOS na API:**
 
 - **Camada 2:** a ocorrência escala quando passam `TEMPO_ACEITE_CAMADA_1_S` desde a criação, inclusive (60 s exatos já escalam).
@@ -232,14 +262,14 @@ A página web do Cofre fica **fora** do `/api/v1`, em `GET /cofre/{qrToken}` (HT
 
 Requisição:
 ```json
-{ "entregadorId": "3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90", "inicio": "2026-11-12T20:00:00Z", "fimPrevisto": "2026-11-13T00:00:00Z" }
+{ "entregadorId": "3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90", "inicio": "2026-11-12T20:00:00Z", "fimPrevisto": "2026-11-13T00:00:00Z", "protecaoAtiva": true }
 ```
 
 Resposta:
 ```json
 {
   "turnoId": "9b1d0c2e-1111-4a2b-8c3d-2e4f5a6b7c8d",
-  "indiceRisco": 72,
+  "indiceRisco": 65,
   "faixaRisco": "ALTO",
   "componentes": { "sinistro": 80, "chuva": 70, "calor": 30 },
   "explicacao": "Risco alto: chuva prevista às 21h e o seu horário tem histórico de sinistros graves."
@@ -256,7 +286,9 @@ Resposta, durante a contagem:
 - `estadoCapacete` usa o `EstadoDispositivo` e é o último estado recebido do capacete, por evento ou por telemetria.
 - `contagemTerminaEm` só vem preenchido em `CONTAGEM`. Com ele, o app mostra a contagem regressiva sem depender do intervalo de polling.
 - `ocorrenciaId` só vem preenchido depois do SOS, para o app abrir a tela da ocorrência.
-- `indiceCalorC` é o da última telemetria (ou `null`). O app sugere pausa quando ele passa de `ALERTA_CALOR_C`.
+- `indiceCalorC` é o da última telemetria (ou `null`). O app sugere pausa quando ele é maior ou igual a `ALERTA_CALOR_C`.
+
+**Cofre médico (`POST /api/v1/cofre/{qrToken}/acesso`):** sem login, `401`; socorrista autenticado, mas não verificado, `403`; acesso depois de expirar (`TTL_ACESSO_COFRE_MIN` passados ou ocorrência encerrada), `403`; `qrToken` inexistente, `404`. Toda tentativa de um socorrista autenticado, concedida ou negada, gera um `AcessoCofre` (seção 3).
 
 **`POST /turnos/{id}/alerta/cancelar`:** responde `202 Accepted` quando o capacete está em `CONTAGEM` (o comando `CANCELAR` foi publicado) e `409 Conflict`, em ProblemDetails, em qualquer outro estado. Depois do SOS, o cancelamento é pela rota `POST /ocorrencias/{id}/cancelar`, e a API envia `ENCERRAR` ao capacete.
 
@@ -292,6 +324,8 @@ Resposta: o mesmo formato de `indiceRisco`, `faixaRisco`, `componentes` e `expli
 | `calor` | 25% | Índice de calor de 27 °C = 0; 41 °C ou mais = 100; linear entre eles |
 
 Faixas: 0 a 25 `BAIXO` - 26 a 50 `MODERADO` - 51 a 75 `ALTO` - 76 a 100 `MUITO_ALTO`.
+
+**Arredondamento:** cada componente e o índice final são inteiros de 0 a 100, arredondados para o inteiro mais próximo, com 0,5 para cima. Exemplo: `sinistro` 80, `chuva` 70 e `calor` 30 dão 0,5 × 80 + 0,25 × 70 + 0,25 × 30 = 40 + 17,5 + 7,5 = **65**, faixa `ALTO`.
 
 **A chuva aparece duas vezes, de propósito.** No componente `sinistro`, ela entra pelo modelo (o efeito da chuva no histórico de sinistros graves). No componente `chuva`, ela representa a exposição direta do entregador à condição do tempo. A `explicacao` devolvida ao entregador deve deixar essa diferença clara.
 
@@ -360,3 +394,4 @@ Máscaras padrão: CPF `***.***.***-12`, telefone `(11) *****-1234`.
 | 1.1 | 07/11/2026 | Seção 8.1 (artefatos do modelo de ML, o que o modelo prevê, variáveis de entrada e pendências do P95 e da agregação do turno); nota sobre a chuva na fórmula do índice; estrutura da pasta `ml/`; `prompts.md` sem a seção de coordenação |
 | 1.2 | 08/11/2026 | MQTT: o capacete publica em QoS 0 (PubSubClient) e reenvia o SOS até a confirmação, com idempotência na API; comando `CANCELAR`; rotas `GET /turnos/{id}/alerta` e `POST /turnos/{id}/alerta/cancelar`; regras de registro de cada evento (inclusive o impacto `IGNORADO`); efeito de cada comando no capacete; detecção só pelo pico, com `orientacaoAnormal` informativa; `LIMIAR_IMPACTO_G` calibrado em 2,5 g; estrutura da pasta `iot/` |
 | 1.3 | 08/11/2026 | Campos internos (estado e calor no `Dispositivo`, Índice no `Turno`, estimativa e contagem no `EventoImpacto`, `entregadorId` no `AcessoCofre`, `usuarioId` no `Socorrista`) e tabela de idempotência; validações de cadastro; `ALERTA_CALOR_C` compartilhada e `indiceCalorC` no alerta do turno; telemetria em todo estado diferente de `DESARMADO`; `DESARMAR` só em `ARMADO`; `clientId` próprio por cliente e sessão persistente no capacete; SOS sem impacto em aberto; Cofre com a página fora do `/api/v1`; encerrar ocorrência sem aceite; regras da camada 2, do raio e do indicador; `GET /indicadores` opcional; localização aproximada com 2 casas decimais; configuração e saúde da API; portas do PostgreSQL local; estrutura da pasta `api/` |
+| 1.4 | 08/11/2026 | Exemplo do `POST /turnos` corrigido (índice 65, conforme a fórmula) e regra de arredondamento; fórmula do índice de calor com valores de referência; `ALERTA_CALOR_C` e `LIMIAR_IMPACTO_G` com maior ou igual; `protecaoAtiva` no `POST /turnos`, que publica `ARMAR`; `409` para segundo turno ativo; `limite`, ordem e padrão dos trechos críticos na API; quadro de códigos padrão; códigos do Cofre e auditoria de toda tentativa (`concedido` e `motivo` no `AcessoCofre`) |
