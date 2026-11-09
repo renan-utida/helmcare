@@ -1,6 +1,6 @@
 # HelmCare - Contrato de Integração
 
-**Versão 1.4 - 08/11/2026**
+**Versão 1.5 - 09/11/2026**
 
 Este documento define como as partes do HelmCare conversam entre si: nomes, tópicos MQTT, endpoints, payloads, estados e regras. **Todas as disciplinas seguem este contrato.** Mudanças só entram por meio da conversa central de coordenação, que gera uma nova versão.
 
@@ -96,7 +96,7 @@ Todas configuráveis (arquivo de configuração ou variável de ambiente), com e
 | `JANELA_OBSERVACAO_S` | 10 | ESP32 |
 | `CONTAGEM_CANCELAMENTO_S` | 15 | ESP32, API e app |
 | `LIMIAR_IMPACTO_G` | 2,5 (calibrado no Wokwi, onde cada eixo do MPU6050 vai só até ±2 g e a aceleração total máxima é 3,46 g) | ESP32 |
-| `VELOCIDADE_PILOTAGEM_KMH` | 15 | ESP32 (velocidade simulada) |
+| `VELOCIDADE_PILOTAGEM_KMH` | 15. `pilotandoAntes` é verdadeiro quando a velocidade foi **maior ou igual** a 15 km/h antes do impacto | ESP32 (velocidade simulada) |
 | `RAIO_CAMADA_1_KM` | 2 | API |
 | `TEMPO_ACEITE_CAMADA_1_S` | 60 | API |
 | Camada 2 | Toda a rede de voluntários disponíveis | API |
@@ -219,10 +219,10 @@ Tópico `helmcare-rdu/v1/HC-0001/comando`:
 | PUT | `/voluntarios/{id}/disponibilidade` | Atualiza a disponibilidade e a posição do voluntário |
 | GET | `/ocorrencias/proximas?latitude=&longitude=` | Chamados visíveis para um voluntário (localização aproximada) |
 | GET | `/ocorrencias/{id}` | Status de uma ocorrência e o cronômetro |
-| POST | `/ocorrencias/{id}/aceites` | Voluntário aceita o chamado (libera a localização exata) |
+| POST | `/ocorrencias/{id}/aceites` | Voluntário aceita o chamado (libera a localização exata). Se ele não puder atender (indisponível, é a própria vítima ou está fora do raio na camada 1), `409` e a ocorrência não muda |
 | POST | `/ocorrencias/{id}/cancelar` | Entregador informa que está bem |
 | POST | `/ocorrencias/{id}/encerrar` | Encerra a ocorrência, com ou sem aceite (por exemplo, o SAMU chegou antes de qualquer voluntário) |
-| POST | `/socorristas/login` | Autentica um socorrista verificado |
+| POST | `/socorristas/login` | Autentica um socorrista. Credenciais inválidas: `401` em ProblemDetails, sem token |
 | POST | `/cofre/{qrToken}/acesso` | Socorrista autenticado acessa a ficha (ou abre emergência manual) |
 | GET | `/cofre/auditoria/{entregadorId}` | Histórico de acessos ao Cofre |
 | GET | `/indicadores` | *(Opcional)* Tempo médio até o aceite, percentual dentro da meta de `META_TEMPO_ACEITE_S` e taxa de falsos positivos |
@@ -288,7 +288,15 @@ Resposta, durante a contagem:
 - `ocorrenciaId` só vem preenchido depois do SOS, para o app abrir a tela da ocorrência.
 - `indiceCalorC` é o da última telemetria (ou `null`). O app sugere pausa quando ele é maior ou igual a `ALERTA_CALOR_C`.
 
-**Cofre médico (`POST /api/v1/cofre/{qrToken}/acesso`):** sem login, `401`; socorrista autenticado, mas não verificado, `403`; acesso depois de expirar (`TTL_ACESSO_COFRE_MIN` passados ou ocorrência encerrada), `403`; `qrToken` inexistente, `404`. Toda tentativa de um socorrista autenticado, concedida ou negada, gera um `AcessoCofre` (seção 3).
+**Cofre médico (`POST /api/v1/cofre/{qrToken}/acesso`):**
+
+- **Códigos:** sem login, `401`; socorrista autenticado, mas não verificado, `403`; acesso depois de expirar, `403`; `qrToken` inexistente, `404`. Toda tentativa de um socorrista autenticado, concedida ou negada, gera um `AcessoCofre` (seção 3).
+- **Origem do acesso:** com ocorrência ativa do entregador (`SOS_CAMADA_1`, `SOS_CAMADA_2` ou `SOCORRO_A_CAMINHO`), a origem é `SOS_ATIVO`. Sem ocorrência ativa, o mesmo pedido de um socorrista verificado abre a emergência manual automaticamente: origem `EMERGENCIA_MANUAL` e `ocorrenciaId` vazio, sem nenhum campo extra na requisição.
+- **Expiração:** o acesso expira quando passam `TTL_ACESSO_COFRE_MIN` desde que foi concedido ou quando a ocorrência vai para `ENCERRADA` ou `CANCELADA`. Na emergência manual, só o TTL vale.
+- **O que a resposta mostra (o mínimo da Ficha):** `tipoSanguineo`, `alergias`, `condicoesCriticas` e os contatos de emergência (`nome`, `telefone` e `parentesco`). Os `medicamentos` **não** saem no Cofre: ficam só nas telas do próprio entregador.
+- **Entregador sem ficha médica:** `200`, com os campos de saúde vazios e os contatos de emergência, se houver. A auditoria é gravada normalmente.
+
+**Auditoria (`GET /api/v1/cofre/auditoria/{entregadorId}`):** sem login no protótipo, como as demais rotas do entregador (limitação documentada). Devolve, para cada tentativa, `acessadoEm`, `expiraEm`, `origem`, `concedido`, `motivo` e o socorrista (`nome` e `organizacao`). Nunca devolve dados de saúde, e o `ip` fica só no banco.
 
 **`POST /turnos/{id}/alerta/cancelar`:** responde `202 Accepted` quando o capacete está em `CONTAGEM` (o comando `CANCELAR` foi publicado) e `409 Conflict`, em ProblemDetails, em qualquer outro estado. Depois do SOS, o cancelamento é pela rota `POST /ocorrencias/{id}/cancelar`, e a API envia `ENCERRAR` ao capacete.
 
@@ -357,8 +365,8 @@ Gerados pelo notebook de ML na pasta `ml/modelo/` e carregados pelo Serviço de 
 
 | Classificação | Campos | Onde **pode** aparecer | Onde **nunca** aparece |
 |---|---|---|---|
-| PII sensível (saúde) | Todos os campos de `FichaMedica` | Somente na resposta de `POST /cofre/{qrToken}/acesso`, para socorrista verificado, com ocorrência ativa e dentro do TTL | Logs, MQTT, notificações, respostas para voluntários, telas de outros usuários |
-| PII | `cpf`, `cnh`, `telefone`, `nome`, contatos de emergência | Telas do próprio entregador | Logs, MQTT, respostas para voluntários |
+| PII sensível (saúde) | Todos os campos de `FichaMedica` | Telas do próprio entregador. Na resposta de `POST /cofre/{qrToken}/acesso`, só `tipoSanguineo`, `alergias` e `condicoesCriticas`, para socorrista verificado e dentro do TTL (seção 7) | Logs, MQTT, notificações, respostas para voluntários, auditoria, telas de outros usuários |
+| PII | `cpf`, `cnh`, `telefone`, `nome`, contatos de emergência | Telas do próprio entregador. Os contatos de emergência também saem na resposta do Cofre para o socorrista verificado | Logs, MQTT, respostas para voluntários |
 | Localização | `latitude`, `longitude` | Exata: contato de emergência e voluntário que **aceitou**. Aproximada (arredondada para 2 casas decimais, cerca de 1 km): voluntários antes do aceite. | Logs em texto aberto, MQTT com identificação pessoal |
 | Credenciais | Senhas e tokens | Nunca em texto | Qualquer saída |
 
@@ -395,3 +403,4 @@ Máscaras padrão: CPF `***.***.***-12`, telefone `(11) *****-1234`.
 | 1.2 | 08/11/2026 | MQTT: o capacete publica em QoS 0 (PubSubClient) e reenvia o SOS até a confirmação, com idempotência na API; comando `CANCELAR`; rotas `GET /turnos/{id}/alerta` e `POST /turnos/{id}/alerta/cancelar`; regras de registro de cada evento (inclusive o impacto `IGNORADO`); efeito de cada comando no capacete; detecção só pelo pico, com `orientacaoAnormal` informativa; `LIMIAR_IMPACTO_G` calibrado em 2,5 g; estrutura da pasta `iot/` |
 | 1.3 | 08/11/2026 | Campos internos (estado e calor no `Dispositivo`, Índice no `Turno`, estimativa e contagem no `EventoImpacto`, `entregadorId` no `AcessoCofre`, `usuarioId` no `Socorrista`) e tabela de idempotência; validações de cadastro; `ALERTA_CALOR_C` compartilhada e `indiceCalorC` no alerta do turno; telemetria em todo estado diferente de `DESARMADO`; `DESARMAR` só em `ARMADO`; `clientId` próprio por cliente e sessão persistente no capacete; SOS sem impacto em aberto; Cofre com a página fora do `/api/v1`; encerrar ocorrência sem aceite; regras da camada 2, do raio e do indicador; `GET /indicadores` opcional; localização aproximada com 2 casas decimais; configuração e saúde da API; portas do PostgreSQL local; estrutura da pasta `api/` |
 | 1.4 | 08/11/2026 | Exemplo do `POST /turnos` corrigido (índice 65, conforme a fórmula) e regra de arredondamento; fórmula do índice de calor com valores de referência; `ALERTA_CALOR_C` e `LIMIAR_IMPACTO_G` com maior ou igual; `protecaoAtiva` no `POST /turnos`, que publica `ARMAR`; `409` para segundo turno ativo; `limite`, ordem e padrão dos trechos críticos na API; quadro de códigos padrão; códigos do Cofre e auditoria de toda tentativa (`concedido` e `motivo` no `AcessoCofre`) |
+| 1.5 | 09/11/2026 | Cofre: o que a resposta mostra (sem `medicamentos`, como na Ficha), emergência manual automática sem ocorrência ativa, expiração também com `CANCELADA`, entregador sem ficha (`200`) e campos da auditoria (sem login e sem `ip`); seção 9 ajustada; `409` para aceite recusado; `401` para login inválido do socorrista; `pilotandoAntes` com maior ou igual a 15 km/h |
