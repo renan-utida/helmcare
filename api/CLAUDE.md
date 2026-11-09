@@ -1,4 +1,4 @@
-# CLAUDE.md · API principal do HelmCare (C#)
+# CLAUDE.md - API principal do HelmCare (C#)
 
 Este arquivo orienta o Claude Code quando ele trabalha na pasta `api/` do monorepo `helmcare`. Leia tudo antes de qualquer etapa.
 
@@ -6,7 +6,7 @@ Este arquivo orienta o Claude Code quando ele trabalha na pasta `api/` do monore
 
 - Global Solution 2026.2 da FIAP, disciplina **C# Software Development** (Prof. Rafael Eduardo Feliciano Cassiolato). Aluno: Renan Dias Utida (RM 558540, turma 3ESPW).
 - A API é o núcleo do HelmCare: ASP.NET Core (.NET 10), porta 5000, prefixo `/api/v1`, PostgreSQL (banco `helmcare_api`) com EF Core e migrations. Ela recebe os eventos do capacete por MQTT, orquestra o SOS escalonado, atende o app e serve a página do Cofre médico.
-- Rubrica (10,0): POO 3,0 · Web API 2,5 · EF Core + LINQ 1,5 · Async/Await 1,0 · Qualidade do código 2,0.
+- Rubrica (10,0): POO 3,0 - Web API 2,5 - EF Core + LINQ 1,5 - Async/Await 1,0 - Qualidade do código 2,0.
 
 ## Papéis
 
@@ -41,15 +41,15 @@ Nunca renomeie entidades, campos, enums, rotas, payloads ou tópicos MQTT do con
 
 ```
 api/
-├── CLAUDE.md · README.md · HelmCare.slnx · global.json
-├── Directory.Build.props · .editorconfig (root = true) · .gitattributes (eol=lf)
-├── compose.yaml (só PostgreSQL) · .env.example · evidencias/
+├── CLAUDE.md - README.md - HelmCare.slnx - global.json
+├── Directory.Build.props - .editorconfig (root = true) - .gitattributes (eol=lf)
+├── compose.yaml (só PostgreSQL) - .env.example - evidencias/
 ├── src/
-│   ├── HelmCare.Dominio/      Comum/ · Entidades/ · Enums/ · ObjetosDeValor/
-│   └── HelmCare.Api/          Controllers/ · Contratos/ · Servicos/ · Persistencia/ · Mensageria/
-│                              Integracoes/ · Seguranca/ · Configuracao/ · wwwroot/cofre/
+│   ├── HelmCare.Dominio/      Comum/ - Entidades/ - Enums/ - ObjetosDeValor/
+│   └── HelmCare.Api/          Controllers/ - Contratos/ - Servicos/ - Persistencia/ - Mensageria/
+│                              Integracoes/ - Seguranca/ - Configuracao/ - wwwroot/cofre/
 └── tests/
-    └── HelmCare.Testes/       Dominio/ · Servicos/ · Mensageria/ · Fakes/
+    └── HelmCare.Testes/       Dominio/ - Servicos/ - Mensageria/ - Fakes/
 ```
 
 - `HelmCare.Dominio` não tem pacote NuGet além do próprio .NET.
