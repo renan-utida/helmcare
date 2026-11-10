@@ -1,6 +1,6 @@
-# HelmCare - Contrato de Integração
+# HelmCare · Contrato de Integração
 
-**Versão 1.5 - 09/11/2026**
+**Versão 1.6 · 09/11/2026**
 
 Este documento define como as partes do HelmCare conversam entre si: nomes, tópicos MQTT, endpoints, payloads, estados e regras. **Todas as disciplinas seguem este contrato.** Mudanças só entram por meio da conversa central de coordenação, que gera uma nova versão.
 
@@ -217,8 +217,8 @@ Tópico `helmcare-rdu/v1/HC-0001/comando`:
 | POST | `/turnos/{id}/alerta/cancelar` | Cancela o alerta durante a contagem (a API publica o comando `CANCELAR`) |
 | GET | `/trechos-criticos?limite=10` | Repassa a lista do Serviço de Risco, com o mesmo parâmetro `limite` |
 | PUT | `/voluntarios/{id}/disponibilidade` | Atualiza a disponibilidade e a posição do voluntário |
-| GET | `/ocorrencias/proximas?latitude=&longitude=` | Chamados visíveis para um voluntário (localização aproximada) |
-| GET | `/ocorrencias/{id}` | Status de uma ocorrência e o cronômetro |
+| GET | `/ocorrencias/proximas?voluntarioId=` | Chamados que o voluntário pode atender, pela disponibilidade e pela posição do último `PUT /voluntarios/{id}/disponibilidade` (localização aproximada) |
+| GET | `/ocorrencias/{id}?voluntarioId=` | Status de uma ocorrência e o cronômetro. `voluntarioId` é opcional: a localização só vem exata para o voluntário que aceitou |
 | POST | `/ocorrencias/{id}/aceites` | Voluntário aceita o chamado (libera a localização exata). Se ele não puder atender (indisponível, é a própria vítima ou está fora do raio na camada 1), `409` e a ocorrência não muda |
 | POST | `/ocorrencias/{id}/cancelar` | Entregador informa que está bem |
 | POST | `/ocorrencias/{id}/encerrar` | Encerra a ocorrência, com ou sem aceite (por exemplo, o SAMU chegou antes de qualquer voluntário) |
@@ -251,6 +251,13 @@ Todos os erros saem em ProblemDetails.
 - **Um turno ativo por entregador:** um segundo `POST /turnos` com outro turno ainda ativo responde `409` e não cria nada.
 
 **Trechos críticos:** o `limite` é opcional, com padrão 10 e valores aceitos de 1 a 50 (fora disso, `400`). A lista vem em ordem decrescente de quantidade de sinistros graves.
+
+**Regras da rede de voluntários:**
+
+- **Quem é o voluntário:** como o protótipo não tem login para voluntários, as rotas da rede identificam o voluntário pelo `voluntarioId`. A disponibilidade e a posição usadas em todas as regras (raio da camada 1, quem pode ver e quem pode aceitar) são as do último `PUT /voluntarios/{id}/disponibilidade`.
+- **Chamados próximos:** `GET /ocorrencias/proximas?voluntarioId=` devolve só os chamados que o voluntário pode atender: na camada 1, a até `RAIO_CAMADA_1_KM`; na camada 2, todos. Voluntário indisponível recebe a lista vazia, e o entregador nunca vê o próprio SOS. `voluntarioId` ausente, `400`; inexistente, `404`.
+- **Aceite:** o `POST /ocorrencias/{id}/aceites` recebe `{ "voluntarioId": "..." }` e, no `201`, devolve a localização exata para esse voluntário.
+- **Localização:** em `GET /ocorrencias/{id}`, a localização só vem exata quando o `voluntarioId` é o do voluntário que aceitou. Sem `voluntarioId`, ou com outro voluntário, vem aproximada (seção 9).
 
 **Regras do SOS na API:**
 
@@ -331,7 +338,7 @@ Resposta: o mesmo formato de `indiceRisco`, `faixaRisco`, `componentes` e `expli
 | `chuva` | 25% | 0 mm/h = 0; 10 mm/h ou mais = 100; linear entre eles |
 | `calor` | 25% | Índice de calor de 27 °C = 0; 41 °C ou mais = 100; linear entre eles |
 
-Faixas: 0 a 25 `BAIXO` - 26 a 50 `MODERADO` - 51 a 75 `ALTO` - 76 a 100 `MUITO_ALTO`.
+Faixas: 0 a 25 `BAIXO` · 26 a 50 `MODERADO` · 51 a 75 `ALTO` · 76 a 100 `MUITO_ALTO`.
 
 **Arredondamento:** cada componente e o índice final são inteiros de 0 a 100, arredondados para o inteiro mais próximo, com 0,5 para cima. Exemplo: `sinistro` 80, `chuva` 70 e `calor` 30 dão 0,5 × 80 + 0,25 × 70 + 0,25 × 30 = 40 + 17,5 + 7,5 = **65**, faixa `ALTO`.
 
@@ -404,3 +411,4 @@ Máscaras padrão: CPF `***.***.***-12`, telefone `(11) *****-1234`.
 | 1.3 | 08/11/2026 | Campos internos (estado e calor no `Dispositivo`, Índice no `Turno`, estimativa e contagem no `EventoImpacto`, `entregadorId` no `AcessoCofre`, `usuarioId` no `Socorrista`) e tabela de idempotência; validações de cadastro; `ALERTA_CALOR_C` compartilhada e `indiceCalorC` no alerta do turno; telemetria em todo estado diferente de `DESARMADO`; `DESARMAR` só em `ARMADO`; `clientId` próprio por cliente e sessão persistente no capacete; SOS sem impacto em aberto; Cofre com a página fora do `/api/v1`; encerrar ocorrência sem aceite; regras da camada 2, do raio e do indicador; `GET /indicadores` opcional; localização aproximada com 2 casas decimais; configuração e saúde da API; portas do PostgreSQL local; estrutura da pasta `api/` |
 | 1.4 | 08/11/2026 | Exemplo do `POST /turnos` corrigido (índice 65, conforme a fórmula) e regra de arredondamento; fórmula do índice de calor com valores de referência; `ALERTA_CALOR_C` e `LIMIAR_IMPACTO_G` com maior ou igual; `protecaoAtiva` no `POST /turnos`, que publica `ARMAR`; `409` para segundo turno ativo; `limite`, ordem e padrão dos trechos críticos na API; quadro de códigos padrão; códigos do Cofre e auditoria de toda tentativa (`concedido` e `motivo` no `AcessoCofre`) |
 | 1.5 | 09/11/2026 | Cofre: o que a resposta mostra (sem `medicamentos`, como na Ficha), emergência manual automática sem ocorrência ativa, expiração também com `CANCELADA`, entregador sem ficha (`200`) e campos da auditoria (sem login e sem `ip`); seção 9 ajustada; `409` para aceite recusado; `401` para login inválido do socorrista; `pilotandoAntes` com maior ou igual a 15 km/h |
+| 1.6 | 09/11/2026 | Rede de voluntários: `GET /ocorrencias/proximas?voluntarioId=` (posição e disponibilidade do último `PUT`), corpo do `POST /ocorrencias/{id}/aceites` com `voluntarioId` e localização exata na resposta, e `voluntarioId` opcional em `GET /ocorrencias/{id}` para a localização exata do voluntário que aceitou |
