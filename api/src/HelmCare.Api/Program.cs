@@ -2,6 +2,8 @@ using System;
 using System.Text.Json;
 using System.Threading.Tasks;
 using HelmCare.Api.Configuracao;
+using HelmCare.Api.Mensageria;
+using HelmCare.Api.Mensageria.Processadores;
 using HelmCare.Api.Persistencia;
 using HelmCare.Api.Persistencia.Repositorios;
 using HelmCare.Api.Servicos.Cadastro;
@@ -31,6 +33,12 @@ builder.Services.AddOptions<OpcoesHelmCare>()
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
+// Conexão com o broker MQTT (seção "Mqtt", sem segredo). Mqtt__Habilitado=false sobe a API sem broker.
+builder.Services.AddOptions<OpcoesMqtt>()
+    .Bind(builder.Configuration.GetSection(OpcoesMqtt.Secao))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
 // Relógio único da aplicação. Os serviços recebem TimeProvider e nunca leem DateTime.UtcNow;
 // nos testes, entra o FakeTimeProvider.
 builder.Services.AddSingleton(TimeProvider.System);
@@ -43,6 +51,24 @@ builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connect
 builder.Services.AddScoped<IUnidadeDeTrabalho>(sp => sp.GetRequiredService<AppDbContext>());
 builder.Services.AddScoped<IEntregadorRepositorio, EntregadorRepositorio>();
 builder.Services.AddScoped<IDispositivoRepositorio, DispositivoRepositorio>();
+
+builder.Services.AddScoped<IEventoImpactoRepositorio, EventoImpactoRepositorio>();
+builder.Services.AddScoped<IOcorrenciaRepositorio, OcorrenciaRepositorio>();
+builder.Services.AddScoped<IEventoMqttProcessadoRepositorio, EventoMqttProcessadoRepositorio>();
+
+// Mensageria (seção 6). Uma única conexão com o broker (singleton), compartilhada pelo assinante
+// e pelo publicador. O roteador e os processadores têm o escopo de uma mensagem, porque usam o
+// AppDbContext. O roteador recebe os 5 processadores e recusa a montagem se faltar algum tipo.
+builder.Services.AddSingleton<IClienteMqtt, ConexaoMqtt>();
+builder.Services.AddSingleton<IPublicadorComandos, PublicadorComandosMqtt>();
+builder.Services.AddSingleton<ProcessadorTelemetria>();
+builder.Services.AddScoped<IProcessadorEvento, ProcessadorImpactoDetectado>();
+builder.Services.AddScoped<IProcessadorEvento, ProcessadorContagemIniciada>();
+builder.Services.AddScoped<IProcessadorEvento, ProcessadorFalsoPositivo>();
+builder.Services.AddScoped<IProcessadorEvento, ProcessadorCancelado>();
+builder.Services.AddScoped<IProcessadorEvento, ProcessadorSos>();
+builder.Services.AddScoped<RoteadorMensagemMqtt>();
+builder.Services.AddHostedService<AssinanteMqtt>();
 
 // Casos de uso do cadastro.
 builder.Services.AddScoped<EntregadorServico>();
@@ -90,6 +116,13 @@ builder.Services.AddHealthChecks()
     .AddDbContextCheck<AppDbContext>();
 
 WebApplication app = builder.Build();
+
+// Monta o roteador uma vez na subida: se algum tipo de evento ficou sem processador, a API
+// nem sobe, com a mensagem do RoteadorMensagemMqtt.MontarProcessadores.
+using (IServiceScope escopo = app.Services.CreateScope())
+{
+    escopo.ServiceProvider.GetRequiredService<RoteadorMensagemMqtt>();
+}
 
 app.UseExceptionHandler();
 

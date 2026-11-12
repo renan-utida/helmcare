@@ -74,7 +74,8 @@ public sealed partial class TratadorExcecoes : IExceptionHandler
 
     // A ordem importa: DbUpdateConcurrencyException herda de DbUpdateException.
     // As mensagens das exceções do domínio e do serviço são escritas para o cliente (em português e
-    // sem dado pessoal); as do EF Core e do Npgsql citam tabelas e índices, por isso nunca são repassadas.
+    // sem dado pessoal); as do EF Core, do Npgsql e da mensageria citam tabelas, índices ou o broker,
+    // por isso nunca são repassadas.
     private static (int Status, string Titulo, string Detalhe) Classificar(Exception exception)
     {
         return exception switch
@@ -83,6 +84,12 @@ public sealed partial class TratadorExcecoes : IExceptionHandler
             RecursoNaoEncontradoException e => (StatusCodes.Status404NotFound, "Recurso não encontrado", e.Message),
             TransicaoInvalidaException e => (StatusCodes.Status409Conflict, "Transição de estado inválida", e.Message),
             RegraNegocioException e => (StatusCodes.Status409Conflict, "Regra de negócio violada", e.Message),
+            // 503 não está no quadro "Códigos padrão" da seção 7: é uma falha temporária da
+            // mensageria (o comando não chegou ao capacete), e o cliente pode repetir o pedido.
+            MensageriaIndisponivelException => (
+                StatusCodes.Status503ServiceUnavailable,
+                "Capacete indisponível",
+                "O capacete não pôde ser avisado agora; tente de novo."),
             DbUpdateConcurrencyException => (
                 StatusCodes.Status409Conflict,
                 "Conflito de concorrência",
