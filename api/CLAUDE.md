@@ -107,10 +107,18 @@ Use estas versões (as mesmas dos templates do professor). Se uma versão não r
 
 `ENCERRADA` e `CANCELADA` são finais. Os comandos MQTT de cada transição (`SOCORRO_A_CAMINHO`, `ENCERRAR`) são enviados pela camada de serviço, não pelo domínio.
 
+## Mensageria (MQTT)
+
+- A API assina `helmcare-rdu/v1/+/telemetria` e `helmcare-rdu/v1/+/evento` em QoS 1 e publica em `helmcare-rdu/v1/{codigo}/comando` em QoS 1, com `clientId` próprio (nunca o do capacete, `helmcare-rdu-HC-0001`).
+- O `ts` vem do relógio do capacete. No Wokwi ele anda mais devagar que o relógio real, então a API nunca rejeita nem corrige um evento por comparar o `ts` com a hora do servidor; só compara `ts` com outro `ts` do mesmo capacete.
+- Eventos com o mesmo dispositivo, tipo e `ts` são um só (tabela `EventosMqttProcessados`), e o registro de idempotência é gravado na mesma transação do efeito.
+- Uma mensagem inválida ou de capacete desconhecido nunca derruba o assinante: é registrada no log e descartada.
+- Logs de MQTT levam só o código do capacete, o tipo, o `ts` e ids; nunca o payload, que tem coordenadas.
+
 ## Dados pessoais (seção 9 do contrato)
 
 - Nunca registre em log: `cpf`, `cnh`, `telefone`, `nome`, contatos de emergência, ficha médica, coordenadas exatas, senhas ou tokens. Logs usam ids (GUID) e o código do capacete.
-- Respostas mascaradas: CPF `***.***.***-12`, telefone `(11) *****-1234`. A ficha médica só aparece na resposta de `POST /api/v1/cofre/{qrToken}/acesso`.
+- Respostas mascaradas: CPF `***.***.***-12`, telefone `(11) *****-1234`. A ficha médica completa só volta no `PUT /api/v1/entregadores/{id}/ficha-medica`, para quem acabou de enviá-la; no Cofre saem só `tipoSanguineo`, `alergias` e `condicoesCriticas` (seção 7 do contrato).
 - Dados de seed são sempre simulados.
 
 ## Testes (`HelmCare.Testes`)
