@@ -35,6 +35,7 @@ public sealed class TratadorExcecoesTests
     [DataRow("regra", StatusCodes.Status409Conflict)]
     [DataRow("concorrencia", StatusCodes.Status409Conflict)]
     [DataRow("unico", StatusCodes.Status409Conflict)]
+    [DataRow("mensageria", StatusCodes.Status503ServiceUnavailable)]
     [DataRow("bancoOutro", StatusCodes.Status500InternalServerError)]
     [DataRow("inesperada", StatusCodes.Status500InternalServerError)]
     public async Task TryHandleAsync_CadaExcecao_RespondeOStatusCerto(string caso, int statusEsperado)
@@ -76,7 +77,7 @@ public sealed class TratadorExcecoesTests
     }
 
     /// <summary>
-    /// Garante que o 500 e o 409 de índice único não expõem a mensagem interna da exceção.
+    /// Garante que o 500, o 409 de índice único e o 503 não expõem a mensagem interna da exceção.
     /// </summary>
     /// <param name="caso">Nome do caso, que escolhe a exceção.</param>
     /// <returns>A tarefa do teste.</returns>
@@ -84,6 +85,7 @@ public sealed class TratadorExcecoesTests
     [DataRow("inesperada")]
     [DataRow("bancoOutro")]
     [DataRow("unico")]
+    [DataRow("mensageria")]
     public async Task TryHandleAsync_ErroInterno_NaoExpoeAMensagemInterna(string caso)
     {
         // Arrange
@@ -98,6 +100,25 @@ public sealed class TratadorExcecoesTests
         Assert.DoesNotContain("tabela", problema.Detail ?? string.Empty);
         Assert.DoesNotContain("IX_", problema.Detail ?? string.Empty);
         Assert.DoesNotContain("tabela", problema.Title ?? string.Empty);
+    }
+
+    /// <summary>
+    /// Garante que a mensageria indisponível vira 503 com o texto fixo em português para o cliente.
+    /// </summary>
+    /// <returns>A tarefa do teste.</returns>
+    [TestMethod]
+    public async Task TryHandleAsync_MensageriaIndisponivel_Responde503ComTextoFixo()
+    {
+        // Arrange
+        (TratadorExcecoes tratador, FakeProblemDetailsService problemas) = Criar();
+        var contexto = new DefaultHttpContext();
+
+        // Act
+        await tratador.TryHandleAsync(contexto, new MensageriaIndisponivelException(MensagemInterna), CancellationToken.None);
+
+        // Assert
+        Assert.AreEqual(StatusCodes.Status503ServiceUnavailable, contexto.Response.StatusCode);
+        Assert.AreEqual("O capacete não pôde ser avisado agora; tente de novo.", problemas.Escrito?.Detail);
     }
 
     private static (TratadorExcecoes Tratador, FakeProblemDetailsService Problemas) Criar()
@@ -115,6 +136,7 @@ public sealed class TratadorExcecoesTests
             "naoEncontrado" => new RecursoNaoEncontradoException("Entregador não encontrado."),
             "transicao" => new TransicaoInvalidaException("A ocorrência já foi encerrada."),
             "regra" => new RegraNegocioException("O entregador já tem um capacete vinculado."),
+            "mensageria" => new MensageriaIndisponivelException(MensagemInterna),
             "concorrencia" => new DbUpdateConcurrencyException(MensagemInterna),
             "unico" => new DbUpdateException(
                 MensagemInterna,
