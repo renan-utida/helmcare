@@ -16,20 +16,10 @@ Este arquivo orienta o Claude Code quando ele trabalha na pasta `api/` do monore
 
 ## Fonte da verdade
 
-1. `docs/contrato-integracao.md` (versão 1.2) mais as decisões da versão 1.3 listadas abaixo, que já valem.
+1. `docs/contrato-integracao.md` (versão 1.6).
 2. Este arquivo.
 
 Nunca renomeie entidades, campos, enums, rotas, payloads ou tópicos MQTT do contrato. Se algo do contrato parecer impossível ou contraditório, pare e me avise, explicando o motivo, sem improvisar.
-
-### Decisões da v1.3 (implementar já)
-
-- Campos internos permitidos: `Dispositivo.EstadoAtual`, `EstadoAtualizadoEm`, `UltimoIndiceCalorC`, `UltimoIndiceCalorEm`; `EventoImpacto.ContagemTerminaEm` e `OcorridoEmEstimado`; `Turno.FimPrevisto`, `ComponenteSinistro`, `ComponenteChuva`, `ComponenteCalor` e `Explicacao`; `AcessoCofre.EntregadorId`; tabela `EventoMqttProcessado` (idempotência por dispositivo, tipo e ts).
-- SOS sem impacto em aberto: criar o `EventoImpacto` com `OcorridoEm = ts - 25 s` (`JANELA_OBSERVACAO_S + CONTAGEM_CANCELAMENTO_S`) e `OcorridoEmEstimado = true`.
-- Encerrar sem aceite é permitido: `SOS_CAMADA_1` ou `SOS_CAMADA_2` podem ir para `ENCERRADA`, com `TempoAteAceiteSegundos` nulo.
-- Cofre: página `GET /cofre/{qrToken}` (HTML, fora de `/api/v1`); `POST /api/v1/cofre/{qrToken}/acesso` e `GET /api/v1/cofre/auditoria/{entregadorId}` (JSON).
-- `GET /api/v1/turnos/{id}/alerta` inclui `indiceCalorC` (última telemetria ou null). Constante `ALERTA_CALOR_C = 32`.
-- O capacete só aceita `DESARMAR` em `ARMADO`. Encerrar turno com o capacete em `OBSERVACAO`, `CONTAGEM` ou `SOS_ENVIADO`, ou com ocorrência ativa, responde 409.
-- Opcional (só quando pedido): `GET /api/v1/indicadores`.
 
 ## Escopo de escrita
 
@@ -101,6 +91,7 @@ Use estas versões (as mesmas dos templates do professor). Se uma versão não r
 - Toda entidade herda de `Entidade` (abstrata, `Id` do tipo `Guid`). Setters privados, construtor sem parâmetros privado (para o EF) e criação por construtor público ou fábrica estática que valida. Coleções expostas como `IReadOnlyCollection<T>` com lista privada.
 - Exceções: `DominioException` (abstrata) e as derivadas `ValidacaoDominioException` (vira 400), `TransicaoInvalidaException` (vira 409) e `RegraNegocioException` (vira 409).
 - Enums: membros em PascalCase em C#. O nome do contrato (UPPER_SNAKE_CASE) vem de `[JsonStringEnumMemberName("SOS_CAMADA_1")]` em cada membro, e o tipo leva `[JsonConverter(typeof(JsonStringEnumConverter<T>))]`. O helper `NomeContrato` converte nos dois sentidos a partir desse atributo e é usado pelo conversor do EF e pela leitura do MQTT. Não use `JsonNamingPolicy` para isso (ela geraria `SOS_CAMADA1`).
+- Migrations novas só quando o pedido disser; a próxima prevista é a do Cofre (campos concedido e motivo do AcessoCofre).
 
 ### Máquina de estados da `Ocorrencia`
 
