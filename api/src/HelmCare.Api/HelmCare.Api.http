@@ -1,5 +1,83 @@
 @baseUrl = http://localhost:5000
 
+# Dados simulados (seção 2 do contrato): nenhum CPF, CNH ou telefone de pessoa real.
+# Rode na ordem: o id do entregador criado no passo 1 alimenta os passos seguintes.
+
 ### Health check da API
 GET {{baseUrl}}/api/v1/saude
 Accept: application/json
+
+### 1. Cadastrar o entregador (201, Location para o GET)
+# @name criarEntregador
+POST {{baseUrl}}/api/v1/entregadores
+Content-Type: application/json
+
+{
+  "nome": "Entregador Simulado",
+  "cpf": "111.444.777-35",
+  "cnh": "12345678900",
+  "telefone": "(11) 91234-5678"
+}
+
+###
+@entregadorId = {{criarEntregador.response.body.$.id}}
+
+### 2. Criar a ficha médica (200, devolve os quatro campos só aqui)
+PUT {{baseUrl}}/api/v1/entregadores/{{entregadorId}}/ficha-medica
+Content-Type: application/json
+
+{
+  "tipoSanguineo": "O+",
+  "alergias": "Dipirona",
+  "condicoesCriticas": "Asma",
+  "medicamentos": "Salbutamol"
+}
+
+### 3. Adicionar um contato de emergência (201, telefone mascarado)
+POST {{baseUrl}}/api/v1/entregadores/{{entregadorId}}/contatos
+Content-Type: application/json
+
+{
+  "nome": "Contato Simulado",
+  "telefone": "(11) 3123-4567",
+  "parentesco": "Mãe"
+}
+
+### 4. Vincular o capacete HC-0001 (201, qrToken e urlCofre só nesta resposta)
+POST {{baseUrl}}/api/v1/dispositivos
+Content-Type: application/json
+
+{
+  "codigo": "HC-0001",
+  "entregadorId": "{{entregadorId}}"
+}
+
+### 5. Consultar o entregador (200, PII mascarada, possuiFichaMedica sem o conteúdo da ficha)
+GET {{baseUrl}}/api/v1/entregadores/{{entregadorId}}
+Accept: application/json
+
+### Erro 400: CPF com 10 dígitos
+POST {{baseUrl}}/api/v1/entregadores
+Content-Type: application/json
+
+{
+  "nome": "Entregador Simulado Dois",
+  "cpf": "1114447773",
+  "cnh": "98765432100",
+  "telefone": "11912345678"
+}
+
+### Erro 404: entregador inexistente
+GET {{baseUrl}}/api/v1/entregadores/00000000-0000-0000-0000-000000000001
+Accept: application/json
+
+### Erro 409: CPF já cadastrado (o mesmo do passo 1, agora sem máscara)
+POST {{baseUrl}}/api/v1/entregadores
+Content-Type: application/json
+
+{
+  "nome": "Entregador Simulado Repetido",
+  "cpf": "11144477735",
+  "cnh": "98765432100",
+  "telefone": "11912345678"
+}
