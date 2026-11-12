@@ -12,7 +12,6 @@ namespace HelmCare.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/dispositivos")]
-[Produces("application/json")]
 public sealed class DispositivosController : ControllerBase
 {
     private readonly DispositivoServico _servico;
@@ -41,7 +40,7 @@ public sealed class DispositivosController : ControllerBase
     /// <response code="404">Entregador inexistente.</response>
     /// <response code="409">Código já vinculado ou entregador que já tem capacete.</response>
     [HttpPost]
-    [ProducesResponseType<DispositivoResposta>(StatusCodes.Status201Created)]
+    [ProducesResponseType<DispositivoResposta>(StatusCodes.Status201Created, "application/json")]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]

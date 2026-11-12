@@ -14,7 +14,6 @@ namespace HelmCare.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/entregadores")]
-[Produces("application/json")]
 public sealed class EntregadoresController : ControllerBase
 {
     private readonly EntregadorServico _servico;
@@ -42,7 +41,7 @@ public sealed class EntregadoresController : ControllerBase
     /// <response code="400">Dados fora das validações de cadastro.</response>
     /// <response code="409">CPF já cadastrado.</response>
     [HttpPost]
-    [ProducesResponseType<EntregadorResposta>(StatusCodes.Status201Created)]
+    [ProducesResponseType<EntregadorResposta>(StatusCodes.Status201Created, "application/json")]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
     public async Task<ActionResult<EntregadorResposta>> Criar(
@@ -65,7 +64,7 @@ public sealed class EntregadoresController : ControllerBase
     /// <response code="200">Entregador encontrado.</response>
     /// <response code="404">Entregador inexistente.</response>
     [HttpGet("{id:guid}")]
-    [ProducesResponseType<EntregadorResposta>(StatusCodes.Status200OK)]
+    [ProducesResponseType<EntregadorResposta>(StatusCodes.Status200OK, "application/json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     public async Task<ActionResult<EntregadorResposta>> Obter(Guid id, CancellationToken cancellationToken)
     {
@@ -86,7 +85,7 @@ public sealed class EntregadoresController : ControllerBase
     /// <response code="400">Tipo sanguíneo fora da lista ou texto longo demais.</response>
     /// <response code="404">Entregador inexistente.</response>
     [HttpPut("{id:guid}/ficha-medica")]
-    [ProducesResponseType<FichaMedicaResposta>(StatusCodes.Status200OK)]
+    [ProducesResponseType<FichaMedicaResposta>(StatusCodes.Status200OK, "application/json")]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     public async Task<ActionResult<FichaMedicaResposta>> DefinirFichaMedica(
@@ -112,7 +111,7 @@ public sealed class EntregadoresController : ControllerBase
     /// <response code="400">Dados inválidos.</response>
     /// <response code="404">Entregador inexistente.</response>
     [HttpPost("{id:guid}/contatos")]
-    [ProducesResponseType<ContatoResposta>(StatusCodes.Status201Created)]
+    [ProducesResponseType<ContatoResposta>(StatusCodes.Status201Created, "application/json")]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     public async Task<ActionResult<ContatoResposta>> AdicionarContato(

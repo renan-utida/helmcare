@@ -29,7 +29,7 @@ public sealed class CriarEntregadorRequisicao
     /// <summary>
     /// Número da CNH com 11 dígitos, com ou sem máscara. A API guarda só os dígitos.
     /// </summary>
-    /// <example>12345678900</example>
+    /// <example>"12345678900"</example>
     [Required(ErrorMessage = "O campo cnh é obrigatório.")]
     [Digitos(11, ErrorMessage = "O campo cnh deve ter 11 dígitos, com ou sem máscara.")]
     public string Cnh { get; init; } = string.Empty;

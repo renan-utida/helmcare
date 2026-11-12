@@ -6,6 +6,7 @@ using HelmCare.Api.Persistencia;
 using HelmCare.Api.Persistencia.Repositorios;
 using HelmCare.Api.Servicos.Cadastro;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -59,7 +60,18 @@ builder.Services.AddControllers(options =>
 
 // Erros sempre no formato ProblemDetails (RFC 9457). O TratadorExcecoes converte as exceções
 // do domínio, do serviço e do EF Core no status certo.
-builder.Services.AddProblemDetails();
+builder.Services.AddProblemDetails(options =>
+{
+    // O 400 automático do [ApiController] vem com o título padrão em inglês; troca pelo mesmo
+    // título que o TratadorExcecoes usa para os dados inválidos do domínio.
+    options.CustomizeProblemDetails = contexto =>
+    {
+        if (contexto.ProblemDetails is ValidationProblemDetails)
+        {
+            contexto.ProblemDetails.Title = "Dados inválidos";
+        }
+    };
+});
 builder.Services.AddExceptionHandler<TratadorExcecoes>();
 
 // Documento OpenAPI gerado a partir dos controllers e dos comentários XML.
