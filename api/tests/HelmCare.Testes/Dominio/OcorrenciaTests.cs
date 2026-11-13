@@ -17,6 +17,8 @@ public sealed class OcorrenciaTests
     private static readonly TimeSpan _tempoCamada1 = CenarioSos.TempoAceiteCamada1;
     private const double Raio = CenarioSos.RaioCamada1Km;
 
+    private static readonly TimeSpan Trecho = CenarioSos.TrechoCapacetePadrao;
+
     /// <summary>
     /// Garante que abrir cria a ocorrência em SOS_CAMADA_1 e marca o impacto como SOS_ENVIADO.
     /// </summary>
@@ -143,7 +145,7 @@ public sealed class OcorrenciaTests
         Voluntario voluntario = CenarioSos.NovoVoluntarioDisponivel(CenarioSos.PosicaoProxima);
 
         // Act
-        AceiteSocorro aceite = ocorrencia.Aceitar(voluntario, CenarioSos.Aceite, Raio);
+        AceiteSocorro aceite = ocorrencia.Aceitar(voluntario, CenarioSos.Aceite, Raio, Trecho);
 
         // Assert
         Assert.AreEqual(63, ocorrencia.TempoAteAceiteSegundos);
@@ -167,28 +169,28 @@ public sealed class OcorrenciaTests
         Ocorrencia ocorrencia = CenarioSos.AbrirOcorrencia(evento: evento);
 
         // Act
-        ocorrencia.Aceitar(CenarioSos.NovoVoluntarioDisponivel(CenarioSos.PosicaoProxima), CenarioSos.Aceite, Raio);
+        ocorrencia.Aceitar(CenarioSos.NovoVoluntarioDisponivel(CenarioSos.PosicaoProxima), CenarioSos.Aceite, Raio, Trecho);
 
         // Assert
         Assert.AreEqual(63, ocorrencia.TempoAteAceiteSegundos);
     }
 
     /// <summary>
-    /// Garante que, com o relógio do capacete adiantado, o indicador vira 0 em vez de negativo.
+    /// Garante que um relógio do capacete adiantado em relação ao servidor não entra no indicador:
+    /// sem contagem, vale o trecho padrão (25 s) mais o trecho do servidor (38 s).
     /// </summary>
     [TestMethod]
-    public void Aceitar_RelogioDoCapaceteAdiantado_TempoAteAceiteNuncaNegativo()
+    public void Aceitar_RelogioDoCapaceteAdiantado_NaoEntraNoIndicador()
     {
         // Arrange
         var evento = EventoImpacto.Registrar(Guid.NewGuid(), CenarioSos.Aceite.AddMinutes(2), 4.8, true, true, true);
         Ocorrencia ocorrencia = CenarioSos.AbrirOcorrencia(evento: evento);
 
         // Act
-        ocorrencia.Aceitar(CenarioSos.NovoVoluntarioDisponivel(CenarioSos.PosicaoProxima), CenarioSos.Aceite, Raio);
+        ocorrencia.Aceitar(CenarioSos.NovoVoluntarioDisponivel(CenarioSos.PosicaoProxima), CenarioSos.Aceite, Raio, Trecho);
 
         // Assert
-        Assert.AreEqual(0, ocorrencia.TempoAteAceiteSegundos);
-        Assert.AreEqual(0, ocorrencia.SegundosDesdeQueda(CenarioSos.Aceite.AddMinutes(5)));
+        Assert.AreEqual(63, ocorrencia.TempoAteAceiteSegundos);
     }
 
     /// <summary>
@@ -202,12 +204,12 @@ public sealed class OcorrenciaTests
         DateTime momento = CenarioSos.Sos.AddSeconds(70);
 
         // Act
-        ocorrencia.Aceitar(CenarioSos.NovoVoluntarioDisponivel(CenarioSos.PosicaoProxima), momento, Raio);
+        ocorrencia.Aceitar(CenarioSos.NovoVoluntarioDisponivel(CenarioSos.PosicaoProxima), momento, Raio, Trecho);
 
         // Assert
         Assert.AreEqual(EstadoOcorrencia.SocorroACaminho, ocorrencia.Estado);
         Assert.ThrowsExactly<TransicaoInvalidaException>(
-            () => ocorrencia.Aceitar(CenarioSos.NovoVoluntarioDisponivel(CenarioSos.PosicaoProxima), momento.AddSeconds(1), Raio));
+            () => ocorrencia.Aceitar(CenarioSos.NovoVoluntarioDisponivel(CenarioSos.PosicaoProxima), momento.AddSeconds(1), Raio, Trecho));
         Assert.HasCount(1, ocorrencia.Aceites);
         Assert.AreEqual(momento, ocorrencia.AceitaEm);
     }
@@ -224,7 +226,7 @@ public sealed class OcorrenciaTests
         Voluntario proprio = CenarioSos.NovoVoluntarioDisponivel(CenarioSos.PosicaoProxima, entregadorId);
 
         // Act e Assert
-        Assert.ThrowsExactly<RegraNegocioException>(() => ocorrencia.Aceitar(proprio, CenarioSos.Aceite, Raio));
+        Assert.ThrowsExactly<RegraNegocioException>(() => ocorrencia.Aceitar(proprio, CenarioSos.Aceite, Raio, Trecho));
         AssertAindaAguardandoNaCamada1(ocorrencia);
     }
 
@@ -239,7 +241,7 @@ public sealed class OcorrenciaTests
         var indisponivel = new Voluntario(Guid.NewGuid(), TipoVoluntario.VigiaMoto);
 
         // Act e Assert
-        Assert.ThrowsExactly<RegraNegocioException>(() => ocorrencia.Aceitar(indisponivel, CenarioSos.Aceite, Raio));
+        Assert.ThrowsExactly<RegraNegocioException>(() => ocorrencia.Aceitar(indisponivel, CenarioSos.Aceite, Raio, Trecho));
         AssertAindaAguardandoNaCamada1(ocorrencia);
     }
 
@@ -254,12 +256,12 @@ public sealed class OcorrenciaTests
         Voluntario distante = CenarioSos.NovoVoluntarioDisponivel(CenarioSos.PosicaoDistante);
 
         // Act e Assert: camada 1
-        Assert.ThrowsExactly<RegraNegocioException>(() => ocorrencia.Aceitar(distante, CenarioSos.Aceite, Raio));
+        Assert.ThrowsExactly<RegraNegocioException>(() => ocorrencia.Aceitar(distante, CenarioSos.Aceite, Raio, Trecho));
         AssertAindaAguardandoNaCamada1(ocorrencia);
 
         // Act e Assert: camada 2
         ocorrencia.EscalarParaCamada2(CenarioSos.Sos + _tempoCamada1, _tempoCamada1);
-        ocorrencia.Aceitar(distante, CenarioSos.Sos.AddSeconds(65), Raio);
+        ocorrencia.Aceitar(distante, CenarioSos.Sos.AddSeconds(65), Raio, Trecho);
         Assert.AreEqual(EstadoOcorrencia.SocorroACaminho, ocorrencia.Estado);
     }
 
@@ -274,7 +276,7 @@ public sealed class OcorrenciaTests
         Voluntario proximo = CenarioSos.NovoVoluntarioDisponivel(CenarioSos.PosicaoProxima);
 
         // Act
-        ocorrencia.Aceitar(proximo, CenarioSos.Aceite, Raio);
+        ocorrencia.Aceitar(proximo, CenarioSos.Aceite, Raio, Trecho);
 
         // Assert
         Assert.AreEqual(EstadoOcorrencia.SocorroACaminho, ocorrencia.Estado);
@@ -386,7 +388,7 @@ public sealed class OcorrenciaTests
         Action executar = acao switch
         {
             "Escalar" => () => ocorrencia.EscalarParaCamada2(depois, _tempoCamada1),
-            "Aceitar" => () => ocorrencia.Aceitar(voluntario, depois, Raio),
+            "Aceitar" => () => ocorrencia.Aceitar(voluntario, depois, Raio, Trecho),
             "Cancelar" => () => ocorrencia.Cancelar(depois),
             "Encerrar" => () => ocorrencia.Encerrar(depois),
             _ => throw new ArgumentOutOfRangeException(nameof(acao), acao, "Ação desconhecida."),
@@ -414,17 +416,18 @@ public sealed class OcorrenciaTests
     }
 
     /// <summary>
-    /// Garante que o cronômetro corre enquanto a ocorrência aguarda aceite.
+    /// Garante que a contagem vai da queda até o instante informado, que pode ser o agora
+    /// (sem contagem no impacto: 25 s do trecho padrão mais o trecho do servidor).
     /// </summary>
     [TestMethod]
-    public void SegundosDesdeQueda_AguardandoAceite_ContaAteAgora()
+    public void SegundosDesdeAQueda_InstanteDepoisDaQueda_ContaDesdeAQueda()
     {
         // Arrange
         Ocorrencia ocorrencia = CenarioSos.AbrirOcorrencia();
 
         // Act
-        int aos10 = ocorrencia.SegundosDesdeQueda(CenarioSos.Sos.AddSeconds(10));
-        int aos20 = ocorrencia.SegundosDesdeQueda(CenarioSos.Sos.AddSeconds(20));
+        int aos10 = ocorrencia.SegundosDesdeAQueda(CenarioSos.Sos.AddSeconds(10), Trecho);
+        int aos20 = ocorrencia.SegundosDesdeAQueda(CenarioSos.Sos.AddSeconds(20), Trecho);
 
         // Assert
         Assert.AreEqual(35, aos10);
@@ -432,36 +435,66 @@ public sealed class OcorrenciaTests
     }
 
     /// <summary>
-    /// Garante que o cronômetro para no aceite.
+    /// Garante que a fração de segundo é descartada (arredonda para baixo).
     /// </summary>
     [TestMethod]
-    public void SegundosDesdeQueda_DepoisDoAceite_ParaNoAceite()
+    public void SegundosDesdeAQueda_FracaoDeSegundo_ArredondaParaBaixo()
+    {
+        // Arrange
+        Ocorrencia ocorrencia = CenarioSos.AbrirOcorrencia();
+
+        // Act
+        int segundos = ocorrencia.SegundosDesdeAQueda(CenarioSos.Queda.AddMilliseconds(62_999), Trecho);
+
+        // Assert
+        Assert.AreEqual(62, segundos);
+    }
+
+    /// <summary>
+    /// Garante que um instante anterior à criação faz o trecho do servidor contar zero, e sobra só o do capacete.
+    /// </summary>
+    [TestMethod]
+    public void SegundosDesdeAQueda_InstanteAntesDaCriacao_TrechoDoServidorContaZero()
+    {
+        // Arrange
+        Ocorrencia ocorrencia = CenarioSos.AbrirOcorrencia();
+
+        // Act
+        int segundos = ocorrencia.SegundosDesdeAQueda(CenarioSos.Sos.AddMinutes(-10), Trecho);
+
+        // Assert
+        Assert.AreEqual(25, segundos);
+    }
+
+    /// <summary>
+    /// Garante que, no instante do aceite, o valor é o mesmo do indicador calculado pelo Aceitar.
+    /// </summary>
+    [TestMethod]
+    public void SegundosDesdeAQueda_NoInstanteDoAceite_IgualAoTempoAteAceite()
     {
         // Arrange
         Ocorrencia ocorrencia = CenarioSos.OcorrenciaEm(EstadoOcorrencia.SocorroACaminho);
 
         // Act
-        int segundos = ocorrencia.SegundosDesdeQueda(CenarioSos.Aceite.AddMinutes(10));
+        int segundos = ocorrencia.SegundosDesdeAQueda(ocorrencia.AceitaEm!.Value, Trecho);
 
         // Assert
         Assert.AreEqual(63, segundos);
+        Assert.AreEqual(ocorrencia.TempoAteAceiteSegundos, segundos);
     }
 
     /// <summary>
-    /// Garante que, sem aceite, o cronômetro para no encerramento.
+    /// Garante que um instante fora de UTC é recusado.
     /// </summary>
     [TestMethod]
-    public void SegundosDesdeQueda_EncerradaSemAceite_ParaNoEncerramento()
+    public void SegundosDesdeAQueda_InstanteNaoUtc_LancaValidacao()
     {
         // Arrange
         Ocorrencia ocorrencia = CenarioSos.AbrirOcorrencia();
-        ocorrencia.Encerrar(CenarioSos.Sos.AddSeconds(58));
+        DateTime local = DateTime.SpecifyKind(CenarioSos.Aceite, DateTimeKind.Local);
 
-        // Act
-        int segundos = ocorrencia.SegundosDesdeQueda(CenarioSos.Sos.AddMinutes(30));
-
-        // Assert
-        Assert.AreEqual(83, segundos);
+        // Act e Assert
+        Assert.ThrowsExactly<ValidacaoDominioException>(() => ocorrencia.SegundosDesdeAQueda(local, Trecho));
     }
 
     /// <summary>

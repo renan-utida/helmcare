@@ -176,16 +176,22 @@ public sealed class Ocorrencia : Entidade
     /// <param name="voluntario">Voluntário que aceitou.</param>
     /// <param name="agora">Instante do aceite, em UTC.</param>
     /// <param name="raioCamada1Km">Raio da camada 1 (<c>RAIO_CAMADA_1_KM</c>).</param>
+    /// <param name="trechoCapacetePadrao">
+    /// Trecho do capacete quando ele não pode ser medido (<c>JANELA_OBSERVACAO_S + CONTAGEM_CANCELAMENTO_S</c>); veja <see cref="SegundosDesdeAQueda"/>.
+    /// </param>
     /// <returns>O aceite criado.</returns>
     /// <exception cref="TransicaoInvalidaException">Fora de <c>SOS_CAMADA_1</c> ou <c>SOS_CAMADA_2</c>.</exception>
     /// <exception cref="RegraNegocioException">Quando o voluntário não pode atender esta ocorrência.</exception>
     /// <exception cref="ValidacaoDominioException">Quando o instante ou o raio são inválidos.</exception>
     /// <exception cref="InvalidOperationException">Quando a navegação <see cref="EventoImpacto"/> não foi carregada.</exception>
-    public AceiteSocorro Aceitar(Voluntario voluntario, DateTime agora, double raioCamada1Km)
+    public AceiteSocorro Aceitar(Voluntario voluntario, DateTime agora, double raioCamada1Km, TimeSpan trechoCapacetePadrao)
     {
         ArgumentNullException.ThrowIfNull(voluntario);
         ExigirTransicao(agora, "aceitar", EstadoOcorrencia.SosCamada1, EstadoOcorrencia.SosCamada2);
-        EventoImpacto evento = ExigirEventoCarregado();
+
+        // O indicador precisa do impacto e do trecho padrão; confere aqui, antes de alterar qualquer campo.
+        ExigirEventoCarregado();
+        ExigirPositivo(trechoCapacetePadrao, "O trecho padrão do capacete");
 
         if (!voluntario.PodeAtender(this, raioCamada1Km))
         {
@@ -199,10 +205,10 @@ public sealed class Ocorrencia : Entidade
         Estado = EstadoOcorrencia.SocorroACaminho;
         AceitaEm = agora;
 
-        // O indicador de impacto (README: tempo entre a queda e o primeiro aceite humano)
-        // conta a partir da queda (EventoImpacto.OcorridoEm), não de CriadaEm: os 25 s de
-        // observação e contagem no capacete também são tempo sem socorro.
-        TempoAteAceiteSegundos = SegundosCompletos(evento.OcorridoEm, agora);
+        // O indicador de impacto (README: tempo entre a queda e o primeiro aceite humano) conta
+        // desde a queda, não desde CriadaEm: a observação e a contagem no capacete também são
+        // tempo sem socorro.
+        TempoAteAceiteSegundos = SegundosDesdeAQueda(agora, trechoCapacetePadrao);
         return aceite;
     }
 
@@ -241,27 +247,52 @@ public sealed class Ocorrencia : Entidade
     }
 
     /// <summary>
-    /// Cronômetro de <c>GET /ocorrencias/{id}</c>: segundos desde a queda até o aceite, ou até o
-    /// encerramento se não houve aceite, ou até <paramref name="agora"/> se ainda está aguardando.
+    /// Segundos completos desde a queda até <paramref name="instante"/>. É o único lugar da regra do
+    /// indicador de impacto (seção 7, "Indicador de impacto"): o <see cref="Aceitar"/> calcula o
+    /// <see cref="TempoAteAceiteSegundos"/> por aqui, com o instante do aceite, e o cronômetro do
+    /// <c>GET /ocorrencias/{id}</c> também.
     /// </summary>
-    /// <param name="agora">Instante atual, em UTC.</param>
-    /// <returns>Os segundos completos, nunca negativos.</returns>
-    /// <exception cref="ValidacaoDominioException">Quando o instante não está em UTC.</exception>
+    /// <remarks>
+    /// <para>O tempo é medido em dois trechos, cada um no próprio relógio:</para>
+    /// <list type="number">
+    /// <item><description>Trecho do capacete: <c>EventoImpacto.ContagemTerminaEm - OcorridoEm</c>, os dois no
+    /// relógio do capacete. Vale <paramref name="trechoCapacetePadrao"/> quando o impacto foi estimado a
+    /// partir do SOS ou quando o <c>CONTAGEM_INICIADA</c> se perdeu (sem <c>ContagemTerminaEm</c>).</description></item>
+    /// <item><description>Trecho do servidor: <paramref name="instante"/> - <see cref="CriadaEm"/>, os dois no
+    /// relógio do servidor.</description></item>
+    /// </list>
+    /// <para>
+    /// O motivo: no Wokwi, o relógio do capacete roda atrasado em relação à hora real (seção 6.2).
+    /// Subtrair um instante do capacete de um instante do servidor colocaria esse atraso no indicador;
+    /// com cada trecho no próprio relógio, o atraso some. Com relógios certos, o resultado é o mesmo
+    /// de contar direto da queda até o instante.
+    /// </para>
+    /// </remarks>
+    /// <param name="instante">Fim da contagem, em UTC, no relógio do servidor (o aceite, o encerramento ou o agora; quem escolhe é o chamador).</param>
+    /// <param name="trechoCapacetePadrao">Trecho do capacete quando ele não pode ser medido (<c>JANELA_OBSERVACAO_S + CONTAGEM_CANCELAMENTO_S</c>, vindo da configuração).</param>
+    /// <returns>A soma dos dois trechos em segundos completos, nunca negativa.</returns>
+    /// <exception cref="ValidacaoDominioException">Quando o instante não está em UTC ou o trecho padrão não é positivo.</exception>
     /// <exception cref="InvalidOperationException">Quando a navegação <see cref="EventoImpacto"/> não foi carregada.</exception>
-    public int SegundosDesdeQueda(DateTime agora)
+    public int SegundosDesdeAQueda(DateTime instante, TimeSpan trechoCapacetePadrao)
     {
-        Garantir.Utc(agora, "agora");
+        Garantir.Utc(instante, "instante");
+        ExigirPositivo(trechoCapacetePadrao, "O trecho padrão do capacete");
         EventoImpacto evento = ExigirEventoCarregado();
-        DateTime fim = AceitaEm ?? EncerradaEm ?? agora;
-        return SegundosCompletos(evento.OcorridoEm, fim);
+
+        TimeSpan trechoCapacete = evento.OcorridoEmEstimado || evento.ContagemTerminaEm is not { } fimContagem
+            ? trechoCapacetePadrao
+            : fimContagem - evento.OcorridoEm;
+        TimeSpan trechoServidor = instante - CriadaEm;
+
+        // Cada trecho negativo conta zero. A soma mantém as frações e só ela é arredondada para
+        // baixo, uma vez: 25,6 s + 30,6 s dão 56, e não 25 + 30 = 55.
+        TimeSpan total = NuncaNegativo(trechoCapacete) + NuncaNegativo(trechoServidor);
+        return (int)Math.Min(total.Ticks / TimeSpan.TicksPerSecond, int.MaxValue);
     }
 
-    // Segundos completos (trunca as frações). Nunca negativo: se o relógio do capacete estiver
-    // adiantado em relação ao servidor, a queda pode parecer depois do fim, e o resultado vira 0.
-    private static int SegundosCompletos(DateTime inicio, DateTime fim)
+    private static TimeSpan NuncaNegativo(TimeSpan trecho)
     {
-        long segundos = (fim - inicio).Ticks / TimeSpan.TicksPerSecond;
-        return (int)Math.Clamp(segundos, 0, int.MaxValue);
+        return trecho < TimeSpan.Zero ? TimeSpan.Zero : trecho;
     }
 
     private static void ExigirPositivo(TimeSpan duracao, string descricao)
