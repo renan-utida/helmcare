@@ -142,3 +142,16 @@ constexpr unsigned long INTERVALO_TELA_MS = 250;
 constexpr unsigned long INTERVALO_STATUS_MS = 5000;    // linha de status no Serial
 constexpr unsigned long INTERVALO_RECONEXAO_MS = 5000; // nova tentativa de MQTT
 constexpr unsigned long DEBOUNCE_MS = 50;
+
+// Desempenho no Wokwi
+// ---------------------------------------------------------------------
+// Velocidade do barramento I2C (MPU6050 e OLED aceitam 400 kHz).
+// Mais rápido = menos tempo do processador esperando o barramento.
+constexpr uint32_t I2C_FREQUENCIA_HZ = 400000;
+
+// Pausa curta no fim de cada volta do loop(). Sem ela, o loop() gira
+// sem parar e o Wokwi precisa simular cada instrução; com ela, o ESP32
+// "descansa" e o Wokwi avança o tempo mais rápido. 5 ms não atrapalha
+// nada: a tarefa mais rápida (ler o MPU6050) roda a cada 50 ms.
+// Para comparar sem a pausa, troque para 0.
+constexpr unsigned long PAUSA_LOOP_MS = 5;

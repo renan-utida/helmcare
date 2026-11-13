@@ -26,6 +26,7 @@
 6. [Como rodar](#6-como-rodar)
 7. [Máquina de estados](#7-máquina-de-estados)
 8. [MQTT: tópicos, payloads e comandos](#8-mqtt-tópicos-payloads-e-comandos)
+    - [Horários: tudo em UTC](#horários-tudo-em-utc)
 9. [Constantes](#9-constantes)
 10. [Como simular no Wokwi e no HiveMQ](#10-como-simular-no-wokwi-e-no-hivemq)
 11. [Testes realizados, com evidências](#11-testes-realizados-com-evidências)
@@ -185,6 +186,7 @@ WiFi e NTP (hora) já vêm no núcleo do ESP32, sem biblioteca extra.
    MQTT conectado. Assinando helmcare-rdu/v1/HC-0001/comando (QoS 1)
    Capacete DESARMADO. Aguardando o comando ARMAR.
    ```
+   A hora do Serial está em **UTC**: `01:38:26Z` é 22:38:26 no horário de Brasília (veja [Horários: tudo em UTC](#horários-tudo-em-utc)).
 4. O capacete começa `DESARMADO`. Ele só passa a proteger quando recebe o comando `ARMAR`, que a API publica quando o entregador inicia o turno com a proteção ligada. Para testar sem a API, use o cliente web do HiveMQ, como na [seção 10](#10-como-simular-no-wokwi-e-no-hivemq).
 
 > **Atenção:** o capacete usa um `clientId` fixo (`helmcare-rdu-HC-0001`). **Nunca rode duas simulações ao mesmo tempo** (duas abas do Wokwi, por exemplo): dois clientes com o mesmo `clientId` se derrubam no broker e ficam se reconectando. A API e o dashboard Node-RED usam `clientId` próprios.
@@ -225,7 +227,7 @@ stateDiagram-v2
 | Observação | 10 s. Se a velocidade ficar em 15 km/h ou mais por 3 s seguidos, é `FALSO_POSITIVO` |
 | Contagem | 15 s. O botão do capacete ou o comando `CANCELAR` cancelam |
 | SOS | Publicado no fim da contagem e reenviado a cada 10 s, com o **mesmo** `ts`, até chegar `SOCORRO_A_CAMINHO` ou `ENCERRAR` |
-| Sem travar | Tudo roda com `millis()`, sem `delay()` no `loop()`. A detecção e a contagem funcionam mesmo sem rede, e a reconexão ao MQTT é tentada a cada 5 s |
+| Sem travar | Cada tarefa roda no seu ritmo com `millis()`, sem `delay()` longo no `loop()` (só uma pausa de 5 ms no fim de cada volta, para a simulação andar mais rápido). A detecção e a contagem funcionam mesmo sem rede, e a reconexão ao MQTT é tentada a cada 5 s |
 
 [Voltar ao sumário](#sumário)
 
@@ -292,6 +294,19 @@ Todo comando fora do estado certo aparece no Serial como `[COMANDO] X ignorado n
 
 **Sessão persistente:** o capacete conecta com `clientId` fixo e `cleanSession = false`. Se ele cair da rede por alguns segundos, os comandos em QoS 1 ficam guardados no broker e chegam quando ele voltar.
 
+### Horários: tudo em UTC
+
+Como manda o Contrato, **todos os horários do capacete estão em UTC** (ISO 8601, com o `Z` no final). No horário de Brasília, são **3 horas a menos**.
+
+| Onde aparece | Exemplo | Em Brasília |
+|---|---|---|
+| `ts` da telemetria e dos eventos | `"ts":"2026-11-11T23:04:14Z"` | 11/11, 20:04:14 |
+| Serial, na sincronização | `Hora sincronizada: 2026-11-11T01:38:26Z` | 10/11, 22:38:26 (passou da meia-noite em UTC, mas ainda era dia 10 em Brasília) |
+| Última linha do OLED | `UTC 23:04:14` | 20:04:14 |
+| Payload no HiveMQ | O mesmo `ts` do capacete | 3 horas a menos |
+
+**Cuidado com o cabeçalho das mensagens no HiveMQ:** a data e a hora que o cliente web mostra acima de cada mensagem (por exemplo, `2026-11-11 20:06:38`) são a hora **local do seu computador**, em que a mensagem chegou, e não o `ts`. No print do [teste 3B](#teste-3b-cancelado-pelo-app-comando-cancelar), a mensagem chegou às 20:06:38 de Brasília com `ts` 23:04:14 UTC (20:04:14 em Brasília). Os 2 minutos e 24 segundos de diferença são o atraso do relógio do capacete no Wokwi, explicado nas [limitações da simulação](#14-limitações-da-simulação).
+
 [Voltar ao sumário](#sumário)
 
 ---
@@ -315,6 +330,8 @@ Todas ficam em `config.h`, num só lugar.
 | `INCLINACAO_ANORMAL_GRAUS` | 60° | Só do capacete |
 | `TEMPO_MENSAGEM_MS` | 3 s | Só do capacete |
 | `MQTT_KEEPALIVE_BROKER_S` / `MQTT_PING_S` | 120 s / 15 s | Só do capacete (ver a [seção 13](#13-problemas-encontrados-e-decisões-de-projeto)) |
+| `PAUSA_LOOP_MS` | 5 ms (pausa no fim de cada volta do `loop()`) | Só do capacete (desempenho no Wokwi) |
+| `I2C_FREQUENCIA_HZ` | 400 kHz | Só do capacete (desempenho no Wokwi) |
 
 [Voltar ao sumário](#sumário)
 
@@ -358,7 +375,7 @@ Os outros comandos seguem o mesmo formato, trocando o `tipo`: `DESARMAR`, `CANCE
 
 ### 10.4 Dicas para testar e tirar prints
 
-- **Os segundos são os do cronômetro do Wokwi**, no canto superior direito da simulação. O Wokwi roda a 25% a 50% da velocidade real, então "10 s de observação" levam de 20 a 40 s no relógio de parede.
+- **Os segundos são os do cronômetro do Wokwi**, no canto superior direito da simulação. Ao lado dele fica a velocidade da simulação (por exemplo, `89%`). Depois dos ajustes de desempenho, a simulação roda perto da velocidade real (cerca de 89%) e a contagem de 15 s leva cerca de 16 s no relógio de parede. Antes deles, rodava a 47%, e a contagem levava de 30 a 45 s.
 - **Para tirar um print com calma, clique em pausar** (o botão ⏸ da simulação). A tela congela com o OLED e o Serial parados; depois clique em ▶ para continuar.
 - **Para gravar**, deixe o Wokwi em tela cheia ou dê zoom no navegador (Ctrl e +). O OLED é pequeno e fica ilegível em gravações reduzidas.
 - Antes de cada teste, **espere 5 s** depois de mudar a chave ou a velocidade: é o tempo de o capacete registrar o que aconteceu antes do impacto.
@@ -583,6 +600,7 @@ Neste teste, o MPU6050 ficou na posição do impacto (2,69 g), e o capacete **n�
 | Teste 3B | Comando `CANCELAR` durante a contagem | `CANCELADO` e volta para `ARMADO` | Passou |
 | Teste 4 | Queda real sem cancelamento | `SOS`, reenvio com o mesmo `ts`, `SOCORRO_A_CAMINHO` e `ENCERRAR` | Passou |
 | Rede | Conexão estável com a simulação lenta | Sem quedas do MQTT | Passou (depois do ajuste do keepalive) |
+| Desempenho | Simulação mais próxima da velocidade real | Ganho visível de velocidade | Passou (de 47% para cerca de 89%) |
 
 [Voltar ao sumário](#sumário)
 
@@ -598,6 +616,21 @@ Neste teste, o MPU6050 ficou na posição do impacto (2,69 g), e o capacete **n�
 | Quedas em sequência | Com os controles do MPU6050 parados acima do limiar, cada volta do `loop()` via um novo impacto | **Detecção na subida:** um novo impacto só conta depois que a aceleração volta abaixo do limiar |
 | QoS 0 na publicação | A PubSubClient não publica em QoS 1 | **Reenvio do SOS** com o mesmo `ts` até a confirmação, com idempotência na API |
 | Desligar a proteção no meio de uma queda | Um `DESARMAR` durante a contagem deixaria o impacto sem desfecho | `DESARMAR` só vale em `ARMADO`; durante a contagem, quem quer parar usa `CANCELAR` |
+| OLED pesando na simulação | A tela era reenviada inteira (1 KB pelo I2C) 4 vezes por segundo, mesmo sem nada mudar | O capacete desenha na memória e só manda o quadro quando ele muda (na contagem, uma vez por segundo). O `[STATUS]` do Serial mostra quantos quadros foram enviados a cada 5 s |
+| `loop()` girando sem parar | Sem nenhuma pausa, o Wokwi simula cada instrução do `loop()`, mesmo quando não há nada a fazer | Pausa de 5 ms no fim de cada volta e I2C a 400 kHz. Nada muda na lógica: a tarefa mais rápida roda a cada 50 ms |
+
+### Desempenho no Wokwi: antes e depois
+
+Os dois últimos ajustes da tabela (OLED só quando muda e pausa de 5 ms no `loop()`, com o I2C a 400 kHz) foram medidos em 12/11, no mesmo fluxo de queda com SOS:
+
+| Medição | Antes | Depois |
+|---|---|---|
+| Velocidade da simulação | 47% | **cerca de 89%** (88,8 s de cronômetro do Wokwi em 100 s reais) |
+| Percentual mostrado pelo Wokwi | 25% a 50% | 81% a 104% |
+| Contagem de 15 s, no relógio de parede | 30 a 45 s | **cerca de 16 s** |
+| Quadros enviados ao OLED a cada 5 s | cerca de 20 (4 por segundo, sempre) | 5 em `ARMADO` e na contagem (1 por segundo), 0 com a tela parada |
+
+Na prática, os tempos do capacete ficaram quase iguais aos reais, o que deixa a demonstração e o vídeo muito mais naturais. A velocidade exata depende do computador e do que mais está aberto.
 
 [Voltar ao sumário](#sumário)
 
@@ -605,8 +638,9 @@ Neste teste, o MPU6050 ficou na posição do impacto (2,69 g), e o capacete **n�
 
 ## 14. Limitações da simulação
 
-- **Velocidade do Wokwi:** a simulação roda a 25% a 50% da velocidade real. Os tempos do capacete (10 s de observação, 15 s de contagem, 10 s de telemetria) valem no cronômetro da simulação e levam de 2 a 4 vezes mais no relógio de parede.
-- **Hora do capacete:** o `ts` vem do NTP no início da simulação. Depois, o relógio do ESP32 anda na velocidade da simulação, então o `ts` vai ficando atrasado em relação à hora real. Para uma demonstração com o indicador de impacto, reinicie a simulação antes. Num capacete real, o relógio anda certo.
+- **Velocidade do Wokwi:** a simulação pode rodar abaixo da velocidade real, conforme o computador e o que mais está aberto. No teste ponta a ponta de 12/11, antes dos ajustes de desempenho, ela rodou a **47%**, e a contagem de 15 s levou **de 30 a 45 s** no relógio de parede. Depois dos ajustes, subiu para **cerca de 89%**, e a contagem passou a levar cerca de 16 s (veja [Desempenho no Wokwi: antes e depois](#desempenho-no-wokwi-antes-e-depois)). Os tempos do capacete (10 s de observação, 15 s de contagem, 10 s de telemetria) valem sempre no cronômetro da simulação.
+- **Relógio do capacete:** o `ts` vem do NTP só no início da simulação. Depois, o relógio do ESP32 anda na velocidade da simulação e fica cada vez mais atrasado em relação à hora real. No teste de 12/11, a 47%, ele estava **1 min 55 s atrás da hora real depois de cerca de 2 min** de simulação. Com a simulação a cerca de 89%, o atraso cresce bem mais devagar, mas continua existindo. Num capacete real, o relógio anda certo e esse atraso não existe.
+- **Como a API lida com esse atraso:** a API nunca compara o `ts` do capacete com o relógio do servidor. Pelo Contrato v1.7, o indicador de impacto (tempo da queda até o primeiro aceite) é medido em **dois trechos, cada um no próprio relógio**: o trecho do capacete (da queda ao fim da contagem, os dois no relógio do capacete) e o trecho do servidor (da criação da ocorrência ao aceite, os dois no relógio do servidor). Assim, o atraso do Wokwi nunca entra no indicador.
 - **Sensores simulados:** o potenciômetro faz o papel do GPS do celular, e o slide switch, do sensor IR de presença na espuma. Na solução real, o capacete usaria o celular por Bluetooth e teria um chip de IoT próprio como canal reserva.
 - **Coordenadas fixas:** o capacete envia sempre a região da Av. Paulista (-23.5641, -46.6525), como define o Contrato.
 

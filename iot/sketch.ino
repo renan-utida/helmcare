@@ -67,7 +67,9 @@ unsigned long estadoDesde = 0;   // millis() de quando entrou no estado atual
 // Objetos dos sensores, do display e da rede
 // ---------------------------------------------------------------------
 Adafruit_MPU6050 mpu;
-Adafruit_SSD1306 tela(OLED_LARGURA, OLED_ALTURA, &Wire, -1);  // -1: sem pino de reset
+// -1: sem pino de reset. Os dois últimos valores mantêm o I2C a 400 kHz
+// durante e depois de cada desenho (a biblioteca voltaria para 100 kHz).
+Adafruit_SSD1306 tela(OLED_LARGURA, OLED_ALTURA, &Wire, -1, I2C_FREQUENCIA_HZ, I2C_FREQUENCIA_HZ);
 DHT dht(PINO_DHT, DHT22);
 
 WiFiClient wifiClient;
@@ -92,6 +94,13 @@ bool botaoPressionado = false;
 
 bool oledOk = false;
 bool mpuOk = false;
+
+// Cópia do último quadro enviado ao OLED (128 x 64 pixels = 1024 bytes).
+// Só mandamos um quadro novo pelo I2C quando ele é diferente deste.
+constexpr size_t TAMANHO_QUADRO = OLED_LARGURA * OLED_ALTURA / 8;
+uint8_t ultimoQuadro[TAMANHO_QUADRO];
+bool temQuadroAnterior = false;
+int redesenhosOled = 0;   // quantos quadros foram enviados desde o último [STATUS]
 
 // ---------------------------------------------------------------------
 // Histórico dos últimos 5 s (velocidade e presença), em fila circular.
@@ -822,16 +831,26 @@ void atualizarTela() {
       break;
   }
 
-  tela.display();
+  // Desenhar na memória é rápido; caro é mandar o quadro pelo I2C.
+  // Por isso só chamamos display() quando a tela mudou de verdade.
+  // Na contagem, isso acontece uma vez por segundo (o número muda).
+  uint8_t* quadro = tela.getBuffer();
+  if (!temQuadroAnterior || memcmp(quadro, ultimoQuadro, TAMANHO_QUADRO) != 0) {
+    tela.display();
+    memcpy(ultimoQuadro, quadro, TAMANHO_QUADRO);
+    temQuadroAnterior = true;
+    redesenhosOled++;
+  }
 }
 
 // Uma linha de status a cada 5 s, para acompanhar pelo Serial.
 void imprimirStatus() {
-  Serial.printf("[STATUS] %s | vel %d km/h | cabeca %s | acel %.2f g | inc %.0f | IC %.1f C | WiFi %s | MQTT %s\n",
+  Serial.printf("[STATUS] %s | vel %d km/h | cabeca %s | acel %.2f g | inc %.0f | IC %.1f C | WiFi %s | MQTT %s | OLED %d quadros/5 s\n",
                 nomeEstado(estado), velocidadeKmh, presenca ? "SIM" : "NAO",
                 acelTotalG, inclinacaoGraus, indiceCalorC,
                 WiFi.status() == WL_CONNECTED ? "ok" : "--",
-                mqtt.connected() ? "ok" : "--");
+                mqtt.connected() ? "ok" : "--", redesenhosOled);
+  redesenhosOled = 0;
 }
 
 // =====================================================================
@@ -849,6 +868,7 @@ void setup() {
   digitalWrite(PINO_LED, LOW);
 
   Wire.begin(PINO_I2C_SDA, PINO_I2C_SCL);
+  Wire.setClock(I2C_FREQUENCIA_HZ);
 
   // OLED
   oledOk = tela.begin(SSD1306_SWITCHCAPVCC, ENDERECO_OLED);
@@ -945,4 +965,7 @@ void loop() {
     ultimoStatus = agora;
     imprimirStatus();
   }
+
+  // 7. Pausa curta para o processador descansar (ver config.h).
+  if (PAUSA_LOOP_MS > 0) delay(PAUSA_LOOP_MS);
 }
