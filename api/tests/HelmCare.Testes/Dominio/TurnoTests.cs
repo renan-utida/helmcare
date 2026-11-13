@@ -156,6 +156,39 @@ public sealed class TurnoTests
         Assert.IsTrue(turno.EstaAtivo);
     }
 
+    /// <summary>
+    /// Garante que o turno pode nascer sem a proteção do capacete.
+    /// </summary>
+    [TestMethod]
+    public void Construtor_ProtecaoDesligada_NasceAtivoSemProtecao()
+    {
+        // Arrange e Act
+        var turno = new Turno(Guid.NewGuid(), _inicio, _inicio.AddHours(4), protecaoAtiva: false);
+
+        // Assert
+        Assert.IsTrue(turno.EstaAtivo);
+        Assert.IsFalse(turno.ProtecaoAtiva);
+    }
+
+    /// <summary>
+    /// Garante o limite de 24 h: exatamente 24 h passa, um segundo a mais é recusado.
+    /// </summary>
+    [TestMethod]
+    public void Construtor_MaisDe24Horas_LancaValidacao()
+    {
+        // Arrange
+        DateTime limite = _inicio.AddHours(24);
+
+        // Act
+        var noLimite = new Turno(Guid.NewGuid(), _inicio, limite);
+        ValidacaoDominioException excecao = Assert.ThrowsExactly<ValidacaoDominioException>(
+            () => new Turno(Guid.NewGuid(), _inicio, limite.AddSeconds(1)));
+
+        // Assert
+        Assert.AreEqual(limite, noLimite.FimPrevisto);
+        Assert.Contains("24 horas", excecao.Message);
+    }
+
     private static Turno CriarTurno()
     {
         return new Turno(Guid.NewGuid(), _inicio, _inicio.AddHours(4));

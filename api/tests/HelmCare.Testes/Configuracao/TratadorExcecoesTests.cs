@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using HelmCare.Api.Configuracao;
+using HelmCare.Api.Persistencia.Configuracoes;
 using HelmCare.Api.Servicos.Comum;
 using HelmCare.Dominio.Comum;
 using HelmCare.Testes.Fakes;
@@ -119,6 +120,34 @@ public sealed class TratadorExcecoesTests
         // Assert
         Assert.AreEqual(StatusCodes.Status503ServiceUnavailable, contexto.Response.StatusCode);
         Assert.AreEqual("O capacete não pôde ser avisado agora; tente de novo.", problemas.Escrito?.Detail);
+    }
+
+    /// <summary>
+    /// Garante que a violação do índice de turno ativo (dois POST /turnos ao mesmo tempo) vira 409
+    /// com a mesma mensagem da checagem do serviço.
+    /// </summary>
+    /// <returns>A tarefa do teste.</returns>
+    [TestMethod]
+    public async Task TryHandleAsync_IndiceDeTurnoAtivo_Responde409TurnoAtivo()
+    {
+        // Arrange
+        (TratadorExcecoes tratador, FakeProblemDetailsService problemas) = Criar();
+        var contexto = new DefaultHttpContext();
+        var excecao = new DbUpdateException(
+            MensagemInterna,
+            new PostgresException(
+                MensagemInterna,
+                "ERROR",
+                "ERROR",
+                PostgresErrorCodes.UniqueViolation,
+                constraintName: TurnoConfiguracao.IndiceTurnoAtivo));
+
+        // Act
+        await tratador.TryHandleAsync(contexto, excecao, CancellationToken.None);
+
+        // Assert
+        Assert.AreEqual(StatusCodes.Status409Conflict, contexto.Response.StatusCode);
+        Assert.AreEqual("O entregador já tem um turno ativo.", problemas.Escrito?.Detail);
     }
 
     private static (TratadorExcecoes Tratador, FakeProblemDetailsService Problemas) Criar()
