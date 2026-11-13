@@ -1,3 +1,4 @@
+using System;
 using System.ComponentModel.DataAnnotations;
 
 namespace HelmCare.Api.Configuracao;
@@ -64,4 +65,10 @@ public sealed class OpcoesHelmCare
     /// </summary>
     [Range(1, 300)]
     public int IntervaloTelemetriaS { get; set; } = 10;
+
+    /// <summary>
+    /// <c>JANELA_OBSERVACAO_S + CONTAGEM_CANCELAMENTO_S</c>: trecho do capacete no indicador de impacto
+    /// quando ele não pode ser medido (impacto estimado ou <c>CONTAGEM_INICIADA</c> perdido, seção 7).
+    /// </summary>
+    public TimeSpan TrechoCapacetePadrao => TimeSpan.FromSeconds(JanelaObservacaoS + ContagemCancelamentoS);
 }

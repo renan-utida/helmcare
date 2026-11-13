@@ -81,3 +81,131 @@ Content-Type: application/json
   "cnh": "98765432100",
   "telefone": "11912345678"
 }
+
+# ---------------------------------------------------------------------------
+# Turnos e ocorrência (rodada 3), na ordem do roteiro de conferência.
+# Usa o entregador do passo 1 (dono do HC-0001). As datas saem do relógio da máquina
+# ({{$datetime iso8601}}), para o encerramento nunca ficar antes do início.
+# O passo T1 publica ARMAR no broker real.
+# ---------------------------------------------------------------------------
+
+# Id da ocorrência do teste ponta a ponta (troque pelo seu) e um voluntário que não existe.
+@ocorrenciaId = 01a1d222-1dc9-7fbe-85f0-59599125ba4f
+@voluntarioInexistente = 00000000-0000-0000-0000-000000000002
+
+### T1. Iniciar o turno com proteção (201, Location para o risco; publica ARMAR)
+# @name iniciarTurno
+POST {{baseUrl}}/api/v1/turnos
+Content-Type: application/json
+
+{
+  "entregadorId": "{{entregadorId}}",
+  "inicio": "{{$datetime iso8601}}",
+  "fimPrevisto": "{{$datetime iso8601 4 h}}",
+  "protecaoAtiva": true
+}
+
+###
+@turnoId = {{iniciarTurno.response.body.$.turnoId}}
+
+### T2. Índice de Risco guardado no turno (200, o mesmo índice)
+GET {{baseUrl}}/api/v1/turnos/{{turnoId}}/risco
+Accept: application/json
+
+### T3. Segundo turno ativo do mesmo entregador (409)
+POST {{baseUrl}}/api/v1/turnos
+Content-Type: application/json
+
+{
+  "entregadorId": "{{entregadorId}}",
+  "inicio": "{{$datetime iso8601}}",
+  "fimPrevisto": "{{$datetime iso8601 4 h}}"
+}
+
+### T4. Alerta do turno (200; com SOS ativo, traz o ocorrenciaId)
+GET {{baseUrl}}/api/v1/turnos/{{turnoId}}/alerta
+Accept: application/json
+
+### T5. Cancelar o alerta fora da contagem (409; em CONTAGEM seria 202 e publicaria CANCELAR)
+POST {{baseUrl}}/api/v1/turnos/{{turnoId}}/alerta/cancelar
+
+### T6. Encerrar com ocorrência ativa (409; sem ela, 200 e publica DESARMAR)
+POST {{baseUrl}}/api/v1/turnos/{{turnoId}}/encerrar
+
+### T7a. Outro entregador simulado, sem capacete (201; um segundo envio dá 409 pelo CPF)
+# @name criarEntregadorSemCapacete
+POST {{baseUrl}}/api/v1/entregadores
+Content-Type: application/json
+
+{
+  "nome": "Entregador Simulado Sem Capacete",
+  "cpf": "529.982.247-25",
+  "cnh": "98765432100",
+  "telefone": "(11) 99876-5432"
+}
+
+###
+@semCapaceteId = {{criarEntregadorSemCapacete.response.body.$.id}}
+
+### T7b. Turno com proteção, sem capacete (409)
+POST {{baseUrl}}/api/v1/turnos
+Content-Type: application/json
+
+{
+  "entregadorId": "{{semCapaceteId}}",
+  "inicio": "{{$datetime iso8601}}",
+  "fimPrevisto": "{{$datetime iso8601 4 h}}",
+  "protecaoAtiva": true
+}
+
+### T7c. Turno sem proteção (201, nenhum comando publicado)
+# @name iniciarTurnoSemProtecao
+POST {{baseUrl}}/api/v1/turnos
+Content-Type: application/json
+
+{
+  "entregadorId": "{{semCapaceteId}}",
+  "inicio": "{{$datetime iso8601}}",
+  "fimPrevisto": "{{$datetime iso8601 4 h}}",
+  "protecaoAtiva": false
+}
+
+###
+@turnoSemProtecaoId = {{iniciarTurnoSemProtecao.response.body.$.turnoId}}
+
+### T7d. Alerta de quem não tem capacete (409)
+GET {{baseUrl}}/api/v1/turnos/{{turnoSemProtecaoId}}/alerta
+Accept: application/json
+
+### T7e. Encerrar o turno sem proteção (200, sem comando)
+POST {{baseUrl}}/api/v1/turnos/{{turnoSemProtecaoId}}/encerrar
+
+### T7f. Encerrar de novo (409)
+POST {{baseUrl}}/api/v1/turnos/{{turnoSemProtecaoId}}/encerrar
+
+### T8a. fimPrevisto antes do inicio (400)
+POST {{baseUrl}}/api/v1/turnos
+Content-Type: application/json
+
+{
+  "entregadorId": "{{semCapaceteId}}",
+  "inicio": "2026-11-12T20:00:00Z",
+  "fimPrevisto": "2026-11-12T19:00:00Z",
+  "protecaoAtiva": false
+}
+
+### T8b. Risco de turno inexistente (404)
+GET {{baseUrl}}/api/v1/turnos/{{$guid}}/risco
+Accept: application/json
+
+### T9a. Ocorrência sem voluntarioId (200, localização aproximada, cronômetro correndo)
+GET {{baseUrl}}/api/v1/ocorrencias/{{ocorrenciaId}}
+Accept: application/json
+
+### T9b. Ocorrência com voluntarioId inexistente (404)
+GET {{baseUrl}}/api/v1/ocorrencias/{{ocorrenciaId}}?voluntarioId={{voluntarioInexistente}}
+Accept: application/json
+
+### T9c. Ocorrência inexistente (404)
+GET {{baseUrl}}/api/v1/ocorrencias/{{$guid}}
+Accept: application/json

@@ -7,6 +7,9 @@ using HelmCare.Api.Mensageria.Processadores;
 using HelmCare.Api.Persistencia;
 using HelmCare.Api.Persistencia.Repositorios;
 using HelmCare.Api.Servicos.Cadastro;
+using HelmCare.Api.Servicos.Ocorrencias;
+using HelmCare.Api.Servicos.Risco;
+using HelmCare.Api.Servicos.Turnos;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
@@ -55,6 +58,8 @@ builder.Services.AddScoped<IDispositivoRepositorio, DispositivoRepositorio>();
 builder.Services.AddScoped<IEventoImpactoRepositorio, EventoImpactoRepositorio>();
 builder.Services.AddScoped<IOcorrenciaRepositorio, OcorrenciaRepositorio>();
 builder.Services.AddScoped<IEventoMqttProcessadoRepositorio, EventoMqttProcessadoRepositorio>();
+builder.Services.AddScoped<ITurnoRepositorio, TurnoRepositorio>();
+builder.Services.AddScoped<IVoluntarioRepositorio, VoluntarioRepositorio>();
 
 // Mensageria (seção 6). Uma única conexão com o broker (singleton), compartilhada pelo assinante
 // e pelo publicador. O roteador e os processadores têm o escopo de uma mensagem, porque usam o
@@ -73,6 +78,15 @@ builder.Services.AddHostedService<AssinanteMqtt>();
 // Casos de uso do cadastro.
 builder.Services.AddScoped<EntregadorServico>();
 builder.Services.AddScoped<DispositivoServico>();
+
+// Índice de Risco do Turno simulado (seção 8), sem rede: na sexta entram a Open-Meteo e o
+// cliente HTTP do Serviço de Risco, e estas duas implementações ficam como reserva.
+builder.Services.AddSingleton<IPrevisaoTempo, PrevisaoTempoSimulada>();
+builder.Services.AddSingleton<IServicoRisco, ServicoRiscoSimulado>();
+
+// Casos de uso do turno e da consulta de ocorrências.
+builder.Services.AddScoped<TurnoServico>();
+builder.Services.AddScoped<OcorrenciaServico>();
 
 // Controllers com as rotas em /api/v1 (seção 7 do contrato). O JSON segue o padrão Web
 // (camelCase). Os enums não precisam de conversor global: cada tipo do domínio já traz

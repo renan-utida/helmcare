@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
+using HelmCare.Api.Persistencia.Configuracoes;
 using HelmCare.Api.Servicos.Comum;
 using HelmCare.Dominio.Comum;
 using Microsoft.AspNetCore.Diagnostics;
@@ -94,6 +95,16 @@ public sealed partial class TratadorExcecoes : IExceptionHandler
                 StatusCodes.Status409Conflict,
                 "Conflito de concorrência",
                 "O recurso foi alterado por outra requisição ao mesmo tempo. Consulte de novo e repita a operação."),
+            // Dois POST /turnos simultâneos do mesmo entregador passam pela checagem do serviço, e o
+            // segundo esbarra no índice de turno ativo: mesma resposta da checagem.
+            DbUpdateException
+            {
+                InnerException: PostgresException
+                {
+                    SqlState: PostgresErrorCodes.UniqueViolation,
+                    ConstraintName: TurnoConfiguracao.IndiceTurnoAtivo,
+                },
+            } => (StatusCodes.Status409Conflict, "Regra de negócio violada", "O entregador já tem um turno ativo."),
             DbUpdateException { InnerException: PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } } => (
                 StatusCodes.Status409Conflict,
                 "Registro duplicado",
