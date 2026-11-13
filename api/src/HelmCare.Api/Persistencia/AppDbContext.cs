@@ -1,6 +1,9 @@
 using System;
+using System.Threading;
+using System.Threading.Tasks;
 using HelmCare.Api.Persistencia.Conversores;
 using HelmCare.Api.Persistencia.Modelos;
+using HelmCare.Api.Persistencia.Repositorios;
 using HelmCare.Dominio.Entidades;
 using HelmCare.Dominio.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -10,8 +13,10 @@ namespace HelmCare.Api.Persistencia;
 /// <summary>
 /// Contexto do EF Core para o banco <c>helmcare_api</c> (PostgreSQL). O mapeamento de cada
 /// classe fica em <c>Persistencia/Configuracoes</c>, uma classe por entidade.
+/// Também é a <see cref="IUnidadeDeTrabalho"/>: o mesmo contexto da requisição, compartilhado
+/// pelos repositórios, grava tudo de uma vez no <see cref="SalvarAsync"/>.
 /// </summary>
-public sealed class AppDbContext : DbContext
+public sealed class AppDbContext : DbContext, IUnidadeDeTrabalho
 {
     /// <summary>
     /// Cria o contexto com as opções registradas na injeção de dependência.
@@ -81,6 +86,12 @@ public sealed class AppDbContext : DbContext
     /// Registro de idempotência dos eventos MQTT.
     /// </summary>
     public DbSet<EventoMqttProcessado> EventosMqttProcessados => Set<EventoMqttProcessado>();
+
+    /// <inheritdoc/>
+    public Task SalvarAsync(CancellationToken cancellationToken)
+    {
+        return SaveChangesAsync(cancellationToken);
+    }
 
     /// <inheritdoc/>
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)

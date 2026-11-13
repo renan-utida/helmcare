@@ -16,13 +16,33 @@ public sealed class Turno : Entidade
     public const int TamanhoMaximoExplicacao = 500;
 
     /// <summary>
+    /// Duração máxima de um turno (de <c>inicio</c> a <c>fimPrevisto</c>). Não está no contrato: é
+    /// um limite da API para barrar datas digitadas errado e manter o período enviado ao Serviço
+    /// de Risco dentro de um dia.
+    /// </summary>
+    public static readonly TimeSpan DuracaoMaxima = TimeSpan.FromHours(24);
+
+    /// <summary>
     /// Abre um turno com a proteção ativa.
     /// </summary>
     /// <param name="entregadorId">Entregador do turno.</param>
     /// <param name="inicio">Início do turno, em UTC.</param>
-    /// <param name="fimPrevisto">Fim previsto, em UTC, depois do início.</param>
+    /// <param name="fimPrevisto">Fim previsto, em UTC, depois do início e a até 24 h dele.</param>
     /// <exception cref="ValidacaoDominioException">Quando algum dado é inválido.</exception>
     public Turno(Guid entregadorId, DateTime inicio, DateTime fimPrevisto)
+        : this(entregadorId, inicio, fimPrevisto, protecaoAtiva: true)
+    {
+    }
+
+    /// <summary>
+    /// Abre um turno, com ou sem a proteção do capacete (<c>protecaoAtiva</c> do <c>POST /turnos</c>).
+    /// </summary>
+    /// <param name="entregadorId">Entregador do turno.</param>
+    /// <param name="inicio">Início do turno, em UTC.</param>
+    /// <param name="fimPrevisto">Fim previsto, em UTC, depois do início e a até 24 h dele.</param>
+    /// <param name="protecaoAtiva">Se o capacete deve ser armado neste turno.</param>
+    /// <exception cref="ValidacaoDominioException">Quando algum dado é inválido.</exception>
+    public Turno(Guid entregadorId, DateTime inicio, DateTime fimPrevisto, bool protecaoAtiva)
     {
         EntregadorId = Garantir.IdInformado(entregadorId, "entregadorId");
         Inicio = Garantir.Utc(inicio, "inicio");
@@ -33,7 +53,12 @@ public sealed class Turno : Entidade
             throw new ValidacaoDominioException("O campo fimPrevisto deve ser depois do inicio.");
         }
 
-        ProtecaoAtiva = true;
+        if (FimPrevisto - Inicio > DuracaoMaxima)
+        {
+            throw new ValidacaoDominioException("O turno deve durar no máximo 24 horas (de inicio a fimPrevisto).");
+        }
+
+        ProtecaoAtiva = protecaoAtiva;
     }
 
     // Construtor usado só pelo EF Core ao materializar o registro do banco.

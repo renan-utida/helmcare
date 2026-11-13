@@ -48,6 +48,11 @@ internal static class CenarioSos
     public static readonly TimeSpan AntecedenciaSos = TimeSpan.FromSeconds(25);
 
     /// <summary>
+    /// Trecho do capacete no indicador quando ele não pode ser medido (<c>JANELA_OBSERVACAO_S + CONTAGEM_CANCELAMENTO_S</c>): 25 s.
+    /// </summary>
+    public static readonly TimeSpan TrechoCapacetePadrao = TimeSpan.FromSeconds(25);
+
+    /// <summary>
     /// <c>CONTAGEM_CANCELAMENTO_S</c>: 15 s.
     /// </summary>
     public static readonly TimeSpan Contagem = TimeSpan.FromSeconds(15);
@@ -122,7 +127,7 @@ internal static class CenarioSos
                 ocorrencia.EscalarParaCamada2(depoisDoEscalonamento, TempoAceiteCamada1);
                 break;
             case EstadoOcorrencia.SocorroACaminho:
-                ocorrencia.Aceitar(NovoVoluntarioDisponivel(PosicaoProxima), Aceite, RaioCamada1Km);
+                ocorrencia.Aceitar(NovoVoluntarioDisponivel(PosicaoProxima), Aceite, RaioCamada1Km, TrechoCapacetePadrao);
                 break;
             case EstadoOcorrencia.Encerrada:
                 ocorrencia.Encerrar(Aceite);

@@ -1,6 +1,6 @@
-# HelmCare · Contrato de Integração
+# HelmCare - Contrato de Integração
 
-**Versão 1.6 · 09/11/2026**
+**Versão 1.7 - 12/11/2026**
 
 Este documento define como as partes do HelmCare conversam entre si: nomes, tópicos MQTT, endpoints, payloads, estados e regras. **Todas as disciplinas seguem este contrato.** Mudanças só entram por meio da conversa central de coordenação, que gera uma nova versão.
 
@@ -167,6 +167,7 @@ Tópico `helmcare-rdu/v1/HC-0001/evento`, a cada mudança de estado:
 
 - **Detecção:** um impacto acontece quando a aceleração total é maior ou igual a `LIMIAR_IMPACTO_G`. O campo `orientacaoAnormal` (inclinação maior que 60°) é só informativo e não bloqueia a detecção, porque uma queda real pode terminar com o capacete na posição normal.
 - **Dados do impacto:** todos os eventos de um mesmo impacto repetem `picoG`, `orientacaoAnormal`, `pilotandoAntes`, `presencaAntes`, `latitude` e `longitude`. O `ts` é o instante de cada evento.
+- **Relógio do capacete:** o `ts` vem do relógio do ESP32, sincronizado por NTP só na inicialização. No Wokwi, esse relógio anda na velocidade da simulação (de 25% a 50% da real), então o `ts` atrasa em relação à hora real, e o atraso cresce com o tempo de simulação (no teste de 12/11, a 47% da velocidade real, chegou a 1 min 55 s depois de cerca de 2 min). A API nunca rejeita um evento por causa do `ts` nem compara o `ts` com o relógio do servidor. Diferenças de tempo só são calculadas entre dois instantes do mesmo relógio (veja o indicador de impacto, na seção 7).
 - **Reenvio do SOS:** enquanto estiver em `SOS_ENVIADO`, o capacete republica o evento `SOS` com o **mesmo** `ts` a cada `INTERVALO_TELEMETRIA_S`, até receber `SOCORRO_A_CAMINHO` ou `ENCERRAR`. A API trata eventos com o mesmo `dispositivo`, `tipo` e `ts` como um só (idempotência).
 - **SOS sem impacto em aberto:** como os eventos saem em QoS 0, o `IMPACTO_DETECTADO` pode se perder. Se chegar um `SOS` sem impacto em aberto para o dispositivo, a API cria o `EventoImpacto` com os dados do próprio SOS, `ocorridoEm` = `ts` menos 25 s (`JANELA_OBSERVACAO_S` + `CONTAGEM_CANCELAMENTO_S`) e `ocorridoEmEstimado` = verdadeiro. Assim, nem o SOS nem o indicador de impacto se perdem.
 
@@ -176,7 +177,7 @@ Tópico `helmcare-rdu/v1/HC-0001/evento`, a cada mudança de estado:
 |---|---|---|
 | `IMPACTO_DETECTADO` com `pilotandoAntes` e `presencaAntes` falsos | Impacto descartado. O capacete volta para `ARMADO` | Grava o `EventoImpacto` com `resultado` = `IGNORADO` |
 | `IMPACTO_DETECTADO` com pelo menos um dos dois verdadeiro | Começa a observação de 10 s | Grava o `EventoImpacto` com `resultado` vazio |
-| `FALSO_POSITIVO` | A velocidade de moto voltou durante a observação | `resultado` = `FALSO_POSITIVO` |
+| `FALSO_POSITIVO` | A velocidade de moto voltou durante a observação (maior ou igual a `VELOCIDADE_PILOTAGEM_KMH`, sustentada por 3 s) | `resultado` = `FALSO_POSITIVO` |
 | `CONTAGEM_INICIADA` | Começa a contagem de 15 s | Guarda `contagemTerminaEm` = `ts` + `CONTAGEM_CANCELAMENTO_S`, exibido em `GET /turnos/{id}/alerta` |
 | `CANCELADO` | Botão do capacete ou comando `CANCELAR` durante a contagem | `resultado` = `CANCELADO_PELO_ENTREGADOR` |
 | `SOS` | Fim da contagem sem cancelamento | `resultado` = `SOS_ENVIADO` e cria a `Ocorrencia` em `SOS_CAMADA_1` |
@@ -263,7 +264,11 @@ Todos os erros saem em ProblemDetails.
 
 - **Camada 2:** a ocorrência escala quando passam `TEMPO_ACEITE_CAMADA_1_S` desde a criação, inclusive (60 s exatos já escalam).
 - **Raio da camada 1:** inclusivo (um voluntário a exatamente 2 km entra).
-- **Indicador de impacto:** `tempoAteAceiteSegundos` é contado do `ocorridoEm` do impacto (a queda) até o aceite, em segundos completos (arredondado para baixo) e nunca negativo. Uma ocorrência encerrada sem aceite fica com o indicador vazio e conta como "sem aceite".
+- **Indicador de impacto:** `tempoAteAceiteSegundos` é o tempo da queda até o aceite, medido em dois trechos, cada um no próprio relógio, para nunca misturar o relógio do capacete com o do servidor:
+  1. **Trecho do capacete:** `contagemTerminaEm` menos `ocorridoEm` do `EventoImpacto`, os dois no relógio do capacete. Vale `JANELA_OBSERVACAO_S` + `CONTAGEM_CANCELAMENTO_S` (25 s) quando o impacto foi estimado (`ocorridoEmEstimado`) ou quando o `contagemTerminaEm` está vazio porque o `CONTAGEM_INICIADA` se perdeu.
+  2. **Trecho do servidor:** `aceitaEm` menos `criadaEm` da `Ocorrencia`, os dois no relógio do servidor.
+
+  Cada trecho nunca é negativo (abaixo de zero, conta zero). O indicador é a soma dos dois, em segundos completos (arredondado para baixo). Uma ocorrência encerrada sem aceite fica com o indicador vazio e conta como "sem aceite". Num ESP32 real, com o relógio certo, o resultado é o mesmo de contar direto da queda até o aceite. No Wokwi, o relógio do capacete atrasa em relação à hora real (seção 6.2), e essa regra impede que o atraso entre no indicador.
 
 **Exemplo: `POST /turnos`**
 
@@ -291,7 +296,10 @@ Resposta, durante a contagem:
 ```
 
 - `estadoCapacete` usa o `EstadoDispositivo` e é o último estado recebido do capacete, por evento ou por telemetria.
-- `contagemTerminaEm` só vem preenchido em `CONTAGEM`. Com ele, o app mostra a contagem regressiva sem depender do intervalo de polling.
+- `contagemTerminaEm` só vem preenchido em `CONTAGEM` e está no relógio do capacete, que no Wokwi atrasa em relação à hora real. Por isso o app não usa esse campo para a contagem regressiva:
+  - conta os 15 s (`CONTAGEM_CANCELAMENTO_S`) no próprio relógio, a partir da primeira leitura em que `estadoCapacete` é `CONTAGEM`, e mostra o `contagemTerminaEm` só como informação;
+  - quando a contagem do app chega a zero e o estado ainda é `CONTAGEM`, mostra "Enviando SOS..." até o estado mudar;
+  - o botão de cancelar segue habilitado enquanto `estadoCapacete` for `CONTAGEM`. Quem decide é a API: `POST /turnos/{id}/alerta/cancelar` responde `202` em `CONTAGEM` e `409` depois.
 - `ocorrenciaId` só vem preenchido depois do SOS, para o app abrir a tela da ocorrência.
 - `indiceCalorC` é o da última telemetria (ou `null`). O app sugere pausa quando ele é maior ou igual a `ALERTA_CALOR_C`.
 
@@ -338,7 +346,7 @@ Resposta: o mesmo formato de `indiceRisco`, `faixaRisco`, `componentes` e `expli
 | `chuva` | 25% | 0 mm/h = 0; 10 mm/h ou mais = 100; linear entre eles |
 | `calor` | 25% | Índice de calor de 27 °C = 0; 41 °C ou mais = 100; linear entre eles |
 
-Faixas: 0 a 25 `BAIXO` · 26 a 50 `MODERADO` · 51 a 75 `ALTO` · 76 a 100 `MUITO_ALTO`.
+Faixas: 0 a 25 `BAIXO`, 26 a 50 `MODERADO`, 51 a 75 `ALTO` e 76 a 100 `MUITO_ALTO`.
 
 **Arredondamento:** cada componente e o índice final são inteiros de 0 a 100, arredondados para o inteiro mais próximo, com 0,5 para cima. Exemplo: `sinistro` 80, `chuva` 70 e `calor` 30 dão 0,5 × 80 + 0,25 × 70 + 0,25 × 30 = 40 + 17,5 + 7,5 = **65**, faixa `ALTO`.
 
@@ -412,3 +420,4 @@ Máscaras padrão: CPF `***.***.***-12`, telefone `(11) *****-1234`.
 | 1.4 | 08/11/2026 | Exemplo do `POST /turnos` corrigido (índice 65, conforme a fórmula) e regra de arredondamento; fórmula do índice de calor com valores de referência; `ALERTA_CALOR_C` e `LIMIAR_IMPACTO_G` com maior ou igual; `protecaoAtiva` no `POST /turnos`, que publica `ARMAR`; `409` para segundo turno ativo; `limite`, ordem e padrão dos trechos críticos na API; quadro de códigos padrão; códigos do Cofre e auditoria de toda tentativa (`concedido` e `motivo` no `AcessoCofre`) |
 | 1.5 | 09/11/2026 | Cofre: o que a resposta mostra (sem `medicamentos`, como na Ficha), emergência manual automática sem ocorrência ativa, expiração também com `CANCELADA`, entregador sem ficha (`200`) e campos da auditoria (sem login e sem `ip`); seção 9 ajustada; `409` para aceite recusado; `401` para login inválido do socorrista; `pilotandoAntes` com maior ou igual a 15 km/h |
 | 1.6 | 09/11/2026 | Rede de voluntários: `GET /ocorrencias/proximas?voluntarioId=` (posição e disponibilidade do último `PUT`), corpo do `POST /ocorrencias/{id}/aceites` com `voluntarioId` e localização exata na resposta, e `voluntarioId` opcional em `GET /ocorrencias/{id}` para a localização exata do voluntário que aceitou |
+| 1.7 | 12/11/2026 | Indicador de impacto medido em dois trechos, cada um no próprio relógio (capacete e servidor); `contagemTerminaEm` do alerta só como informação, com a contagem regressiva no relógio do app; relógio do capacete no Wokwi (seção 6.2); falso positivo com a velocidade sustentada por 3 s; ajustes de pontuação |

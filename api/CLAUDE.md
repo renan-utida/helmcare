@@ -16,20 +16,10 @@ Este arquivo orienta o Claude Code quando ele trabalha na pasta `api/` do monore
 
 ## Fonte da verdade
 
-1. `docs/contrato-integracao.md` (versão 1.2) mais as decisões da versão 1.3 listadas abaixo, que já valem.
+1. `docs/contrato-integracao.md` (versão 1.7).
 2. Este arquivo.
 
 Nunca renomeie entidades, campos, enums, rotas, payloads ou tópicos MQTT do contrato. Se algo do contrato parecer impossível ou contraditório, pare e me avise, explicando o motivo, sem improvisar.
-
-### Decisões da v1.3 (implementar já)
-
-- Campos internos permitidos: `Dispositivo.EstadoAtual`, `EstadoAtualizadoEm`, `UltimoIndiceCalorC`, `UltimoIndiceCalorEm`; `EventoImpacto.ContagemTerminaEm` e `OcorridoEmEstimado`; `Turno.FimPrevisto`, `ComponenteSinistro`, `ComponenteChuva`, `ComponenteCalor` e `Explicacao`; `AcessoCofre.EntregadorId`; tabela `EventoMqttProcessado` (idempotência por dispositivo, tipo e ts).
-- SOS sem impacto em aberto: criar o `EventoImpacto` com `OcorridoEm = ts - 25 s` (`JANELA_OBSERVACAO_S + CONTAGEM_CANCELAMENTO_S`) e `OcorridoEmEstimado = true`.
-- Encerrar sem aceite é permitido: `SOS_CAMADA_1` ou `SOS_CAMADA_2` podem ir para `ENCERRADA`, com `TempoAteAceiteSegundos` nulo.
-- Cofre: página `GET /cofre/{qrToken}` (HTML, fora de `/api/v1`); `POST /api/v1/cofre/{qrToken}/acesso` e `GET /api/v1/cofre/auditoria/{entregadorId}` (JSON).
-- `GET /api/v1/turnos/{id}/alerta` inclui `indiceCalorC` (última telemetria ou null). Constante `ALERTA_CALOR_C = 32`.
-- O capacete só aceita `DESARMAR` em `ARMADO`. Encerrar turno com o capacete em `OBSERVACAO`, `CONTAGEM` ou `SOS_ENVIADO`, ou com ocorrência ativa, responde 409.
-- Opcional (só quando pedido): `GET /api/v1/indicadores`.
 
 ## Escopo de escrita
 
@@ -101,6 +91,7 @@ Use estas versões (as mesmas dos templates do professor). Se uma versão não r
 - Toda entidade herda de `Entidade` (abstrata, `Id` do tipo `Guid`). Setters privados, construtor sem parâmetros privado (para o EF) e criação por construtor público ou fábrica estática que valida. Coleções expostas como `IReadOnlyCollection<T>` com lista privada.
 - Exceções: `DominioException` (abstrata) e as derivadas `ValidacaoDominioException` (vira 400), `TransicaoInvalidaException` (vira 409) e `RegraNegocioException` (vira 409).
 - Enums: membros em PascalCase em C#. O nome do contrato (UPPER_SNAKE_CASE) vem de `[JsonStringEnumMemberName("SOS_CAMADA_1")]` em cada membro, e o tipo leva `[JsonConverter(typeof(JsonStringEnumConverter<T>))]`. O helper `NomeContrato` converte nos dois sentidos a partir desse atributo e é usado pelo conversor do EF e pela leitura do MQTT. Não use `JsonNamingPolicy` para isso (ela geraria `SOS_CAMADA1`).
+- Migrations novas só quando o pedido disser; a próxima prevista é a do Cofre (campos concedido e motivo do AcessoCofre).
 
 ### Máquina de estados da `Ocorrencia`
 
@@ -108,7 +99,7 @@ Use estas versões (as mesmas dos templates do professor). Se uma versão não r
 |---|---|---|---|
 | (nova) | `Abrir` (evento SOS) | `SOS_CAMADA_1` | `Camada = 1`, `CriadaEm`, coordenadas do evento |
 | `SOS_CAMADA_1` | `EscalarParaCamada2` (60 s após `CriadaEm`, sem aceite) | `SOS_CAMADA_2` | `Camada = 2` |
-| `SOS_CAMADA_1` ou `SOS_CAMADA_2` | `Aceitar` | `SOCORRO_A_CAMINHO` | `AceitaEm`, cria `AceiteSocorro`, `TempoAteAceiteSegundos = AceitaEm - EventoImpacto.OcorridoEm` |
+| `SOS_CAMADA_1` ou `SOS_CAMADA_2` | `Aceitar` | `SOCORRO_A_CAMINHO` | `AceitaEm`, cria `AceiteSocorro`, `TempoAteAceiteSegundos` = trecho do capacete (`ContagemTerminaEm - OcorridoEm`, ou `JANELA_OBSERVACAO_S + CONTAGEM_CANCELAMENTO_S` se estimado ou sem contagem) + trecho do servidor (`AceitaEm - CriadaEm`), cada um nunca negativo e arredondado para baixo só na soma (seção 7) |
 | `SOS_CAMADA_1` ou `SOS_CAMADA_2` | `Cancelar` | `CANCELADA` | `EncerradaEm` |
 | `SOS_CAMADA_1` ou `SOS_CAMADA_2` | `Encerrar` (SAMU chegou antes) | `ENCERRADA` | `EncerradaEm`, `TempoAteAceiteSegundos` nulo |
 | `SOCORRO_A_CAMINHO` | `Encerrar` | `ENCERRADA` | `EncerradaEm` |
@@ -116,10 +107,18 @@ Use estas versões (as mesmas dos templates do professor). Se uma versão não r
 
 `ENCERRADA` e `CANCELADA` são finais. Os comandos MQTT de cada transição (`SOCORRO_A_CAMINHO`, `ENCERRAR`) são enviados pela camada de serviço, não pelo domínio.
 
+## Mensageria (MQTT)
+
+- A API assina `helmcare-rdu/v1/+/telemetria` e `helmcare-rdu/v1/+/evento` em QoS 1 e publica em `helmcare-rdu/v1/{codigo}/comando` em QoS 1, com `clientId` próprio (nunca o do capacete, `helmcare-rdu-HC-0001`).
+- O `ts` vem do relógio do capacete. No Wokwi ele anda mais devagar que o relógio real, então a API nunca rejeita nem corrige um evento por comparar o `ts` com a hora do servidor; só compara `ts` com outro `ts` do mesmo capacete.
+- Eventos com o mesmo dispositivo, tipo e `ts` são um só (tabela `EventosMqttProcessados`), e o registro de idempotência é gravado na mesma transação do efeito.
+- Uma mensagem inválida ou de capacete desconhecido nunca derruba o assinante: é registrada no log e descartada.
+- Logs de MQTT levam só o código do capacete, o tipo, o `ts` e ids; nunca o payload, que tem coordenadas.
+
 ## Dados pessoais (seção 9 do contrato)
 
 - Nunca registre em log: `cpf`, `cnh`, `telefone`, `nome`, contatos de emergência, ficha médica, coordenadas exatas, senhas ou tokens. Logs usam ids (GUID) e o código do capacete.
-- Respostas mascaradas: CPF `***.***.***-12`, telefone `(11) *****-1234`. A ficha médica só aparece na resposta de `POST /api/v1/cofre/{qrToken}/acesso`.
+- Respostas mascaradas: CPF `***.***.***-12`, telefone `(11) *****-1234`. A ficha médica completa só volta no `PUT /api/v1/entregadores/{id}/ficha-medica`, para quem acabou de enviá-la; no Cofre saem só `tipoSanguineo`, `alergias` e `condicoesCriticas` (seção 7 do contrato).
 - Dados de seed são sempre simulados.
 
 ## Testes (`HelmCare.Testes`)
