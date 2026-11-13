@@ -1,6 +1,6 @@
 # HelmCare - Contrato de Integração
 
-**Versão 1.7 - 12/11/2026**
+**Versão 1.8 - 12/11/2026**
 
 Este documento define como as partes do HelmCare conversam entre si: nomes, tópicos MQTT, endpoints, payloads, estados e regras. **Todas as disciplinas seguem este contrato.** Mudanças só entram por meio da conversa central de coordenação, que gera uma nova versão.
 
@@ -168,7 +168,7 @@ Tópico `helmcare-rdu/v1/HC-0001/evento`, a cada mudança de estado:
 - **Detecção:** um impacto acontece quando a aceleração total é maior ou igual a `LIMIAR_IMPACTO_G`. O campo `orientacaoAnormal` (inclinação maior que 60°) é só informativo e não bloqueia a detecção, porque uma queda real pode terminar com o capacete na posição normal.
 - **Dados do impacto:** todos os eventos de um mesmo impacto repetem `picoG`, `orientacaoAnormal`, `pilotandoAntes`, `presencaAntes`, `latitude` e `longitude`. O `ts` é o instante de cada evento.
 - **Relógio do capacete:** o `ts` vem do relógio do ESP32, sincronizado por NTP só na inicialização. No Wokwi, esse relógio anda na velocidade da simulação (de 25% a 50% da real), então o `ts` atrasa em relação à hora real, e o atraso cresce com o tempo de simulação (no teste de 12/11, a 47% da velocidade real, chegou a 1 min 55 s depois de cerca de 2 min). A API nunca rejeita um evento por causa do `ts` nem compara o `ts` com o relógio do servidor. Diferenças de tempo só são calculadas entre dois instantes do mesmo relógio (veja o indicador de impacto, na seção 7).
-- **Reenvio do SOS:** enquanto estiver em `SOS_ENVIADO`, o capacete republica o evento `SOS` com o **mesmo** `ts` a cada `INTERVALO_TELEMETRIA_S`, até receber `SOCORRO_A_CAMINHO` ou `ENCERRAR`. A API trata eventos com o mesmo `dispositivo`, `tipo` e `ts` como um só (idempotência).
+- **Reenvio do SOS:** enquanto estiver em `SOS_ENVIADO`, o capacete republica o evento `SOS` com o **mesmo** `ts` a cada `INTERVALO_TELEMETRIA_S`, até receber `SOCORRO_A_CAMINHO` ou `ENCERRAR`. A API trata eventos com o mesmo `dispositivo`, `tipo` e `ts` como um só (idempotência). Um `SOS` repetido não cria nada, mas, se a ocorrência dele já estiver em `SOCORRO_A_CAMINHO`, a API publica `SOCORRO_A_CAMINHO` de novo, e, se já estiver `ENCERRADA` ou `CANCELADA`, publica `ENCERRAR` de novo. Assim, um comando que se perdeu é refeito no próximo reenvio, sem fila nem nova tentativa na API.
 - **SOS sem impacto em aberto:** como os eventos saem em QoS 0, o `IMPACTO_DETECTADO` pode se perder. Se chegar um `SOS` sem impacto em aberto para o dispositivo, a API cria o `EventoImpacto` com os dados do próprio SOS, `ocorridoEm` = `ts` menos 25 s (`JANELA_OBSERVACAO_S` + `CONTAGEM_CANCELAMENTO_S`) e `ocorridoEmEstimado` = verdadeiro. Assim, nem o SOS nem o indicador de impacto se perdem.
 
 **Como a API registra cada evento:**
@@ -207,12 +207,12 @@ Tópico `helmcare-rdu/v1/HC-0001/comando`:
 | Método | Rota | O que faz |
 |---|---|---|
 | POST | `/entregadores` | Cadastra um entregador |
-| GET | `/entregadores/{id}` | Dados do entregador (PII mascarada) |
-| PUT | `/entregadores/{id}/ficha-medica` | Cria ou atualiza a ficha médica |
+| GET | `/entregadores/{id}` | Dados do entregador (PII mascarada). Da ficha médica, só `possuiFichaMedica` |
+| PUT | `/entregadores/{id}/ficha-medica` | Cria ou substitui a ficha médica e devolve a ficha completa (única rota que devolve a ficha ao próprio entregador) |
 | POST | `/entregadores/{id}/contatos` | Adiciona um contato de emergência |
 | POST | `/dispositivos` | Vincula um capacete a um entregador |
 | POST | `/turnos` | Inicia um turno e devolve o Índice de Risco. Com `protecaoAtiva` verdadeiro, a API publica `ARMAR` para o capacete do entregador |
-| POST | `/turnos/{id}/encerrar` | Encerra o turno. Com o capacete em `ARMADO`, a API envia `DESARMAR`. Com alerta em andamento (`OBSERVACAO`, `CONTAGEM` ou `SOS_ENVIADO`) ou ocorrência ativa, responde `409` |
+| POST | `/turnos/{id}/encerrar` | Encerra o turno. Com a proteção ativa, a API envia `DESARMAR` (o capacete só obedece em `ARMADO`). Com alerta em andamento (`IMPACTO_DETECTADO`, `OBSERVACAO`, `CONTAGEM` ou `SOS_ENVIADO`) ou ocorrência ativa, responde `409` |
 | GET | `/turnos/{id}/risco` | Índice de Risco atual do turno |
 | GET | `/turnos/{id}/alerta` | Estado do alerta de queda do capacete no turno (tela de alerta do app) |
 | POST | `/turnos/{id}/alerta/cancelar` | Cancela o alerta durante a contagem (a API publica o comando `CANCELAR`) |
@@ -235,7 +235,7 @@ A página web do Cofre fica **fora** do `/api/v1`, em `GET /cofre/{qrToken}` (HT
 
 | Situação | Código |
 |---|---|
-| Criação de recurso (`POST /entregadores`, `/entregadores/{id}/contatos`, `/dispositivos`, `/turnos` e `/ocorrencias/{id}/aceites`) | `201 Created`, com o cabeçalho `Location` |
+| Criação de recurso (`POST /entregadores`, `/entregadores/{id}/contatos`, `/dispositivos`, `/turnos` e `/ocorrencias/{id}/aceites`) | `201 Created`, com o cabeçalho `Location`. Quando o recurso não tem `GET` próprio, o `Location` aponta para o recurso de leitura mais próximo: contatos e dispositivo para `/entregadores/{id}`, turno para `/turnos/{id}/risco` |
 | Leitura, `PUT` e ações sobre um recurso existente (encerrar, cancelar) | `200 OK`, com o recurso atualizado |
 | Comando enviado ao capacete sem esperar resposta (`POST /turnos/{id}/alerta/cancelar`) | `202 Accepted` |
 | Dados inválidos (validações da seção 3, parâmetros fora da faixa) | `400 Bad Request` |
@@ -243,13 +243,21 @@ A página web do Cofre fica **fora** do `/api/v1`, em `GET /cofre/{qrToken}` (HT
 | Autenticado, mas sem permissão (socorrista não verificado, acesso ao Cofre expirado) | `403 Forbidden` |
 | Id ou `qrToken` inexistente (entregador, turno, ocorrência, voluntário, dispositivo, Cofre) | `404 Not Found` |
 | Regra de negócio ou transição de estado inválida (segundo turno ativo, ocorrência já encerrada, alerta fora da contagem, aceite simultâneo) | `409 Conflict` |
+| Comando ao capacete que não chegou ao broker, nas rotas do turno (`POST /turnos` com `protecaoAtiva`, `POST /turnos/{id}/encerrar` e `POST /turnos/{id}/alerta/cancelar`) | `503 Service Unavailable`, e nada é gravado. O app pede para tentar de novo |
 
 Todos os erros saem em ProblemDetails.
+
+**Regras do cadastro:**
+
+- **Ficha médica:** o `GET /entregadores/{id}` nunca traz dados de saúde, só `possuiFichaMedica`. A ficha completa só volta na resposta do `PUT /entregadores/{id}/ficha-medica`, que substitui a ficha inteira. O app mostra se a ficha existe e, para editar, envia a ficha completa de novo. O app não guarda a ficha no SQLite local.
+- **Capacete:** o `qrToken` e a `urlCofre` (endereço da página do Cofre) só saem na resposta do `POST /dispositivos`, para imprimir o QR Code. Nenhuma outra rota devolve o `qrToken`.
 
 **Regras do turno:**
 
 - **Proteção:** a requisição do `POST /turnos` aceita `protecaoAtiva` (opcional, padrão verdadeiro). Com ela verdadeira, o entregador precisa ter um capacete vinculado (senão, `409`), e a API publica `ARMAR` no tópico de comando. A proteção é desligada ao encerrar o turno, que publica `DESARMAR` (seção 7, `POST /turnos/{id}/encerrar`).
 - **Um turno ativo por entregador:** um segundo `POST /turnos` com outro turno ainda ativo responde `409` e não cria nada.
+- **Duração:** o `fimPrevisto` vem depois do `inicio` e no máximo 24 h depois (exatamente 24 h passa). Fora disso, `400`.
+- **Encerrar:** o `200` do `POST /turnos/{id}/encerrar` traz `turnoId`, `entregadorId`, `inicio`, `fimPrevisto`, `fim`, `protecaoAtiva` e o risco no mesmo formato do `POST /turnos`.
 
 **Trechos críticos:** o `limite` é opcional, com padrão 10 e valores aceitos de 1 a 50 (fora disso, `400`). A lista vem em ordem decrescente de quantidade de sinistros graves.
 
@@ -264,6 +272,8 @@ Todos os erros saem em ProblemDetails.
 
 - **Camada 2:** a ocorrência escala quando passam `TEMPO_ACEITE_CAMADA_1_S` desde a criação, inclusive (60 s exatos já escalam).
 - **Raio da camada 1:** inclusivo (um voluntário a exatamente 2 km entra).
+- **Comandos da ocorrência:** o `SOCORRO_A_CAMINHO` (no aceite) e o `ENCERRAR` (no cancelamento e no encerramento) são publicados depois de gravar, sem bloquear a rota: se o broker falhar, a rota responde normalmente, porque o socorro não pode depender do capacete. O comando é refeito no próximo reenvio do `SOS` (seção 6.2).
+- **Cronômetro:** `GET /ocorrencias/{id}` traz `cronometro` com `segundosDesdeQueda`, `metaSegundos` (`META_TEMPO_ACEITE_S`) e `parado`. O `segundosDesdeQueda` segue a regra dos dois trechos do indicador, com o trecho do servidor indo até o aceite, até o encerramento ou até agora. `parado` é verdadeiro depois do aceite ou do fim da ocorrência. Entre uma consulta e outra, o app pode somar os segundos no próprio relógio.
 - **Indicador de impacto:** `tempoAteAceiteSegundos` é o tempo da queda até o aceite, medido em dois trechos, cada um no próprio relógio, para nunca misturar o relógio do capacete com o do servidor:
   1. **Trecho do capacete:** `contagemTerminaEm` menos `ocorridoEm` do `EventoImpacto`, os dois no relógio do capacete. Vale `JANELA_OBSERVACAO_S` + `CONTAGEM_CANCELAMENTO_S` (25 s) quando o impacto foi estimado (`ocorridoEmEstimado`) ou quando o `contagemTerminaEm` está vazio porque o `CONTAGEM_INICIADA` se perdeu.
   2. **Trecho do servidor:** `aceitaEm` menos `criadaEm` da `Ocorrencia`, os dois no relógio do servidor.
@@ -295,7 +305,7 @@ Resposta, durante a contagem:
 { "estadoCapacete": "CONTAGEM", "contagemTerminaEm": "2026-11-12T21:16:17Z", "ocorrenciaId": null, "indiceCalorC": 37.1 }
 ```
 
-- `estadoCapacete` usa o `EstadoDispositivo` e é o último estado recebido do capacete, por evento ou por telemetria.
+- `estadoCapacete` usa o `EstadoDispositivo` e é o último estado recebido do capacete, por evento ou por telemetria. Se o entregador não tem capacete vinculado (turno com `protecaoAtiva` falso), a resposta é `200` com todos os campos `null`, e o `POST /turnos/{id}/alerta/cancelar` responde `409`. O alerta de um turno já encerrado continua respondendo.
 - `contagemTerminaEm` só vem preenchido em `CONTAGEM` e está no relógio do capacete, que no Wokwi atrasa em relação à hora real. Por isso o app não usa esse campo para a contagem regressiva:
   - conta os 15 s (`CONTAGEM_CANCELAMENTO_S`) no próprio relógio, a partir da primeira leitura em que `estadoCapacete` é `CONTAGEM`, e mostra o `contagemTerminaEm` só como informação;
   - quando a contagem do app chega a zero e o estado ainda é `CONTAGEM`, mostra "Enviando SOS..." até o estado mudar;
@@ -372,7 +382,7 @@ Gerados pelo notebook de ML na pasta `ml/modelo/` e carregados pelo Serviço de 
 | Ponto | Opções | Onde será decidido |
 |---|---|---|
 | Percentil 95 | Um P95 único sobre todas as horas (preserva a diferença entre horários, como 18h e 4h) ou um P95 por hora do dia | Item 10 do notebook de ML, com os números na mão. A preferência inicial é o P95 único. |
-| Agregação das horas do turno | Como combinar as previsões de cada hora do turno em um único componente `sinistro` (por exemplo, média ou maior valor) | Disciplina de SOA, na implementação do `POST /indice-turno` |
+| Agregação das horas do turno | Como combinar as previsões de cada hora do turno em um único componente `sinistro` (por exemplo, média ou maior valor) | Disciplina de SOA, na implementação do `POST /indice-turno`. Até o Serviço de Risco ficar pronto, a versão simulada da API usa uma tabela ilustrativa por hora e o maior valor do turno |
 
 ---
 
@@ -385,7 +395,7 @@ Gerados pelo notebook de ML na pasta `ml/modelo/` e carregados pelo Serviço de 
 | Localização | `latitude`, `longitude` | Exata: contato de emergência e voluntário que **aceitou**. Aproximada (arredondada para 2 casas decimais, cerca de 1 km): voluntários antes do aceite. | Logs em texto aberto, MQTT com identificação pessoal |
 | Credenciais | Senhas e tokens | Nunca em texto | Qualquer saída |
 
-Máscaras padrão: CPF `***.***.***-12`, telefone `(11) *****-1234`.
+Máscaras padrão: CPF `***.***.***-12`, CNH `*******8900`, celular `(11) *****-1234` e telefone fixo `(11) ****-4567`.
 
 ---
 
@@ -421,3 +431,4 @@ Máscaras padrão: CPF `***.***.***-12`, telefone `(11) *****-1234`.
 | 1.5 | 09/11/2026 | Cofre: o que a resposta mostra (sem `medicamentos`, como na Ficha), emergência manual automática sem ocorrência ativa, expiração também com `CANCELADA`, entregador sem ficha (`200`) e campos da auditoria (sem login e sem `ip`); seção 9 ajustada; `409` para aceite recusado; `401` para login inválido do socorrista; `pilotandoAntes` com maior ou igual a 15 km/h |
 | 1.6 | 09/11/2026 | Rede de voluntários: `GET /ocorrencias/proximas?voluntarioId=` (posição e disponibilidade do último `PUT`), corpo do `POST /ocorrencias/{id}/aceites` com `voluntarioId` e localização exata na resposta, e `voluntarioId` opcional em `GET /ocorrencias/{id}` para a localização exata do voluntário que aceitou |
 | 1.7 | 12/11/2026 | Indicador de impacto medido em dois trechos, cada um no próprio relógio (capacete e servidor); `contagemTerminaEm` do alerta só como informação, com a contagem regressiva no relógio do app; relógio do capacete no Wokwi (seção 6.2); falso positivo com a velocidade sustentada por 3 s; ajustes de pontuação |
+| 1.8 | 12/11/2026 | Cadastro: ficha médica fora do `GET /entregadores/{id}` (só `possuiFichaMedica`), `qrToken` e `urlCofre` só no `POST /dispositivos`, máscaras da CNH e do telefone fixo; `Location` dos recursos sem `GET` próprio; `503` quando um comando do turno não chega ao broker; duração máxima do turno e resposta do encerrar; `IMPACTO_DETECTADO` como alerta em andamento; `DESARMAR` com a proteção ativa; alerta sem capacete com `200` e campos `null`; comandos da ocorrência sem bloquear a rota e refeitos no reenvio do `SOS`; formato do cronômetro; componente `sinistro` simulado até o Serviço de Risco |
