@@ -16,7 +16,7 @@ Este arquivo orienta o Claude Code quando ele trabalha na pasta `api/` do monore
 
 ## Fonte da verdade
 
-1. `docs/contrato-integracao.md` (versão 1.6).
+1. `docs/contrato-integracao.md` (versão 1.7).
 2. Este arquivo.
 
 Nunca renomeie entidades, campos, enums, rotas, payloads ou tópicos MQTT do contrato. Se algo do contrato parecer impossível ou contraditório, pare e me avise, explicando o motivo, sem improvisar.
@@ -99,7 +99,7 @@ Use estas versões (as mesmas dos templates do professor). Se uma versão não r
 |---|---|---|---|
 | (nova) | `Abrir` (evento SOS) | `SOS_CAMADA_1` | `Camada = 1`, `CriadaEm`, coordenadas do evento |
 | `SOS_CAMADA_1` | `EscalarParaCamada2` (60 s após `CriadaEm`, sem aceite) | `SOS_CAMADA_2` | `Camada = 2` |
-| `SOS_CAMADA_1` ou `SOS_CAMADA_2` | `Aceitar` | `SOCORRO_A_CAMINHO` | `AceitaEm`, cria `AceiteSocorro`, `TempoAteAceiteSegundos = AceitaEm - EventoImpacto.OcorridoEm` |
+| `SOS_CAMADA_1` ou `SOS_CAMADA_2` | `Aceitar` | `SOCORRO_A_CAMINHO` | `AceitaEm`, cria `AceiteSocorro`, `TempoAteAceiteSegundos` = trecho do capacete (`ContagemTerminaEm - OcorridoEm`, ou `JANELA_OBSERVACAO_S + CONTAGEM_CANCELAMENTO_S` se estimado ou sem contagem) + trecho do servidor (`AceitaEm - CriadaEm`), cada um nunca negativo e arredondado para baixo só na soma (seção 7) |
 | `SOS_CAMADA_1` ou `SOS_CAMADA_2` | `Cancelar` | `CANCELADA` | `EncerradaEm` |
 | `SOS_CAMADA_1` ou `SOS_CAMADA_2` | `Encerrar` (SAMU chegou antes) | `ENCERRADA` | `EncerradaEm`, `TempoAteAceiteSegundos` nulo |
 | `SOCORRO_A_CAMINHO` | `Encerrar` | `ENCERRADA` | `EncerradaEm` |
