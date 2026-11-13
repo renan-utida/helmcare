@@ -33,4 +33,12 @@ public interface IDispositivoRepositorio : IRepositorio<Dispositivo>
     /// <param name="cancellationToken">Cancelamento da requisição.</param>
     /// <returns><see langword="true"/> se o entregador já tem capacete.</returns>
     Task<bool> EntregadorJaTemDispositivoAsync(Guid entregadorId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Busca o capacete do entregador só para leitura (sem rastreio de alterações).
+    /// </summary>
+    /// <param name="entregadorId">Id do entregador.</param>
+    /// <param name="cancellationToken">Cancelamento da requisição.</param>
+    /// <returns>O capacete, ou nulo se o entregador não tem capacete.</returns>
+    Task<Dispositivo?> ObterDoEntregadorAsync(Guid entregadorId, CancellationToken cancellationToken);
 }

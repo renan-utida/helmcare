@@ -49,4 +49,14 @@ public sealed class OcorrenciaRepositorio : RepositorioBase<Ocorrencia>, IOcorre
             .Include(o => o.Aceites)
             .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
     }
+
+    /// <inheritdoc/>
+    public Task<Ocorrencia?> ObterParaConsultaAsync(Guid id, CancellationToken cancellationToken)
+    {
+        return Conjunto
+            .AsNoTracking()
+            .Include(o => o.EventoImpacto)
+            .Include(o => o.Aceites)
+            .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
+    }
 }

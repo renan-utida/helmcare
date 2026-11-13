@@ -42,6 +42,12 @@ public sealed class FakeOcorrenciaRepositorio : IOcorrenciaRepositorio
     }
 
     /// <inheritdoc/>
+    public Task<Ocorrencia?> ObterParaConsultaAsync(Guid id, CancellationToken cancellationToken)
+    {
+        return ObterPorIdAsync(id, cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public Task AdicionarAsync(Ocorrencia entidade, CancellationToken cancellationToken)
     {
         _ocorrencias.Add(entidade);

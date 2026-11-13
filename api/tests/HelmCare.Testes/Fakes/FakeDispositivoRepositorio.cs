@@ -59,4 +59,10 @@ public sealed class FakeDispositivoRepositorio : IDispositivoRepositorio
     {
         return Task.FromResult(_dispositivos.Exists(d => d.EntregadorId == entregadorId));
     }
+
+    /// <inheritdoc/>
+    public Task<Dispositivo?> ObterDoEntregadorAsync(Guid entregadorId, CancellationToken cancellationToken)
+    {
+        return Task.FromResult(_dispositivos.FirstOrDefault(d => d.EntregadorId == entregadorId));
+    }
 }

@@ -25,4 +25,14 @@ public interface IOcorrenciaRepositorio : IRepositorio<Ocorrencia>
     /// <param name="cancellationToken">Cancelamento da operação.</param>
     /// <returns>A ocorrência completa, ou nulo se não existir.</returns>
     Task<Ocorrencia?> ObterAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Busca a ocorrência com o impacto e os aceites, só para leitura (sem rastreio de alterações).
+    /// Usada no <c>GET /ocorrencias/{id}</c>, que precisa do impacto para o cronômetro e do aceite
+    /// para decidir entre a localização exata e a aproximada.
+    /// </summary>
+    /// <param name="id">Id da ocorrência.</param>
+    /// <param name="cancellationToken">Cancelamento da operação.</param>
+    /// <returns>A ocorrência completa, ou nulo se não existir.</returns>
+    Task<Ocorrencia?> ObterParaConsultaAsync(Guid id, CancellationToken cancellationToken);
 }

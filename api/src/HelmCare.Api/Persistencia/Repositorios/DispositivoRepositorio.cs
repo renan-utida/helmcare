@@ -37,4 +37,12 @@ public sealed class DispositivoRepositorio : RepositorioBase<Dispositivo>, IDisp
     {
         return Conjunto.AnyAsync(d => d.EntregadorId == entregadorId, cancellationToken);
     }
+
+    /// <inheritdoc/>
+    public Task<Dispositivo?> ObterDoEntregadorAsync(Guid entregadorId, CancellationToken cancellationToken)
+    {
+        return Conjunto
+            .AsNoTracking()
+            .FirstOrDefaultAsync(d => d.EntregadorId == entregadorId, cancellationToken);
+    }
 }
