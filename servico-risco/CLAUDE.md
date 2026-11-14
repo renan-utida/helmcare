@@ -13,7 +13,17 @@ Este arquivo orienta o Claude Code quando ele trabalha na pasta `servico-risco/`
 
 - **Renan:** decide, revisa e faz os commits, o push, a PR e o merge.
 - **Claude Code (você):** cria e edita arquivos dentro de `servico-risco/`, instala dependências no `.venv`, roda testes, linter e migrações e mostra a saída real. Não faz commits.
-- **Nunca faça:** `git add`, `git commit`, push, PR, merge, troca de branch, rebase, reset, stash, `docker compose down -v`, `docker volume rm` ou `prune`. Nunca abra `.env` nem qualquer arquivo com senha. Nunca rode `alembic downgrade` no banco de desenvolvimento (só no banco de testes, ou quando o pedido disser).
+- **Nunca faça:** `git add`, `git commit`, push, PR, merge, troca de branch, rebase, reset, stash, `docker compose down -v`, `docker volume rm` ou `prune`. Nunca rode `alembic downgrade` no banco de desenvolvimento (só no banco de testes, ou quando o pedido disser).
+- **Segredos:** o `servico-risco/.env` já existe e é ignorado pelo Git. Nunca o abra, imprima (`cat`, `echo`, `grep` no conteúdo, `env`, `printenv`), copie nem versione, e nunca abra outro arquivo com senha. O `.env.example` leva **só os nomes** das variáveis, com valor vazio (`POSTGRES_PASSWORD=`, `RISCO_DATABASE_URL=`, `RISCO_TESTES_DATABASE_URL=`); os valores padrão das demais variáveis ficam no `config.py` e no README. O aplicativo e o `docker compose` leem o `.env` sozinhos, sem você abrir o arquivo.
+
+## Ambiente (Windows, VS Code, Git Bash)
+
+- O Renan usa a extensão do Claude Code no VS Code, com a raiz `helmcare` aberta, no Windows com **Git Bash**. Todo comando precisa funcionar no Git Bash: barras normais nos caminhos, nada de PowerShell, `cmd` ou `.bat`.
+- Python 3.13.17 (o `py` do Windows já aponta para ele). Confirme com `py --version`. O ambiente virtual fica em `servico-risco/.venv`, criado a partir da raiz com `py -3.13 -m venv servico-risco/.venv`. O Renan o ativa no terminal dele com `source servico-risco/.venv/Scripts/activate`.
+- **Você não depende de ativação** (ela não persiste entre chamadas do Bash). Chame sempre o interpretador do venv: `.venv/Scripts/python -m pip`, `.venv/Scripts/python -m pytest`, `.venv/Scripts/python -m ruff`, `.venv/Scripts/python -m alembic`, `.venv/Scripts/python -m uvicorn`.
+- Cada chamada do Bash começa com `cd servico-risco && PYTHONUTF8=1 ...`, porque o diretório atual não é confiável entre chamadas e o console do Windows usa cp1252 por padrão.
+- No código, todo `open`, `read_text` e `write_text` leva `encoding="utf-8"` (os JSONs de `ml/modelo/` têm acentos e o padrão do Windows é cp1252).
+- Fim de linha: crie `servico-risco/.gitattributes` com `* text=auto eol=lf` (como o da `api/`), para o checkout no Windows não virar CRLF. No `pyproject.toml`, `line-ending = "auto"` no `ruff format`.
 
 ## Fonte da verdade
 
@@ -26,7 +36,8 @@ Nunca renomeie rotas, campos, enums ou valores do contrato, e **não acrescente 
 ## Escopo de escrita
 
 - Só dentro de `servico-risco/`.
-- Nunca altere `docs/`, `ml/`, `api/`, o `README.md` da raiz, o `prompts.md`, o `.gitignore`, o `.editorconfig` ou o `.gitattributes` da raiz. Os arquivos de `ml/modelo/` só são lidos.
+- Nunca altere `docs/`, `ml/`, `api/`, o `README.md` da raiz, o `prompts.md`, o `.editorconfig` ou o `.gitattributes` da raiz. Os arquivos de `ml/modelo/` só são lidos.
+- **Única exceção, na Rodada 1:** acrescentar ao `.gitignore` da raiz a linha `.ruff_cache/`, na seção Python, logo depois de `.pytest_cache/`. O `.gitignore` já ignora `.env`, `.venv/`, `__pycache__/`, `.pytest_cache/`, `.coverage` e `htmlcov/`; não repita essas linhas.
 
 ## Estrutura
 
@@ -52,19 +63,25 @@ servico-risco/
 - Camadas e dependências (sempre para dentro): `api` e `infraestrutura` dependem de `aplicacao`, que depende de `dominio`. **O `dominio` não importa FastAPI, Pydantic, SQLAlchemy, xgboost, numpy nem `app.config`.** A infraestrutura implementa as portas (`typing.Protocol`) declaradas em `dominio/portas.py`.
 - Rotas finas: validam a entrada, chamam um serviço de `aplicacao` e devolvem o esquema de saída. Nenhuma regra de negócio e nenhum SQL na rota.
 
-## Comandos (sempre a partir da pasta `servico-risco/`)
+## Comandos (Git Bash, a partir da pasta `servico-risco/`)
+
+Cada linha abaixo roda como `cd servico-risco && PYTHONUTF8=1 <comando>` (o `cd` e a variável vão no começo de cada chamada do Bash).
 
 ```shell
-python -m venv .venv
-source .venv/bin/activate          # Windows PowerShell: .venv\Scripts\Activate.ps1
-pip install -r requirements-dev.txt
+# uma vez, a partir da raiz do repositório
+py -3.13 -m venv servico-risco/.venv
+
+# a partir de servico-risco/
+.venv/Scripts/python -m pip install -r requirements-dev.txt
 docker compose up -d
-alembic upgrade head
-uvicorn app.main:app --host 127.0.0.1 --port 8000
-pytest
-ruff check .
-ruff format --check .
+.venv/Scripts/python -m alembic upgrade head
+.venv/Scripts/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+.venv/Scripts/python -m pytest
+.venv/Scripts/python -m ruff check .
+.venv/Scripts/python -m ruff format --check .
 ```
+
+A conferência de higiene e o `git status` rodam na **raiz** do repositório.
 
 ## Pacotes e versões
 
@@ -144,7 +161,11 @@ Valores de referência (testes): 33,4 °C e 58% dão 39,8 °C; 23,5 °C e 58% d�
 
 PostgreSQL 17.6. URL em `RISCO_DATABASE_URL` (formato `postgresql+psycopg://helmcare:SENHA@127.0.0.1:5433/helmcare_risco`), lida por `pydantic-settings`; nunca em arquivo versionado. Outras variáveis (todas com prefixo `RISCO_`): `RISCO_MODELO_DIR` (padrão: `ml/modelo` do repositório, resolvido a partir do arquivo `config.py`, nunca do diretório atual), `RISCO_CARREGAR_TRECHOS_NA_INICIALIZACAO` (padrão `true`), `RISCO_TESTES_DATABASE_URL` (só para os testes de integração).
 
-`compose.yaml` (projeto `helmcare-risco`): só o PostgreSQL 17.6, `127.0.0.1:5433:5432`, banco `helmcare_risco`, usuário `helmcare`, senha de `${POSTGRES_PASSWORD:?Configure servico-risco/.env}`, volume `dados-postgres-risco`, healthcheck com `pg_isready`. `.env.example` com `POSTGRES_PASSWORD=` e um comentário de como gerar a senha. Nenhuma senha versionada.
+`config.py`: `SettingsConfigDict(env_prefix="RISCO_", env_file=<caminho absoluto do .env de servico-risco, a partir do arquivo config.py>, env_file_encoding="utf-8", extra="ignore")`. O `extra="ignore"` é obrigatório: o `.env` também guarda a `POSTGRES_PASSWORD` do compose (sem o prefixo `RISCO_`), e sem ele o `pydantic-settings` recusa a chave. O Renan acrescenta no `.env` as linhas `RISCO_DATABASE_URL` e `RISCO_TESTES_DATABASE_URL` antes da Rodada 2; você nunca as escreve nem as lê.
+
+`compose.yaml`: o PostgreSQL da API já roda no Docker na porta 5432, então este compose precisa ser totalmente separado dele. `name: helmcare-risco` (a API usa `helmcare-api`), serviço `postgres` com `container_name: helmcare-risco-postgres`, volume com nome próprio `dados-postgres-risco`, imagem `postgres:17.6`, portas `127.0.0.1:5433:5432`, banco `helmcare_risco`, usuário `helmcare`, senha de `${POSTGRES_PASSWORD:?Configure servico-risco/.env}`, healthcheck com `pg_isready`. Nada de `network_mode` nem de volume ou rede compartilhados com a API. `.env.example` só com os nomes (veja Segredos) e um comentário de como gerar a senha (`openssl rand -hex 16`). Nenhuma senha versionada.
+
+**503 por degradação (aprovado):** modelo que não carrega ou banco fora do ar no startup não derrubam o serviço: ele sobe, e `/saude` e `/indice-turno` respondem 503. A API em C# trata esse 503 como falha do serviço e usa a versão simulada. Isso entra na próxima versão do contrato (1.11); até lá, o texto da seção API deste arquivo é a regra.
 
 Tabelas (nomes no singular, colunas em snake_case, tipos do SQLAlchemy 2: `Uuid`, `DateTime(timezone=True)`, `Float` para medidas e coordenadas). Defina `naming_convention` no `MetaData` para os nomes de constraints serem previsíveis.
 
@@ -193,8 +214,8 @@ Os pedidos vêm em rodadas (o Renan junta missões por causa do prazo). Faça s�
 | Rodada | Conteúdo |
 |---|---|
 | **1** | Esqueleto, configuração, domínio completo com testes unitários e a camada de ML com o teste do exemplo de referência |
-| **2** | Banco, migrações, repositórios, carga dos trechos, serviços de aplicação, rotas, erros em problem+json, saúde, OpenAPI, testes de API e de integração |
-| **3** | Fechamento dos testes e da cobertura, README completo, evidências e auditoria final |
+| **2** | Banco, migrações, repositórios, carga dos trechos, serviços de aplicação, rotas, erros em problem+json, saúde, OpenAPI, testes de API e de integração. No README, deixe pronto um exemplo de requisição e resposta do `POST /risco/v1/indice-turno` (o exemplo de referência, com o `curl`), que o Renan repassa para a conversa da API em C# |
+| **3** | Fechamento dos testes e da cobertura, README completo, evidências e auditoria final. As evidências registram também a chamada de ponta a ponta (API em C# chamando o serviço, com tempo limite e a versão simulada de reserva), quando a API já a tiver; o entregável de quarta é o índice calculado de ponta a ponta |
 
 Extras só se sobrar tempo, nesta ordem: cabeçalho `X-Correlation-Id` repassado aos logs; teste de carga leve com o `httpx`.
 
@@ -202,7 +223,7 @@ Extras só se sobrar tempo, nesta ordem: cabeçalho `X-Correlation-Id` repassado
 
 Faça, nesta ordem:
 
-1. **Esqueleto:** `requirements.txt`, `requirements-dev.txt`, `pyproject.toml` (ruff e pytest), `.env.example`, `compose.yaml`, pacotes `app/` e `tests/` com `__init__.py`, `app/config.py` (`pydantic-settings`, variáveis `RISCO_*`) e um `README.md` provisório (só como executar e a estrutura; o README final é da rodada 3). Crie o `.venv`, instale as dependências e mostre as versões instaladas. **Não** crie rotas nem banco ainda.
+1. **Esqueleto:** `requirements.txt`, `requirements-dev.txt`, `pyproject.toml` (ruff e pytest, com `pythonpath = ["."]`, `testpaths = ["tests"]` e o marcador `integracao` registrado), `.env.example` (só nomes), `.gitattributes`, `compose.yaml` (escrito, ainda sem subir o Docker), pacotes `app/` e `tests/` com `__init__.py`, `app/config.py` (`pydantic-settings`, variáveis `RISCO_*`, sem nenhuma conexão com banco) e um `README.md` provisório (só como executar no Git Bash e a estrutura; o README final é da rodada 3). Acrescente `.ruff_cache/` ao `.gitignore` da raiz (única alteração fora de `servico-risco/`). Crie o `.venv` com `py -3.13 -m venv servico-risco/.venv`, instale as dependências e mostre as versões instaladas. **Não** crie rotas nem banco ainda, e **não** abra o `.env`.
 2. **Domínio** (`app/dominio/`): `faixa_risco`, `indice_calor`, `componentes`, `calculadora_indice`, `horas_turno`, `agregacao`, `calendario`, `explicacao`, `trecho_critico`, `excecoes` e `portas` (`PrevisorSinistros`, `Relogio`, `RepositorioTrechosCriticos`, `RepositorioCalculos`), seguindo as regras acima, com os testes unitários de `tests/dominio/`.
 3. **ML** (`app/infraestrutura/ml/`): `artefatos` (lê `metadados_modelo.json` e `p95_sinistros_graves.json`, valida `ordemVariaveis` e compara as versões do `xgboost` e do `holidays` instalados com as de `versoesBibliotecas`, registrando aviso em caso de diferença) e `previsor_xgboost` (implementa a porta). Teste de paridade com as 4 previsões do exemplo de referência e teste que monta o índice completo do exemplo (84, 70, 0, 60, `ALTO`) usando o previsor real e o domínio.
 
