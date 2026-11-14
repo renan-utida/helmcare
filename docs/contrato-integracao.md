@@ -1,6 +1,6 @@
 # HelmCare - Contrato de Integração
 
-**Versão 1.9 - 14/11/2026**
+**Versão 1.10 - 14/11/2026**
 
 Este documento define como as partes do HelmCare conversam entre si: nomes, tópicos MQTT, endpoints, payloads, estados e regras. **Todas as disciplinas seguem este contrato.** Mudanças só entram por meio da conversa central de coordenação, que gera uma nova versão.
 
@@ -294,9 +294,11 @@ Resposta:
   "indiceRisco": 65,
   "faixaRisco": "ALTO",
   "componentes": { "sinistro": 80, "chuva": 70, "calor": 30 },
-  "explicacao": "Risco alto: chuva prevista às 21h e o seu horário tem histórico de sinistros graves."
+  "explicacao": "Risco alto: chuva prevista no turno e o seu horário tem histórico de sinistros graves."
 }
 ```
+
+Os componentes desse exemplo ilustram a fórmula da seção 8 (80, 70 e 30 dão 65). Com o modelo real, a requisição de exemplo da seção 8 dá outros valores (veja lá).
 
 **Exemplo: `GET /turnos/{id}/alerta`**
 
@@ -346,13 +348,25 @@ Requisição:
 }
 ```
 
-Resposta: o mesmo formato de `indiceRisco`, `faixaRisco`, `componentes` e `explicacao` mostrado na seção 7.
+Resposta: o mesmo formato de `indiceRisco`, `faixaRisco`, `componentes` e `explicacao` mostrado na seção 7. Com o modelo real, essa requisição (quinta-feira, das 17h às 21h no horário local) dá `sinistro` 84, `chuva` 70 e `calor` 0 (24 °C com 85% de umidade dão índice de calor de 24,7 °C, abaixo de 27), com `indiceRisco` 60 e faixa `ALTO`. É o exemplo de referência dos testes do Serviço de Risco.
+
+**Regras da requisição (`400` em ProblemDetails, como na seção 7):**
+
+- `inicio` e `fim` vêm com fuso (ISO 8601 com `Z` ou deslocamento); data sem fuso é recusada. O serviço normaliza para UTC.
+- O `fim` vem depois do `inicio`, com no máximo 24 h de turno (exatamente 24 h passa), como no `POST /turnos`.
+- `previsao` é obrigatória: `chuvaMmHora` de 0 a 200, `temperaturaC` de -10 a 50 e `umidadePct` de 0 a 100.
+- A previsão é uma só para o turno inteiro. Por isso a `explicacao` fala em "chuva prevista no turno", sem citar a hora da chuva.
+- `limite` fora de 1 a 50 no `GET /trechos-criticos` também dá `400` (o FastAPI devolveria `422`, e o serviço troca para `400`).
+
+**Saúde:** `GET /risco/v1/saude` responde `200` com `{ "status": "Healthy" }`, ou `503` com `{ "status": "Unhealthy" }` quando o banco ou o modelo não estão disponíveis. O monitoramento olha o status HTTP, como na API principal.
+
+**Histórico dos cálculos:** cada `POST /indice-turno` grava as entradas, o resultado, as previsões de cada hora e a versão do modelo no banco `helmcare_risco`, sem nenhum dado pessoal. Se a gravação falhar, o cálculo responde `200` mesmo assim e o erro vai para o log: o entregador precisa do índice mais do que o serviço precisa do histórico. Não há rota para consultar o histórico.
 
 **Fórmula do índice (0 a 100):**
 
 | Componente | Peso | Normalização para 0 a 100 |
 |---|---|---|
-| `sinistro` | 50% | Para cada hora do turno: 100 × previsão do modelo ÷ P95 (0,322927, seção 8.1), limitado a 100. As horas do turno são agregadas num único valor (pendência da seção 8.1) |
+| `sinistro` | 50% | Para cada hora do turno: 100 × previsão do modelo ÷ P95 (0,322927, seção 8.1), limitado a 100. As horas do turno são agregadas pela média ponderada (seção 8.1) |
 | `chuva` | 25% | 0 mm/h = 0; 10 mm/h ou mais = 100; linear entre eles |
 | `calor` | 25% | Índice de calor de 27 °C = 0; 41 °C ou mais = 100; linear entre eles |
 
@@ -393,11 +407,7 @@ Gerados pelo notebook de ML na pasta `ml/modelo/` e carregados pelo Serviço de 
 
 **Percentil 95:** P95 único das previsões do modelo final nas 61.368 horas locais de 2019 a 2025, igual a **0,322927** sinistro grave esperado por hora. Foi escolhido no lugar do P95 por hora do dia porque só ele preserva a ordem do risco entre os horários (numa quinta-feira de novembro, o componente vai de 21 pontos de madrugada a 88 às 19h). O P95 por hora colocaria as 9h acima das 18h, e 63% das horas cairiam na faixa de 76 a 100.
 
-**Pendências registradas:**
-
-| Ponto | Opções | Onde será decidido |
-|---|---|---|
-| Agregação das horas do turno | Como combinar as previsões de cada hora do turno em um único componente `sinistro` (por exemplo, média ou maior valor) | Disciplina de SOA, na implementação do `POST /indice-turno`. Até o Serviço de Risco ficar pronto, a versão simulada da API usa uma tabela ilustrativa por hora e o maior valor do turno |
+**Agregação das horas do turno:** cada hora é normalizada pelo P95 (100 × previsão ÷ P95, limitado a 100, ainda sem arredondar), e o componente `sinistro` é a média ponderada desses valores pelos minutos que cada hora fica dentro do turno, com um único arredondamento no fim (0,5 para cima). O arredondamento por hora do passo 6 de `metadados_modelo.json` não é usado. **Motivo:** o P95 é um percentil de horas isoladas, então a média do turno fica na mesma escala dele. O maior valor deixaria turnos de 4, 10 e 12 horas que passam pelo pico todos com o mesmo número, e a soma cresceria só com a duração do turno. O pico não se perde: a `explicacao` pode citar a hora de maior risco. A versão simulada da API principal usa a mesma regra, para o mesmo turno ter o mesmo índice com o Serviço de Risco no ar ou não.
 
 ---
 
@@ -448,3 +458,4 @@ Máscaras padrão: CPF `***.***.***-12`, CNH `*******8900`, celular `(11) *****-
 | 1.7 | 12/11/2026 | Indicador de impacto medido em dois trechos, cada um no próprio relógio (capacete e servidor); `contagemTerminaEm` do alerta só como informação, com a contagem regressiva no relógio do app; relógio do capacete no Wokwi (seção 6.2); falso positivo com a velocidade sustentada por 3 s; ajustes de pontuação |
 | 1.8 | 12/11/2026 | Cadastro: ficha médica fora do `GET /entregadores/{id}` (só `possuiFichaMedica`), `qrToken` e `urlCofre` só no `POST /dispositivos`, máscaras da CNH e do telefone fixo; `Location` dos recursos sem `GET` próprio; `503` quando um comando do turno não chega ao broker; duração máxima do turno e resposta do encerrar; `IMPACTO_DETECTADO` como alerta em andamento; `DESARMAR` com a proteção ativa; alerta sem capacete com `200` e campos `null`; comandos da ocorrência sem bloquear a rota e refeitos no reenvio do `SOS`; formato do cronômetro; componente `sinistro` simulado até o Serviço de Risco |
 | 1.9 | 14/11/2026 | Modelo de ML só com o calendário (as variáveis do tempo não melhoraram as previsões); a chuva entra só pelo componente `chuva`, e a explicação nunca diz que ela aumenta os sinistros graves; P95 único de 0,322927; conversão das horas do turno de UTC para o horário local; campos do `trechos_criticos.json` e exemplo do `GET /trechos-criticos`; velocidade do Wokwi depois dos ajustes do capacete |
+| 1.10 | 14/11/2026 | Agregação das horas do turno pela média ponderada pelos minutos (fim da pendência da seção 8.1), também na versão simulada da API; regras da requisição do `POST /indice-turno` (fuso obrigatório, duração, faixas da previsão); corpo do `/saude` do Serviço de Risco; histórico dos cálculos sem bloquear a resposta; explicação com "chuva prevista no turno"; resultado real do exemplo da seção 8 |

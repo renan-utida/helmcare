@@ -59,7 +59,7 @@ Por trás desses números está um trabalhador que:
 ## Os três pilares
 
 ### 1. Prevenir
-- **Índice de Risco do Turno (0 a 100):** antes de sair, o entregador vê o risco do seu turno, com a explicação em linguagem simples. Exemplo: *"Risco alto: chuva prevista às 18h e o seu horário tem histórico de sinistros graves."*
+- **Índice de Risco do Turno (0 a 100):** antes de sair, o entregador vê o risco do seu turno, com a explicação em linguagem simples. Exemplo: *"Risco alto: chuva prevista no turno e o seu horário tem histórico de sinistros graves."*
 - **Alerta de calor:** o capacete mede a temperatura e a umidade, e o app sugere pausa e hidratação quando o índice de calor fica perigoso.
 - **Trechos críticos:** uma lista ou mapa simples dos pontos com mais sinistros graves, pré-calculados a partir do Infosiga.
 
