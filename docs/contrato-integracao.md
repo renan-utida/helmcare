@@ -1,6 +1,6 @@
 # HelmCare - Contrato de Integração
 
-**Versão 1.8 - 12/11/2026**
+**Versão 1.9 - 14/11/2026**
 
 Este documento define como as partes do HelmCare conversam entre si: nomes, tópicos MQTT, endpoints, payloads, estados e regras. **Todas as disciplinas seguem este contrato.** Mudanças só entram por meio da conversa central de coordenação, que gera uma nova versão.
 
@@ -167,7 +167,7 @@ Tópico `helmcare-rdu/v1/HC-0001/evento`, a cada mudança de estado:
 
 - **Detecção:** um impacto acontece quando a aceleração total é maior ou igual a `LIMIAR_IMPACTO_G`. O campo `orientacaoAnormal` (inclinação maior que 60°) é só informativo e não bloqueia a detecção, porque uma queda real pode terminar com o capacete na posição normal.
 - **Dados do impacto:** todos os eventos de um mesmo impacto repetem `picoG`, `orientacaoAnormal`, `pilotandoAntes`, `presencaAntes`, `latitude` e `longitude`. O `ts` é o instante de cada evento.
-- **Relógio do capacete:** o `ts` vem do relógio do ESP32, sincronizado por NTP só na inicialização. No Wokwi, esse relógio anda na velocidade da simulação (de 25% a 50% da real), então o `ts` atrasa em relação à hora real, e o atraso cresce com o tempo de simulação (no teste de 12/11, a 47% da velocidade real, chegou a 1 min 55 s depois de cerca de 2 min). A API nunca rejeita um evento por causa do `ts` nem compara o `ts` com o relógio do servidor. Diferenças de tempo só são calculadas entre dois instantes do mesmo relógio (veja o indicador de impacto, na seção 7).
+- **Relógio do capacete:** o `ts` vem do relógio do ESP32, sincronizado por NTP só na inicialização. No Wokwi, esse relógio anda na velocidade da simulação (de 25% a 50% da real antes dos ajustes de desempenho do capacete, e perto de 89% depois deles), então o `ts` atrasa em relação à hora real, e o atraso cresce com o tempo de simulação (no teste de 12/11, a 47% da velocidade real, chegou a 1 min 55 s depois de cerca de 2 min). A API nunca rejeita um evento por causa do `ts` nem compara o `ts` com o relógio do servidor. Diferenças de tempo só são calculadas entre dois instantes do mesmo relógio (veja o indicador de impacto, na seção 7).
 - **Reenvio do SOS:** enquanto estiver em `SOS_ENVIADO`, o capacete republica o evento `SOS` com o **mesmo** `ts` a cada `INTERVALO_TELEMETRIA_S`, até receber `SOCORRO_A_CAMINHO` ou `ENCERRAR`. A API trata eventos com o mesmo `dispositivo`, `tipo` e `ts` como um só (idempotência). Um `SOS` repetido não cria nada, mas, se a ocorrência dele já estiver em `SOCORRO_A_CAMINHO`, a API publica `SOCORRO_A_CAMINHO` de novo, e, se já estiver `ENCERRADA` ou `CANCELADA`, publica `ENCERRAR` de novo. Assim, um comando que se perdeu é refeito no próximo reenvio, sem fila nem nova tentativa na API.
 - **SOS sem impacto em aberto:** como os eventos saem em QoS 0, o `IMPACTO_DETECTADO` pode se perder. Se chegar um `SOS` sem impacto em aberto para o dispositivo, a API cria o `EventoImpacto` com os dados do próprio SOS, `ocorridoEm` = `ts` menos 25 s (`JANELA_OBSERVACAO_S` + `CONTAGEM_CANCELAMENTO_S`) e `ocorridoEmEstimado` = verdadeiro. Assim, nem o SOS nem o indicador de impacto se perdem.
 
@@ -352,7 +352,7 @@ Resposta: o mesmo formato de `indiceRisco`, `faixaRisco`, `componentes` e `expli
 
 | Componente | Peso | Normalização para 0 a 100 |
 |---|---|---|
-| `sinistro` | 50% | Previsão do modelo dividida pelo percentil 95 histórico (ver seção 8.1), limitada a 100 |
+| `sinistro` | 50% | Para cada hora do turno: 100 × previsão do modelo ÷ P95 (0,322927, seção 8.1), limitado a 100. As horas do turno são agregadas num único valor (pendência da seção 8.1) |
 | `chuva` | 25% | 0 mm/h = 0; 10 mm/h ou mais = 100; linear entre eles |
 | `calor` | 25% | Índice de calor de 27 °C = 0; 41 °C ou mais = 100; linear entre eles |
 
@@ -360,7 +360,19 @@ Faixas: 0 a 25 `BAIXO`, 26 a 50 `MODERADO`, 51 a 75 `ALTO` e 76 a 100 `MUITO_ALT
 
 **Arredondamento:** cada componente e o índice final são inteiros de 0 a 100, arredondados para o inteiro mais próximo, com 0,5 para cima. Exemplo: `sinistro` 80, `chuva` 70 e `calor` 30 dão 0,5 × 80 + 0,25 × 70 + 0,25 × 30 = 40 + 17,5 + 7,5 = **65**, faixa `ALTO`.
 
-**A chuva aparece duas vezes, de propósito.** No componente `sinistro`, ela entra pelo modelo (o efeito da chuva no histórico de sinistros graves). No componente `chuva`, ela representa a exposição direta do entregador à condição do tempo. A `explicacao` devolvida ao entregador deve deixar essa diferença clara.
+**A chuva entra só pelo componente `chuva`.** O modelo de ML usa só o calendário (seção 8.1), porque as variáveis do tempo, testadas no notebook, não melhoraram as previsões. A chuva e o calor entram no índice pelos componentes `chuva` e `calor`, como exposição direta do entregador à condição do tempo. A `explicacao` devolvida ao entregador nunca diz que a chuva aumenta os sinistros graves: o histórico não mostra isso. Ela pode dizer que há chuva prevista (pede atenção redobrada) e que o horário tem histórico de sinistros graves, como no exemplo da seção 7.
+
+**Exemplo: `GET /trechos-criticos?limite=2`** (mesmo formato no Serviço de Risco e na API principal)
+
+```json
+{
+  "periodo": "2019 a 2025",
+  "trechos": [
+    { "posicao": 1, "logradouro": "SP 270 (RODOVIA RAPOSO TAVARES)", "latitude": -23.58341, "longitude": -46.77771, "quantidadeSinistrosGraves": 46 },
+    { "posicao": 2, "logradouro": "SP 270 (RODOVIA RAPOSO TAVARES)", "latitude": -23.58481, "longitude": -46.78738, "quantidadeSinistrosGraves": 38 }
+  ]
+}
+```
 
 ### 8.1 Artefatos do modelo de ML
 
@@ -370,18 +382,21 @@ Gerados pelo notebook de ML na pasta `ml/modelo/` e carregados pelo Serviço de 
 |---|---|
 | `modelo_sinistros_xgb.json` | Modelo no formato nativo do XGBoost (mais estável entre versões do que um pickle) |
 | `metadados_modelo.json` | Ordem e codificação das variáveis, como converter a requisição do `POST /indice-turno` nelas, período de treino, métricas e versões das bibliotecas |
-| `p95_sinistros_graves.json` | Percentil 95 histórico usado na normalização do componente `sinistro` |
-| `trechos_criticos.json` | Logradouro, latitude, longitude e quantidade de sinistros graves, com pelo menos 50 trechos (para atender o parâmetro `?limite=`) |
+| `p95_sinistros_graves.json` | Percentil 95 usado na normalização do componente `sinistro`: campo `p95` (0,322927) e a fórmula |
+| `trechos_criticos.json` | Campos `periodo`, `fonte`, `criterio`, `quantidadeTrechos` e a lista `trechos`, em que cada trecho tem `posicao`, `logradouro`, `latitude`, `longitude` e `quantidadeSinistrosGraves`. São 100 trechos (pelo menos 50, para atender o parâmetro `?limite=`), em ordem decrescente de quantidade |
 
 **O que o modelo prevê:** a quantidade esperada de sinistros graves com motocicletas na cidade de São Paulo em **uma hora local (0 a 23)**. O Serviço de Risco aplica o modelo a cada hora do turno.
 
-**Variáveis de entrada:** somente as que o Serviço de Risco consegue montar a partir da requisição: calendário (hora local, dia da semana, mês e feriado) e a previsão do tempo (`chuvaMmHora`, `temperaturaC` e `umidadePct`). Os feriados devem ser calculados da mesma forma no notebook e no Serviço de Risco, conforme descrito em `metadados_modelo.json`.
+**Variáveis de entrada:** só o calendário, na ordem `hora`, `dia_semana` (0 = segunda), `mes` e `feriado`, todos da data e da hora locais. A previsão do tempo (`chuvaMmHora`, `temperaturaC` e `umidadePct`) continua na requisição do `POST /indice-turno`, mas entra só nos componentes `chuva` e `calor`. **Motivo:** no notebook, as variáveis do tempo não melhoraram as previsões (deviance de validação de 0,6977 sem elas contra 0,6990 com elas; no teste, 0,7429 contra 0,7427), e o modelo com elas aprendia um efeito de chuva forte que não se repete fora do treino. Os feriados seguem a regra e a lista de datas de `metadados_modelo.json`.
+
+**Horas do turno:** o `inicio` e o `fim` chegam em UTC (seção 2). O Serviço de Risco percorre as horas cheias que se sobrepõem ao turno e converte o início de cada uma para `America/Sao_Paulo` antes de montar as variáveis. No exemplo da seção 8, das 20h às 00h em UTC, as horas locais são 17h, 18h, 19h e 20h de quinta-feira. Os passos completos estão em `metadados_modelo.json`.
+
+**Percentil 95:** P95 único das previsões do modelo final nas 61.368 horas locais de 2019 a 2025, igual a **0,322927** sinistro grave esperado por hora. Foi escolhido no lugar do P95 por hora do dia porque só ele preserva a ordem do risco entre os horários (numa quinta-feira de novembro, o componente vai de 21 pontos de madrugada a 88 às 19h). O P95 por hora colocaria as 9h acima das 18h, e 63% das horas cairiam na faixa de 76 a 100.
 
 **Pendências registradas:**
 
 | Ponto | Opções | Onde será decidido |
 |---|---|---|
-| Percentil 95 | Um P95 único sobre todas as horas (preserva a diferença entre horários, como 18h e 4h) ou um P95 por hora do dia | Item 10 do notebook de ML, com os números na mão. A preferência inicial é o P95 único. |
 | Agregação das horas do turno | Como combinar as previsões de cada hora do turno em um único componente `sinistro` (por exemplo, média ou maior valor) | Disciplina de SOA, na implementação do `POST /indice-turno`. Até o Serviço de Risco ficar pronto, a versão simulada da API usa uma tabela ilustrativa por hora e o maior valor do turno |
 
 ---
@@ -432,3 +447,4 @@ Máscaras padrão: CPF `***.***.***-12`, CNH `*******8900`, celular `(11) *****-
 | 1.6 | 09/11/2026 | Rede de voluntários: `GET /ocorrencias/proximas?voluntarioId=` (posição e disponibilidade do último `PUT`), corpo do `POST /ocorrencias/{id}/aceites` com `voluntarioId` e localização exata na resposta, e `voluntarioId` opcional em `GET /ocorrencias/{id}` para a localização exata do voluntário que aceitou |
 | 1.7 | 12/11/2026 | Indicador de impacto medido em dois trechos, cada um no próprio relógio (capacete e servidor); `contagemTerminaEm` do alerta só como informação, com a contagem regressiva no relógio do app; relógio do capacete no Wokwi (seção 6.2); falso positivo com a velocidade sustentada por 3 s; ajustes de pontuação |
 | 1.8 | 12/11/2026 | Cadastro: ficha médica fora do `GET /entregadores/{id}` (só `possuiFichaMedica`), `qrToken` e `urlCofre` só no `POST /dispositivos`, máscaras da CNH e do telefone fixo; `Location` dos recursos sem `GET` próprio; `503` quando um comando do turno não chega ao broker; duração máxima do turno e resposta do encerrar; `IMPACTO_DETECTADO` como alerta em andamento; `DESARMAR` com a proteção ativa; alerta sem capacete com `200` e campos `null`; comandos da ocorrência sem bloquear a rota e refeitos no reenvio do `SOS`; formato do cronômetro; componente `sinistro` simulado até o Serviço de Risco |
+| 1.9 | 14/11/2026 | Modelo de ML só com o calendário (as variáveis do tempo não melhoraram as previsões); a chuva entra só pelo componente `chuva`, e a explicação nunca diz que ela aumenta os sinistros graves; P95 único de 0,322927; conversão das horas do turno de UTC para o horário local; campos do `trechos_criticos.json` e exemplo do `GET /trechos-criticos`; velocidade do Wokwi depois dos ajustes do capacete |
