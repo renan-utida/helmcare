@@ -31,7 +31,7 @@ Contrato de integração entre as partes: [`docs/contrato-integracao.md`](docs/c
 |---|---|
 | **Nome da CitizenTech** | HelmCare |
 | **Slogan** | Do risco ao resgate, cuidado em cada corrida. |
-| **Cidade e bairro** | São Paulo (SP). Território observado: região da Avenida Paulista (Bela Vista), no entorno da FIAP Paulista, com dados de sinistros de toda a capital. *(confirmar o ponto exato após a entrevista)* |
+| **Cidade e bairro** | São Paulo (SP). Território observado: região da Avenida Paulista (Bela Vista), no entorno da FIAP Paulista, e os bairros vizinhos onde rodam os entregadores entrevistados (Consolação, Liberdade e Pinheiros), com dados de sinistros de toda a capital. |
 | **Cidadão beneficiado** | Motociclistas que trabalham com entregas por aplicativo (entregadores e motoboys) na cidade de São Paulo. |
 | **Problema, em uma frase** | O entregador de moto é a principal vítima fatal do trânsito paulistano e, quando cai, depende da sorte de alguém ver e chamar ajuda, sem nunca ter sido avisado do risco antes de sair. |
 | **Como funciona** | Um módulo no capacete detecta a queda, confirma que a pessoa estava pilotando e, se ela não cancelar, dispara um SOS para a rede de entregadores mais próxima, para o contato de emergência e com a orientação de ligar para o SAMU 192. Antes do turno, o app mostra um Índice de Risco que combina Machine Learning sobre sinistros reais com chuva e calor. Um QR Code no capacete libera a ficha médica apenas para socorristas verificados, apenas durante a emergência. |
@@ -332,7 +332,7 @@ A **proteção dos dados do entregador**.
 | Indicador | Como é medido | Meta |
 |---|---|---|
 | **Principal: tempo até o primeiro aceite humano** | Cronômetro do impacto (T0) até o aceite de um voluntário | Menos de 2 minutos |
-| Linha de base | Tempo relatado na entrevista com o entregador ("quanto tempo você esperou por ajuda?") | *(preencher após a entrevista)* |
+| Linha de base | Tempo relatado na entrevista com os entregadores ("quanto tempo levou até alguém ajudar?") | De **10 a 35 minutos** até a primeira ajuda, e cerca de **1 hora** até chegar ao hospital em um dos casos (relato de 2 entregadores, seção [Validação com o cidadão real](#validação-com-o-cidadão-real)) |
 | Apoio: taxa de falsos positivos resolvidos | Percentual de impactos encerrados como falso positivo ou cancelados, sem acionar a rede | Registrar no protótipo |
 | Apoio: uso da prevenção | Percentual de turnos iniciados com o Índice de Risco consultado | Registrar no protótipo |
 
@@ -354,18 +354,38 @@ No vídeo, a medição aparece ao vivo: a queda é simulada no Wokwi, o alerta c
 
 ## Validação com o cidadão real
 
-**Entrevistado:** *(nome fictício ou iniciais, idade aproximada, tempo como entregador)*
-**Local:** *(ponto de espera de entregadores próximo à FIAP Paulista)*
+Em novembro de 2026, o autor conversou com dois entregadores de moto que rodam ou rodavam na região da Paulista, um familiar e um amigo. As conversas foram informais, fora da FIAP, e as respostas foram registradas de memória, sem citações literais. Os nomes ficam só nas iniciais.
 
-Roteiro sugerido:
-1. Há quanto tempo você trabalha com entregas de moto? Quantas horas por turno?
-2. Você já caiu ou viu um colega cair? Quanto tempo levou até alguém ajudar?
-3. A chuva ou o calor mudam a forma como você trabalha? Quais horários você evita?
-4. Você usaria um alerta de risco antes de começar o turno?
-5. Você aceitaria ajudar um colega próximo que caiu, se o app avisasse?
-6. Você deixaria seu tipo sanguíneo e suas alergias em um cofre que só o socorrista acessa?
+| | LSU | RCD |
+|---|---|---|
+| **Idade** | 44 anos | 36 anos |
+| **Situação** | Ex-entregador, trabalhou como autônomo | Entregador por aplicativos de entrega |
+| **Onde rodava ou roda** | Paulista e Pinheiros | Paulista, Liberdade e Consolação |
+| **Tempo como entregador** | 4 anos | 7 anos |
+| **Horas por turno** | 8 h | De 10 a 12 h em alguns turnos, menos em outros |
 
-**Principais aprendizados:** *(preencher após a entrevista)*
+**Respostas ao roteiro:**
+
+| Pergunta | LSU | RCD |
+|---|---|---|
+| 1. Tempo de trabalho e horas por turno | 4 anos, turnos de 8 h | 7 anos, turnos de até 10 a 12 h |
+| 2. Já caiu ou viu um colega cair? Quanto tempo até alguém ajudar? | Sim. A ajuda levou de 25 a 35 minutos, e a chegada ao hospital, cerca de 1 hora | Sim, várias vezes. Às vezes a ajuda veio em até 10 minutos, outras vezes levou mais de 30 minutos |
+| 3. Chuva, calor e horários evitados | Na chuva, mais cautela por causa da pista escorregadia. No calor, para a cada corrida para se hidratar e não deixar a pressão cair. Evita os horários de pico, de manhã e perto das 17h e 18h | Na chuva e no calor, os mesmos cuidados. Evita o horário do almoço nos dias muito quentes e os horários com pouca demanda de pedidos |
+| 4. Usaria um alerta de risco antes do turno? | Sim, seria muito bem-vindo na rotina e ajudaria muitos entregadores | Sim, principalmente por ser algo que o protege durante o turno |
+| 5. Ajudaria um colega próximo que caiu, se o app avisasse? | Sim, se não estivesse com uma entrega muito urgente | Sim, com certeza |
+| 6. Deixaria tipo sanguíneo e alergias num cofre que só o socorrista acessa? | Sim | Sim, desde que o cofre seja seguro |
+| Crítica ou sugestão | A rotina de trabalho é exaustiva | É preciso algo que proteja os entregadores, embora muitos assumam riscos desnecessários |
+
+**Principais aprendizados:**
+
+1. **O socorro demora muito mais que a meta.** Os dois relataram de 10 a 35 minutos até a primeira ajuda, e um deles cerca de 1 hora até o hospital. Essa é a linha de base do [indicador de impacto](#indicador-de-impacto): a meta do HelmCare, menos de 2 minutos até o primeiro aceite, ataca exatamente esse intervalo.
+2. **A rede de voluntários tem adesão, mas depende do momento.** Os dois ajudariam um colega, e um deles só se não estivesse com uma entrega urgente. Isso confirma o desenho do SOS escalonado: o aceite é voluntário, e a Camada 2 amplia a rede quando ninguém aceita em 60 s.
+3. **O Cofre médico é aceito, com uma condição.** Os dois deixariam o tipo sanguíneo e as alergias no cofre, e um deles só se ele for seguro. Isso reforça as regras do Cofre: só socorrista verificado, só durante a emergência, com expiração e auditoria.
+4. **Chuva e calor mudam o comportamento.** Na chuva, os dois redobram a cautela. No calor, param para se hidratar. Isso valida o alerta de calor com sugestão de pausa e ajuda a explicar por que a chuva aparece de dois jeitos no Índice de Risco: como exposição do entregador e, no modelo, pelo efeito que ela teve no histórico de sinistros graves.
+5. **Os horários pesam.** Os dois evitam horários específicos (picos de trânsito, almoço nos dias quentes), o que confirma o valor de um risco calculado por faixa horária antes do turno.
+6. **Jornada longa e risco assumido.** Turnos de 8 a 12 horas, a rotina exaustiva e os riscos desnecessários citados pelo RCD mostram que a prevenção precisa ser simples e rápida de consultar, sem atrapalhar o trabalho.
+
+**Limitações:** foram só duas conversas, com pessoas próximas do autor, e um dos entrevistados já não trabalha como entregador. As respostas foram registradas de memória. Os resultados orientam o desenho do HelmCare, mas não representam todos os entregadores de São Paulo.
 
 ---
 
