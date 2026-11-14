@@ -1,0 +1,708 @@
+{
+  "periodo": "2019 a 2025",
+  "fonte": "Infosiga SP (sinistros com pelo menos uma motocicleta e pelo menos uma vítima grave ou fatal, cidade de São Paulo)",
+  "criterio": "mesmo logradouro dentro de uma célula de 0,005 grau (cerca de 550 m); coordenada = mediana dos sinistros do trecho; ordem decrescente de quantidade",
+  "quantidadeTrechos": 100,
+  "trechos": [
+    {
+      "posicao": 1,
+      "logradouro": "SP 270 (RODOVIA RAPOSO TAVARES)",
+      "latitude": -23.58341,
+      "longitude": -46.77771,
+      "quantidadeSinistrosGraves": 46
+    },
+    {
+      "posicao": 2,
+      "logradouro": "SP 270 (RODOVIA RAPOSO TAVARES)",
+      "latitude": -23.58481,
+      "longitude": -46.78738,
+      "quantidadeSinistrosGraves": 38
+    },
+    {
+      "posicao": 3,
+      "logradouro": "SP 270 (RODOVIA RAPOSO TAVARES)",
+      "latitude": -23.5863,
+      "longitude": -46.75863,
+      "quantidadeSinistrosGraves": 35
+    },
+    {
+      "posicao": 4,
+      "logradouro": "SP 270 (RODOVIA RAPOSO TAVARES)",
+      "latitude": -23.58966,
+      "longitude": -46.79591,
+      "quantidadeSinistrosGraves": 32
+    },
+    {
+      "posicao": 5,
+      "logradouro": "SP 270 (RODOVIA RAPOSO TAVARES)",
+      "latitude": -23.58633,
+      "longitude": -46.74885,
+      "quantidadeSinistrosGraves": 31
+    },
+    {
+      "posicao": 6,
+      "logradouro": "SP 270 (RODOVIA RAPOSO TAVARES)",
+      "latitude": -23.58117,
+      "longitude": -46.73034,
+      "quantidadeSinistrosGraves": 26
+    },
+    {
+      "posicao": 7,
+      "logradouro": "SP 270 (RODOVIA RAPOSO TAVARES)",
+      "latitude": -23.58421,
+      "longitude": -46.76816,
+      "quantidadeSinistrosGraves": 25
+    },
+    {
+      "posicao": 8,
+      "logradouro": "SP 021 (RODOANEL MÁRIO COVAS)",
+      "latitude": -23.43922,
+      "longitude": -46.76938,
+      "quantidadeSinistrosGraves": 24
+    },
+    {
+      "posicao": 9,
+      "logradouro": "MARGINAL RAPOSO TAVARES",
+      "latitude": -23.58371,
+      "longitude": -46.76945,
+      "quantidadeSinistrosGraves": 22
+    },
+    {
+      "posicao": 10,
+      "logradouro": "SP 270 (RODOVIA RAPOSO TAVARES)",
+      "latitude": -23.59294,
+      "longitude": -46.80499,
+      "quantidadeSinistrosGraves": 22
+    },
+    {
+      "posicao": 11,
+      "logradouro": "SP 270 (RODOVIA RAPOSO TAVARES)",
+      "latitude": -23.57675,
+      "longitude": -46.72208,
+      "quantidadeSinistrosGraves": 21
+    },
+    {
+      "posicao": 12,
+      "logradouro": "AVENIDA DONA BELMIRA MARIN",
+      "latitude": -23.738,
+      "longitude": -46.69224,
+      "quantidadeSinistrosGraves": 20
+    },
+    {
+      "posicao": 13,
+      "logradouro": "AVENIDA DONA BELMIRA MARIN",
+      "latitude": -23.74786,
+      "longitude": -46.68762,
+      "quantidadeSinistrosGraves": 18
+    },
+    {
+      "posicao": 14,
+      "logradouro": "ESTRADA DE ITAPECERICA",
+      "latitude": -23.6633,
+      "longitude": -46.78166,
+      "quantidadeSinistrosGraves": 18
+    },
+    {
+      "posicao": 15,
+      "logradouro": "ESTRADA DO ALVARENGA",
+      "latitude": -23.69377,
+      "longitude": -46.65731,
+      "quantidadeSinistrosGraves": 18
+    },
+    {
+      "posicao": 16,
+      "logradouro": "ESTRADA DO M'BOI MIRIM",
+      "latitude": -23.70268,
+      "longitude": -46.78337,
+      "quantidadeSinistrosGraves": 17
+    },
+    {
+      "posicao": 17,
+      "logradouro": "AVENIDA PROFESSOR FRANCISCO MORATO",
+      "latitude": -23.58802,
+      "longitude": -46.72716,
+      "quantidadeSinistrosGraves": 16
+    },
+    {
+      "posicao": 18,
+      "logradouro": "AVENIDA VINTE E TRES DE MAIO",
+      "latitude": -23.54893,
+      "longitude": -46.63886,
+      "quantidadeSinistrosGraves": 16
+    },
+    {
+      "posicao": 19,
+      "logradouro": "AVENIDA NORDESTINA",
+      "latitude": -23.51741,
+      "longitude": -46.42212,
+      "quantidadeSinistrosGraves": 15
+    },
+    {
+      "posicao": 20,
+      "logradouro": "ESTRADA DE ITAPECERICA",
+      "latitude": -23.66143,
+      "longitude": -46.77866,
+      "quantidadeSinistrosGraves": 15
+    },
+    {
+      "posicao": 21,
+      "logradouro": "ESTRADA DE ITAPECERICA",
+      "latitude": -23.64273,
+      "longitude": -46.73754,
+      "quantidadeSinistrosGraves": 15
+    },
+    {
+      "posicao": 22,
+      "logradouro": "SP 270 (RODOVIA RAPOSO TAVARES)",
+      "latitude": -23.58504,
+      "longitude": -46.73932,
+      "quantidadeSinistrosGraves": 15
+    },
+    {
+      "posicao": 23,
+      "logradouro": "AVENIDA JORNALISTA ROBERTO MARINHO",
+      "latitude": -23.61194,
+      "longitude": -46.69787,
+      "quantidadeSinistrosGraves": 14
+    },
+    {
+      "posicao": 24,
+      "logradouro": "BR 381",
+      "latitude": -23.46636,
+      "longitude": -46.5715,
+      "quantidadeSinistrosGraves": 14
+    },
+    {
+      "posicao": 25,
+      "logradouro": "SP 015 - PINHEIROS",
+      "latitude": -23.57133,
+      "longitude": -46.701,
+      "quantidadeSinistrosGraves": 14
+    },
+    {
+      "posicao": 26,
+      "logradouro": "SP 270 (RODOVIA RAPOSO TAVARES)",
+      "latitude": -23.57345,
+      "longitude": -46.71312,
+      "quantidadeSinistrosGraves": 14
+    },
+    {
+      "posicao": 27,
+      "logradouro": "ACESSO ESTRADA DO M BOI MIRIM",
+      "latitude": -23.67266,
+      "longitude": -46.74324,
+      "quantidadeSinistrosGraves": 13
+    },
+    {
+      "posicao": 28,
+      "logradouro": "AVENIDA GUARAPIRANGA",
+      "latitude": -23.66666,
+      "longitude": -46.72159,
+      "quantidadeSinistrosGraves": 13
+    },
+    {
+      "posicao": 29,
+      "logradouro": "ESTRADA DE ITAPECERICA",
+      "latitude": -23.67128,
+      "longitude": -46.78674,
+      "quantidadeSinistrosGraves": 13
+    },
+    {
+      "posicao": 30,
+      "logradouro": "ESTRADA DO CAMPO LIMPO",
+      "latitude": -23.62834,
+      "longitude": -46.7675,
+      "quantidadeSinistrosGraves": 13
+    },
+    {
+      "posicao": 31,
+      "logradouro": "ESTRADA DO M'BOI MIRIM",
+      "latitude": -23.72201,
+      "longitude": -46.78525,
+      "quantidadeSinistrosGraves": 13
+    },
+    {
+      "posicao": 32,
+      "logradouro": "SP 150 (VIA ANCHIETA)",
+      "latitude": -23.62574,
+      "longitude": -46.59919,
+      "quantidadeSinistrosGraves": 13
+    },
+    {
+      "posicao": 33,
+      "logradouro": "ACESSO RADIAL LESTE CENTRO",
+      "latitude": -23.53575,
+      "longitude": -46.45472,
+      "quantidadeSinistrosGraves": 12
+    },
+    {
+      "posicao": 34,
+      "logradouro": "AVENIDA CARLOS LACERDA",
+      "latitude": -23.63655,
+      "longitude": -46.77821,
+      "quantidadeSinistrosGraves": 12
+    },
+    {
+      "posicao": 35,
+      "logradouro": "AVENIDA PRESIDENTE TANCREDO NEVES",
+      "latitude": -23.60617,
+      "longitude": -46.60548,
+      "quantidadeSinistrosGraves": 12
+    },
+    {
+      "posicao": 36,
+      "logradouro": "ESTRADA DE ITAPECERICA",
+      "latitude": -23.66662,
+      "longitude": -46.78344,
+      "quantidadeSinistrosGraves": 12
+    },
+    {
+      "posicao": 37,
+      "logradouro": "ESTRADA DO M'BOI MIRIM",
+      "latitude": -23.6881,
+      "longitude": -46.77209,
+      "quantidadeSinistrosGraves": 12
+    },
+    {
+      "posicao": 38,
+      "logradouro": "SP 150 (VIA ANCHIETA)",
+      "latitude": -23.64115,
+      "longitude": -46.58947,
+      "quantidadeSinistrosGraves": 12
+    },
+    {
+      "posicao": 39,
+      "logradouro": "SP 280 (RODOVIA CASTELLO BRANCO)",
+      "latitude": -23.52668,
+      "longitude": -46.7516,
+      "quantidadeSinistrosGraves": 12
+    },
+    {
+      "posicao": 40,
+      "logradouro": "AVENIDA DONA BELMIRA MARIN",
+      "latitude": -23.75233,
+      "longitude": -46.68821,
+      "quantidadeSinistrosGraves": 11
+    },
+    {
+      "posicao": 41,
+      "logradouro": "AVENIDA DONA BELMIRA MARIN",
+      "latitude": -23.73247,
+      "longitude": -46.69734,
+      "quantidadeSinistrosGraves": 11
+    },
+    {
+      "posicao": 42,
+      "logradouro": "AVENIDA SENADOR TEOTONIO VILELA",
+      "latitude": -23.71414,
+      "longitude": -46.69874,
+      "quantidadeSinistrosGraves": 11
+    },
+    {
+      "posicao": 43,
+      "logradouro": "AVENIDA TIRADENTES",
+      "latitude": -23.533,
+      "longitude": -46.63267,
+      "quantidadeSinistrosGraves": 11
+    },
+    {
+      "posicao": 44,
+      "logradouro": "ESTRADA DA BARONESA",
+      "latitude": -23.68695,
+      "longitude": -46.75596,
+      "quantidadeSinistrosGraves": 11
+    },
+    {
+      "posicao": 45,
+      "logradouro": "SP 330 (RODOVIA ANHANGUERA)",
+      "latitude": -23.42852,
+      "longitude": -46.78727,
+      "quantidadeSinistrosGraves": 11
+    },
+    {
+      "posicao": 46,
+      "logradouro": "SP 348 (RODOVIA DOS BANDEIRANTES)",
+      "latitude": -23.49128,
+      "longitude": -46.73411,
+      "quantidadeSinistrosGraves": 11
+    },
+    {
+      "posicao": 47,
+      "logradouro": "VIADUTO ENGENHEIRO ALBERTO BADRA",
+      "latitude": -23.53562,
+      "longitude": -46.54809,
+      "quantidadeSinistrosGraves": 11
+    },
+    {
+      "posicao": 48,
+      "logradouro": "AVENIDA ATLANTICA",
+      "latitude": -23.71784,
+      "longitude": -46.70127,
+      "quantidadeSinistrosGraves": 10
+    },
+    {
+      "posicao": 49,
+      "logradouro": "AVENIDA CANGAIBA",
+      "latitude": -23.50476,
+      "longitude": -46.50686,
+      "quantidadeSinistrosGraves": 10
+    },
+    {
+      "posicao": 50,
+      "logradouro": "AVENIDA DO ESTADO",
+      "latitude": -23.5628,
+      "longitude": -46.61207,
+      "quantidadeSinistrosGraves": 10
+    },
+    {
+      "posicao": 51,
+      "logradouro": "AVENIDA DONA BELMIRA MARIN",
+      "latitude": -23.75509,
+      "longitude": -46.67696,
+      "quantidadeSinistrosGraves": 10
+    },
+    {
+      "posicao": 52,
+      "logradouro": "AVENIDA DOS BANDEIRANTES",
+      "latitude": -23.62948,
+      "longitude": -46.64719,
+      "quantidadeSinistrosGraves": 10
+    },
+    {
+      "posicao": 53,
+      "logradouro": "AVENIDA ELLIS MAAS",
+      "latitude": -23.66549,
+      "longitude": -46.77067,
+      "quantidadeSinistrosGraves": 10
+    },
+    {
+      "posicao": 54,
+      "logradouro": "AVENIDA GUARAPIRANGA",
+      "latitude": -23.66735,
+      "longitude": -46.72804,
+      "quantidadeSinistrosGraves": 10
+    },
+    {
+      "posicao": 55,
+      "logradouro": "AVENIDA LUIZ GUSHIKEN",
+      "latitude": -23.66408,
+      "longitude": -46.72669,
+      "quantidadeSinistrosGraves": 10
+    },
+    {
+      "posicao": 56,
+      "logradouro": "AVENIDA RAGUEB CHOHFI",
+      "latitude": -23.59555,
+      "longitude": -46.4383,
+      "quantidadeSinistrosGraves": 10
+    },
+    {
+      "posicao": 57,
+      "logradouro": "AVENIDA SENADOR TEOTONIO VILELA",
+      "latitude": -23.74663,
+      "longitude": -46.70756,
+      "quantidadeSinistrosGraves": 10
+    },
+    {
+      "posicao": 58,
+      "logradouro": "AVENIDA VEREADOR JOAO DE LUCA",
+      "latitude": -23.64682,
+      "longitude": -46.67097,
+      "quantidadeSinistrosGraves": 10
+    },
+    {
+      "posicao": 59,
+      "logradouro": "AVENIDA WASHINGTON LUIS",
+      "latitude": -23.66039,
+      "longitude": -46.70342,
+      "quantidadeSinistrosGraves": 10
+    },
+    {
+      "posicao": 60,
+      "logradouro": "ESTRADA DO CAMPO LIMPO",
+      "latitude": -23.62278,
+      "longitude": -46.76285,
+      "quantidadeSinistrosGraves": 10
+    },
+    {
+      "posicao": 61,
+      "logradouro": "SP 015 - PINHEIROS",
+      "latitude": -23.56707,
+      "longitude": -46.70281,
+      "quantidadeSinistrosGraves": 10
+    },
+    {
+      "posicao": 62,
+      "logradouro": "SP 160 (RODOVIA DOS IMIGRANTES)",
+      "latitude": -23.65741,
+      "longitude": -46.63374,
+      "quantidadeSinistrosGraves": 10
+    },
+    {
+      "posicao": 63,
+      "logradouro": "SP 160 (RODOVIA DOS IMIGRANTES)",
+      "latitude": -23.65278,
+      "longitude": -46.63394,
+      "quantidadeSinistrosGraves": 10
+    },
+    {
+      "posicao": 64,
+      "logradouro": "AVENIDA BRIGADEIRO LUIS ANTONIO",
+      "latitude": -23.57921,
+      "longitude": -46.66164,
+      "quantidadeSinistrosGraves": 9
+    },
+    {
+      "posicao": 65,
+      "logradouro": "AVENIDA DOS BANDEIRANTES",
+      "latitude": -23.61746,
+      "longitude": -46.6616,
+      "quantidadeSinistrosGraves": 9
+    },
+    {
+      "posicao": 66,
+      "logradouro": "AVENIDA GIOVANNI GRONCHI",
+      "latitude": -23.6282,
+      "longitude": -46.73582,
+      "quantidadeSinistrosGraves": 9
+    },
+    {
+      "posicao": 67,
+      "logradouro": "AVENIDA INAJAR DE SOUZA",
+      "latitude": -23.50401,
+      "longitude": -46.68847,
+      "quantidadeSinistrosGraves": 9
+    },
+    {
+      "posicao": 68,
+      "logradouro": "AVENIDA INTERLAGOS",
+      "latitude": -23.67383,
+      "longitude": -46.67765,
+      "quantidadeSinistrosGraves": 9
+    },
+    {
+      "posicao": 69,
+      "logradouro": "AVENIDA JACÚ PESSEGO",
+      "latitude": -23.48161,
+      "longitude": -46.4531,
+      "quantidadeSinistrosGraves": 9
+    },
+    {
+      "posicao": 70,
+      "logradouro": "AVENIDA SENADOR TEOTONIO VILELA",
+      "latitude": -23.7279,
+      "longitude": -46.69929,
+      "quantidadeSinistrosGraves": 9
+    },
+    {
+      "posicao": 71,
+      "logradouro": "AVENIDA VILA EMA",
+      "latitude": -23.59618,
+      "longitude": -46.52674,
+      "quantidadeSinistrosGraves": 9
+    },
+    {
+      "posicao": 72,
+      "logradouro": "ESTRADA DA BARONESA",
+      "latitude": -23.69147,
+      "longitude": -46.76136,
+      "quantidadeSinistrosGraves": 9
+    },
+    {
+      "posicao": 73,
+      "logradouro": "ESTRADA DAS LAGRIMAS",
+      "latitude": -23.6179,
+      "longitude": -46.59284,
+      "quantidadeSinistrosGraves": 9
+    },
+    {
+      "posicao": 74,
+      "logradouro": "ESTRADA DE ITAPECERICA",
+      "latitude": -23.65117,
+      "longitude": -46.7575,
+      "quantidadeSinistrosGraves": 9
+    },
+    {
+      "posicao": 75,
+      "logradouro": "ESTRADA DE ITAPECERICA",
+      "latitude": -23.64698,
+      "longitude": -46.74726,
+      "quantidadeSinistrosGraves": 9
+    },
+    {
+      "posicao": 76,
+      "logradouro": "ESTRADA DO M'BOI MIRIM",
+      "latitude": -23.71834,
+      "longitude": -46.78447,
+      "quantidadeSinistrosGraves": 9
+    },
+    {
+      "posicao": 77,
+      "logradouro": "ESTRADA DO M'BOI MIRIM",
+      "latitude": -23.71207,
+      "longitude": -46.78241,
+      "quantidadeSinistrosGraves": 9
+    },
+    {
+      "posicao": 78,
+      "logradouro": "SP 015 - PINHEIROS",
+      "latitude": -23.61916,
+      "longitude": -46.70236,
+      "quantidadeSinistrosGraves": 9
+    },
+    {
+      "posicao": 79,
+      "logradouro": "SP 015 - PINHEIROS",
+      "latitude": -23.61483,
+      "longitude": -46.70123,
+      "quantidadeSinistrosGraves": 9
+    },
+    {
+      "posicao": 80,
+      "logradouro": "SP 015 - PINHEIROS",
+      "latitude": -23.59097,
+      "longitude": -46.69314,
+      "quantidadeSinistrosGraves": 9
+    },
+    {
+      "posicao": 81,
+      "logradouro": "SP 150 (VIA ANCHIETA)",
+      "latitude": -23.61703,
+      "longitude": -46.60174,
+      "quantidadeSinistrosGraves": 9
+    },
+    {
+      "posicao": 82,
+      "logradouro": "SP 160 (RODOVIA DOS IMIGRANTES)",
+      "latitude": -23.62877,
+      "longitude": -46.63022,
+      "quantidadeSinistrosGraves": 9
+    },
+    {
+      "posicao": 83,
+      "logradouro": "SP 330 (RODOVIA ANHANGUERA)",
+      "latitude": -23.43636,
+      "longitude": -46.7861,
+      "quantidadeSinistrosGraves": 9
+    },
+    {
+      "posicao": 84,
+      "logradouro": "ALAMEDA GABRIEL MONTEIRO DA SILVA",
+      "latitude": -23.56779,
+      "longitude": -46.67835,
+      "quantidadeSinistrosGraves": 8
+    },
+    {
+      "posicao": 85,
+      "logradouro": "ALAMEDA SANTO AMARO",
+      "latitude": -23.6574,
+      "longitude": -46.70622,
+      "quantidadeSinistrosGraves": 8
+    },
+    {
+      "posicao": 86,
+      "logradouro": "AVENIDA ANGELO CRISTIANINI",
+      "latitude": -23.68197,
+      "longitude": -46.63825,
+      "quantidadeSinistrosGraves": 8
+    },
+    {
+      "posicao": 87,
+      "logradouro": "AVENIDA CARLOS CALDEIRA FILHO",
+      "latitude": -23.63874,
+      "longitude": -46.73791,
+      "quantidadeSinistrosGraves": 8
+    },
+    {
+      "posicao": 88,
+      "logradouro": "AVENIDA CONDE DE FRONTIN",
+      "latitude": -23.53667,
+      "longitude": -46.55644,
+      "quantidadeSinistrosGraves": 8
+    },
+    {
+      "posicao": 89,
+      "logradouro": "AVENIDA CORONEL SEZEFREDO FAGUNDES",
+      "latitude": -23.46822,
+      "longitude": -46.60388,
+      "quantidadeSinistrosGraves": 8
+    },
+    {
+      "posicao": 90,
+      "logradouro": "AVENIDA DO CURSINO",
+      "latitude": -23.61159,
+      "longitude": -46.61766,
+      "quantidadeSinistrosGraves": 8
+    },
+    {
+      "posicao": 91,
+      "logradouro": "AVENIDA DO RIO PEQUENO",
+      "latitude": -23.56807,
+      "longitude": -46.75573,
+      "quantidadeSinistrosGraves": 8
+    },
+    {
+      "posicao": 92,
+      "logradouro": "AVENIDA DONA BELMIRA MARIN",
+      "latitude": -23.74161,
+      "longitude": -46.69157,
+      "quantidadeSinistrosGraves": 8
+    },
+    {
+      "posicao": 93,
+      "logradouro": "AVENIDA DOS BANDEIRANTES",
+      "latitude": -23.60727,
+      "longitude": -46.67789,
+      "quantidadeSinistrosGraves": 8
+    },
+    {
+      "posicao": 94,
+      "logradouro": "AVENIDA ENGENHEIRO ARMANDO DE ARRUDA PEREIRA",
+      "latitude": -23.66183,
+      "longitude": -46.63749,
+      "quantidadeSinistrosGraves": 8
+    },
+    {
+      "posicao": 95,
+      "logradouro": "AVENIDA ENGENHEIRO ARMANDO DE ARRUDA PEREIRA",
+      "latitude": -23.63606,
+      "longitude": -46.64115,
+      "quantidadeSinistrosGraves": 8
+    },
+    {
+      "posicao": 96,
+      "logradouro": "AVENIDA MARIA COELHO AGUIAR",
+      "latitude": -23.64824,
+      "longitude": -46.73184,
+      "quantidadeSinistrosGraves": 8
+    },
+    {
+      "posicao": 97,
+      "logradouro": "AVENIDA PADRE ARLINDO VIEIRA",
+      "latitude": -23.63784,
+      "longitude": -46.60769,
+      "quantidadeSinistrosGraves": 8
+    },
+    {
+      "posicao": 98,
+      "logradouro": "AVENIDA PROFESSOR FRANCISCO MORATO",
+      "latitude": -23.60572,
+      "longitude": -46.74725,
+      "quantidadeSinistrosGraves": 8
+    },
+    {
+      "posicao": 99,
+      "logradouro": "AVENIDA PROFESSOR FRANCISCO MORATO",
+      "latitude": -23.59272,
+      "longitude": -46.73315,
+      "quantidadeSinistrosGraves": 8
+    },
+    {
+      "posicao": 100,
+      "logradouro": "AVENIDA REBOUCAS",
+      "latitude": -23.55748,
+      "longitude": -46.66699,
+      "quantidadeSinistrosGraves": 8
+    }
+  ]
+}
