@@ -1,0 +1,29 @@
+# Configuração do ruff (linter e formatador), do pytest e da cobertura.
+# O serviço não é um pacote instalável: este arquivo guarda só a configuração das ferramentas.
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+# E: erros de estilo (pycodestyle), F: erros lógicos (pyflakes), I: ordem dos imports,
+# UP: sintaxe moderna do Python, B: armadilhas comuns (bugbear).
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "tests"]
+
+[tool.ruff.format]
+# O .gitattributes já força LF no repositório; "auto" mantém o fim de linha de cada arquivo.
+line-ending = "auto"
+
+[tool.pytest.ini_options]
+# pythonpath = "." deixa os testes importarem "app" sem instalar o projeto.
+pythonpath = ["."]
+testpaths = ["tests"]
+markers = [
+    "integracao: testes que precisam do PostgreSQL de testes (RISCO_TESTES_DATABASE_URL)",
+]
+
+[tool.coverage.run]
+source = ["app"]
