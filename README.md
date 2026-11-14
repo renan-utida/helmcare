@@ -97,7 +97,7 @@ flowchart LR
         MON["Monitoramento<br/>CPU - disco - memória - logs"]
     end
 
-    MODELO["Modelo XGBoost (ML)<br/>treinado com Infosiga + INMET"]
+    MODELO["Modelo XGBoost (ML)<br/>treinado com o histórico do Infosiga"]
     CYBER["Módulo PII + Taint Analysis<br/>+ tradução via LLM (Cyber)"]
 
     SENS -- "telemetria e eventos" --> BROKER
@@ -128,7 +128,7 @@ As Features e os Test Cases (Testing) ficam no Azure Boards e validam todo o flu
 flowchart TD
     subgraph CAP["No capacete (ESP32)"]
         A([DESARMADO]) -->|proteção ligada no app| B([ARMADO])
-        B -->|pico de aceleração + posição anormal| C{"IMPACTO_DETECTADO<br/>pilotava ou estava<br/>com o capacete?"}
+        B -->|pico de aceleração| C{"IMPACTO_DETECTADO<br/>pilotava ou estava<br/>com o capacete?"}
         C -->|não| IG["Ignora<br/>(volta para ARMADO)"]
         C -->|sim| D["OBSERVAÇÃO (10 s)"]
         D -->|voltou à velocidade de moto| FP["FALSO_POSITIVO<br/>check-in posterior"]
@@ -148,6 +148,8 @@ flowchart TD
     S2 -->|voluntário aceita| SC
     S1 --> CL
     S2 --> CL
+    S1 -->|encerrada sem aceite| EN
+    S2 -->|encerrada sem aceite| EN
     SC -->|ocorrência finalizada| EN
 ```
 
@@ -182,7 +184,7 @@ O alerta continua se **pelo menos um** destes sinais for verdadeiro nos segundos
 
 | Componente | Peso | Fonte |
 |---|---|---|
-| Risco de sinistro grave na faixa horária | 50% | Modelo de ML (Infosiga + INMET) |
+| Risco de sinistro grave na faixa horária | 50% | Modelo de ML treinado com o histórico do Infosiga por horário (os dados do INMET foram testados e não melhoraram a previsão) |
 | Chuva prevista no turno | 25% | Previsão do tempo (API pública ou mock) |
 | Índice de calor | 25% | Previsão + DHT22 do capacete |
 
@@ -237,7 +239,7 @@ Comunicação: o ESP32 publica eventos via **MQTT** (broker público) e a API as
 O **núcleo do sistema**: ASP.NET Core Web API.
 
 - **Domínio:** Entregador, Dispositivo (capacete), Turno, EventoImpacto, Ocorrência (com a máquina de estados do SOS), Voluntário, Socorrista, FichaMedica, AcessoCofre e ContatoEmergencia.
-- **Recursos:** POO com interfaces e injeção de dependência, Entity Framework Core com migrations, LINQ, async/await, xUnit e documentação com Scalar/Swagger.
+- **Recursos:** POO com interfaces e injeção de dependência, Entity Framework Core com migrations, LINQ, async/await, MSTest e documentação com Scalar/Swagger.
 - **Funcionalidades:** recebe os eventos MQTT do capacete, orquestra o SOS escalonado, gerencia a rede de voluntários, mede o indicador de impacto e serve a página web do Cofre médico.
 
 ### Arquitetura Orientada a Serviços (SOA) e Web Services (`/servico-risco`)
@@ -381,7 +383,7 @@ Em novembro de 2026, o autor conversou com dois entregadores de moto que rodam o
 1. **O socorro demora muito mais que a meta.** Os dois relataram de 10 a 35 minutos até a primeira ajuda, e um deles cerca de 1 hora até o hospital. Essa é a linha de base do [indicador de impacto](#indicador-de-impacto): a meta do HelmCare, menos de 2 minutos até o primeiro aceite, ataca exatamente esse intervalo.
 2. **A rede de voluntários tem adesão, mas depende do momento.** Os dois ajudariam um colega, e um deles só se não estivesse com uma entrega urgente. Isso confirma o desenho do SOS escalonado: o aceite é voluntário, e a Camada 2 amplia a rede quando ninguém aceita em 60 s.
 3. **O Cofre médico é aceito, com uma condição.** Os dois deixariam o tipo sanguíneo e as alergias no cofre, e um deles só se ele for seguro. Isso reforça as regras do Cofre: só socorrista verificado, só durante a emergência, com expiração e auditoria.
-4. **Chuva e calor mudam o comportamento.** Na chuva, os dois redobram a cautela. No calor, param para se hidratar. Isso valida o alerta de calor com sugestão de pausa e ajuda a explicar por que a chuva aparece de dois jeitos no Índice de Risco: como exposição do entregador e, no modelo, pelo efeito que ela teve no histórico de sinistros graves.
+4. **Chuva e calor mudam o comportamento.** Na chuva, os dois redobram a cautela. No calor, param para se hidratar. Isso valida o alerta de calor com sugestão de pausa. A cautela na chuva também é uma possível explicação, como hipótese, para um resultado do modelo de ML: hora a hora, a chuva não aumentou os sinistros graves no histórico. Por isso ela entra no Índice de Risco só como exposição do entregador, no componente de chuva.
 5. **Os horários pesam.** Os dois evitam horários específicos (picos de trânsito, almoço nos dias quentes), o que confirma o valor de um risco calculado por faixa horária antes do turno.
 6. **Jornada longa e risco assumido.** Turnos de 8 a 12 horas, a rotina exaustiva e os riscos desnecessários citados pelo RCD mostram que a prevenção precisa ser simples e rápida de consultar, sem atrapalhar o trabalho.
 
@@ -394,7 +396,7 @@ Em novembro de 2026, o autor conversou com dois entregadores de moto que rodam o
 | Dado | Fonte | Uso |
 |---|---|---|
 | Sinistros de trânsito com motocicletas (capital, a partir de 2019) | Infosiga SP / Detran-SP (dados abertos) | Treino do modelo e trechos críticos |
-| Dados meteorológicos horários (chuva, temperatura, umidade) | INMET, estação A701, Mirante de Santana | Variáveis do modelo e índice de calor |
+| Dados meteorológicos horários (chuva, temperatura, umidade) | INMET, estação A701, Mirante de Santana | Análise exploratória e teste das variáveis do tempo no modelo (não melhoraram a previsão e ficaram fora do modelo final) |
 | Dados de usuários, voluntários, fichas médicas e ocorrências | **Simulados**, criados para o protótipo | Demonstração do app, da API e do módulo de Cyber |
 
 Nenhum dado pessoal real é utilizado no protótipo.
