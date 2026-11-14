@@ -1,0 +1,894 @@
+{
+  "nomeModelo": "modelo_sinistros_xgb",
+  "versaoModelo": "1.0.0",
+  "geradoEm": "2026-11-14T15:13:40Z",
+  "arquivoModelo": "modelo_sinistros_xgb.json",
+  "comoCarregar": "xgboost.Booster(); booster.load_model('modelo_sinistros_xgb.json'); booster.predict(xgboost.DMatrix(tabela_com_as_variaveis_na_ordem_abaixo))",
+  "alvo": {
+    "descricao": "quantidade esperada de sinistros graves com motocicletas na cidade de São Paulo em uma hora local",
+    "definicaoSinistroGrave": "sinistro do Infosiga SP com pelo menos uma motocicleta e pelo menos uma vítima com lesão grave ou fatal",
+    "unidade": "sinistros graves por hora (valor contínuo, maior ou igual a zero)",
+    "tipoModelo": "XGBoost, regressão de contagem com objetivo count:poisson"
+  },
+  "ordemVariaveis": [
+    "hora",
+    "dia_semana",
+    "mes",
+    "feriado"
+  ],
+  "variaveis": {
+    "hora": {
+      "tipo": "inteiro",
+      "faixa": [
+        0,
+        23
+      ],
+      "descricao": "hora local de America/Sao_Paulo"
+    },
+    "dia_semana": {
+      "tipo": "inteiro",
+      "faixa": [
+        0,
+        6
+      ],
+      "codificacao": {
+        "0": "segunda",
+        "1": "terça",
+        "2": "quarta",
+        "3": "quinta",
+        "4": "sexta",
+        "5": "sábado",
+        "6": "domingo"
+      },
+      "descricao": "dia da semana da data local (0 = segunda, como o weekday() do Python)"
+    },
+    "mes": {
+      "tipo": "inteiro",
+      "faixa": [
+        1,
+        12
+      ],
+      "descricao": "mês da data local"
+    },
+    "feriado": {
+      "tipo": "inteiro",
+      "faixa": [
+        0,
+        1
+      ],
+      "descricao": "1 se a data local está em feriados.datas, 0 caso contrário"
+    }
+  },
+  "conversaoRequisicao": {
+    "rota": "POST /risco/v1/indice-turno",
+    "passos": [
+      "1. Ler inicio e fim da requisição (ISO 8601 em UTC, seção 2 do Contrato).",
+      "2. Percorrer as horas cheias em UTC a partir do inicio arredondado para baixo, enquanto a hora começar antes do fim: cada hora que se sobrepõe ao turno entra.",
+      "3. Converter o início de cada hora de UTC para America/Sao_Paulo (zoneinfo), que já trata o horário de verão.",
+      "4. Montar hora, dia_semana, mes e feriado a partir da data e da hora locais.",
+      "5. Prever cada hora com o modelo, com as colunas na ordem de ordemVariaveis.",
+      "6. Calcular o componente de cada hora: min(100, arredondar(100 * previsao / p95)), com 0,5 para cima, usando o p95 de p95_sinistros_graves.json.",
+      "7. Agregar as horas do turno num único componente sinistro (média, maior valor etc.): decisão da disciplina de SOA."
+    ],
+    "exemplo": {
+      "requisicao": {
+        "inicio": "2026-11-12T20:00:00Z",
+        "fim": "2026-11-13T00:00:00Z"
+      },
+      "horasLocais": [
+        {
+          "horaLocal": "2026-11-12T17:00:00-03:00",
+          "hora": 17,
+          "dia_semana": 3,
+          "mes": 11,
+          "feriado": 0
+        },
+        {
+          "horaLocal": "2026-11-12T18:00:00-03:00",
+          "hora": 18,
+          "dia_semana": 3,
+          "mes": 11,
+          "feriado": 0
+        },
+        {
+          "horaLocal": "2026-11-12T19:00:00-03:00",
+          "hora": 19,
+          "dia_semana": 3,
+          "mes": 11,
+          "feriado": 0
+        },
+        {
+          "horaLocal": "2026-11-12T20:00:00-03:00",
+          "hora": 20,
+          "dia_semana": 3,
+          "mes": 11,
+          "feriado": 0
+        }
+      ]
+    },
+    "previsaoDoTempo": "chuvaMmHora, temperaturaC e umidadePct não entram no modelo; entram só nos componentes chuva e calor do índice"
+  },
+  "feriados": {
+    "regra": "nacionais e estaduais de SP pela biblioteca holidays (Brazil, subdiv='SP'), mais os municipais da capital (25/01 aniversário da cidade, Corpus Christi = Páscoa + 60 dias, 20/11 Consciência Negra) e o Carnaval (segunda = Páscoa menos 48 dias, terça = Páscoa menos 47 dias)",
+    "comoUsar": "o Serviço de Risco consulta esta lista; fora do período dela, aplicar a mesma regra",
+    "periodo": "2019 a 2030",
+    "datas": [
+      {
+        "data": "2019-01-01",
+        "nome": "Confraternização Universal"
+      },
+      {
+        "data": "2019-01-25",
+        "nome": "Aniversário de São Paulo (municipal)"
+      },
+      {
+        "data": "2019-03-04",
+        "nome": "Carnaval (segunda)"
+      },
+      {
+        "data": "2019-03-05",
+        "nome": "Carnaval (terça)"
+      },
+      {
+        "data": "2019-04-19",
+        "nome": "Sexta-feira Santa"
+      },
+      {
+        "data": "2019-04-21",
+        "nome": "Tiradentes"
+      },
+      {
+        "data": "2019-05-01",
+        "nome": "Dia do Trabalhador"
+      },
+      {
+        "data": "2019-06-20",
+        "nome": "Corpus Christi (municipal)"
+      },
+      {
+        "data": "2019-07-09",
+        "nome": "Revolução Constitucionalista"
+      },
+      {
+        "data": "2019-09-07",
+        "nome": "Independência do Brasil"
+      },
+      {
+        "data": "2019-10-12",
+        "nome": "Nossa Senhora Aparecida"
+      },
+      {
+        "data": "2019-11-02",
+        "nome": "Finados"
+      },
+      {
+        "data": "2019-11-15",
+        "nome": "Proclamação da República"
+      },
+      {
+        "data": "2019-11-20",
+        "nome": "Consciência Negra (municipal)"
+      },
+      {
+        "data": "2019-12-25",
+        "nome": "Natal"
+      },
+      {
+        "data": "2020-01-01",
+        "nome": "Confraternização Universal"
+      },
+      {
+        "data": "2020-01-25",
+        "nome": "Aniversário de São Paulo (municipal)"
+      },
+      {
+        "data": "2020-02-24",
+        "nome": "Carnaval (segunda)"
+      },
+      {
+        "data": "2020-02-25",
+        "nome": "Carnaval (terça)"
+      },
+      {
+        "data": "2020-04-10",
+        "nome": "Sexta-feira Santa"
+      },
+      {
+        "data": "2020-04-21",
+        "nome": "Tiradentes"
+      },
+      {
+        "data": "2020-05-01",
+        "nome": "Dia do Trabalhador"
+      },
+      {
+        "data": "2020-06-11",
+        "nome": "Corpus Christi (municipal)"
+      },
+      {
+        "data": "2020-07-09",
+        "nome": "Revolução Constitucionalista"
+      },
+      {
+        "data": "2020-09-07",
+        "nome": "Independência do Brasil"
+      },
+      {
+        "data": "2020-10-12",
+        "nome": "Nossa Senhora Aparecida"
+      },
+      {
+        "data": "2020-11-02",
+        "nome": "Finados"
+      },
+      {
+        "data": "2020-11-15",
+        "nome": "Proclamação da República"
+      },
+      {
+        "data": "2020-11-20",
+        "nome": "Consciência Negra (municipal)"
+      },
+      {
+        "data": "2020-12-25",
+        "nome": "Natal"
+      },
+      {
+        "data": "2021-01-01",
+        "nome": "Confraternização Universal"
+      },
+      {
+        "data": "2021-01-25",
+        "nome": "Aniversário de São Paulo (municipal)"
+      },
+      {
+        "data": "2021-02-15",
+        "nome": "Carnaval (segunda)"
+      },
+      {
+        "data": "2021-02-16",
+        "nome": "Carnaval (terça)"
+      },
+      {
+        "data": "2021-04-02",
+        "nome": "Sexta-feira Santa"
+      },
+      {
+        "data": "2021-04-21",
+        "nome": "Tiradentes"
+      },
+      {
+        "data": "2021-05-01",
+        "nome": "Dia do Trabalhador"
+      },
+      {
+        "data": "2021-06-03",
+        "nome": "Corpus Christi (municipal)"
+      },
+      {
+        "data": "2021-07-09",
+        "nome": "Revolução Constitucionalista"
+      },
+      {
+        "data": "2021-09-07",
+        "nome": "Independência do Brasil"
+      },
+      {
+        "data": "2021-10-12",
+        "nome": "Nossa Senhora Aparecida"
+      },
+      {
+        "data": "2021-11-02",
+        "nome": "Finados"
+      },
+      {
+        "data": "2021-11-15",
+        "nome": "Proclamação da República"
+      },
+      {
+        "data": "2021-11-20",
+        "nome": "Consciência Negra (municipal)"
+      },
+      {
+        "data": "2021-12-25",
+        "nome": "Natal"
+      },
+      {
+        "data": "2022-01-01",
+        "nome": "Confraternização Universal"
+      },
+      {
+        "data": "2022-01-25",
+        "nome": "Aniversário de São Paulo (municipal)"
+      },
+      {
+        "data": "2022-02-28",
+        "nome": "Carnaval (segunda)"
+      },
+      {
+        "data": "2022-03-01",
+        "nome": "Carnaval (terça)"
+      },
+      {
+        "data": "2022-04-15",
+        "nome": "Sexta-feira Santa"
+      },
+      {
+        "data": "2022-04-21",
+        "nome": "Tiradentes"
+      },
+      {
+        "data": "2022-05-01",
+        "nome": "Dia do Trabalhador"
+      },
+      {
+        "data": "2022-06-16",
+        "nome": "Corpus Christi (municipal)"
+      },
+      {
+        "data": "2022-07-09",
+        "nome": "Revolução Constitucionalista"
+      },
+      {
+        "data": "2022-09-07",
+        "nome": "Independência do Brasil"
+      },
+      {
+        "data": "2022-10-12",
+        "nome": "Nossa Senhora Aparecida"
+      },
+      {
+        "data": "2022-11-02",
+        "nome": "Finados"
+      },
+      {
+        "data": "2022-11-15",
+        "nome": "Proclamação da República"
+      },
+      {
+        "data": "2022-11-20",
+        "nome": "Consciência Negra (municipal)"
+      },
+      {
+        "data": "2022-12-25",
+        "nome": "Natal"
+      },
+      {
+        "data": "2023-01-01",
+        "nome": "Confraternização Universal"
+      },
+      {
+        "data": "2023-01-25",
+        "nome": "Aniversário de São Paulo (municipal)"
+      },
+      {
+        "data": "2023-02-20",
+        "nome": "Carnaval (segunda)"
+      },
+      {
+        "data": "2023-02-21",
+        "nome": "Carnaval (terça)"
+      },
+      {
+        "data": "2023-04-07",
+        "nome": "Sexta-feira Santa"
+      },
+      {
+        "data": "2023-04-21",
+        "nome": "Tiradentes"
+      },
+      {
+        "data": "2023-05-01",
+        "nome": "Dia do Trabalhador"
+      },
+      {
+        "data": "2023-06-08",
+        "nome": "Corpus Christi (municipal)"
+      },
+      {
+        "data": "2023-07-09",
+        "nome": "Revolução Constitucionalista"
+      },
+      {
+        "data": "2023-09-07",
+        "nome": "Independência do Brasil"
+      },
+      {
+        "data": "2023-10-12",
+        "nome": "Nossa Senhora Aparecida"
+      },
+      {
+        "data": "2023-11-02",
+        "nome": "Finados"
+      },
+      {
+        "data": "2023-11-15",
+        "nome": "Proclamação da República"
+      },
+      {
+        "data": "2023-11-20",
+        "nome": "Consciência Negra (municipal)"
+      },
+      {
+        "data": "2023-12-25",
+        "nome": "Natal"
+      },
+      {
+        "data": "2024-01-01",
+        "nome": "Confraternização Universal"
+      },
+      {
+        "data": "2024-01-25",
+        "nome": "Aniversário de São Paulo (municipal)"
+      },
+      {
+        "data": "2024-02-12",
+        "nome": "Carnaval (segunda)"
+      },
+      {
+        "data": "2024-02-13",
+        "nome": "Carnaval (terça)"
+      },
+      {
+        "data": "2024-03-29",
+        "nome": "Sexta-feira Santa"
+      },
+      {
+        "data": "2024-04-21",
+        "nome": "Tiradentes"
+      },
+      {
+        "data": "2024-05-01",
+        "nome": "Dia do Trabalhador"
+      },
+      {
+        "data": "2024-05-30",
+        "nome": "Corpus Christi (municipal)"
+      },
+      {
+        "data": "2024-07-09",
+        "nome": "Revolução Constitucionalista"
+      },
+      {
+        "data": "2024-09-07",
+        "nome": "Independência do Brasil"
+      },
+      {
+        "data": "2024-10-12",
+        "nome": "Nossa Senhora Aparecida"
+      },
+      {
+        "data": "2024-11-02",
+        "nome": "Finados"
+      },
+      {
+        "data": "2024-11-15",
+        "nome": "Proclamação da República"
+      },
+      {
+        "data": "2024-11-20",
+        "nome": "Dia Nacional de Zumbi e da Consciência Negra"
+      },
+      {
+        "data": "2024-12-25",
+        "nome": "Natal"
+      },
+      {
+        "data": "2025-01-01",
+        "nome": "Confraternização Universal"
+      },
+      {
+        "data": "2025-01-25",
+        "nome": "Aniversário de São Paulo (municipal)"
+      },
+      {
+        "data": "2025-03-03",
+        "nome": "Carnaval (segunda)"
+      },
+      {
+        "data": "2025-03-04",
+        "nome": "Carnaval (terça)"
+      },
+      {
+        "data": "2025-04-18",
+        "nome": "Sexta-feira Santa"
+      },
+      {
+        "data": "2025-04-21",
+        "nome": "Tiradentes"
+      },
+      {
+        "data": "2025-05-01",
+        "nome": "Dia do Trabalhador"
+      },
+      {
+        "data": "2025-06-19",
+        "nome": "Corpus Christi (municipal)"
+      },
+      {
+        "data": "2025-07-09",
+        "nome": "Revolução Constitucionalista"
+      },
+      {
+        "data": "2025-09-07",
+        "nome": "Independência do Brasil"
+      },
+      {
+        "data": "2025-10-12",
+        "nome": "Nossa Senhora Aparecida"
+      },
+      {
+        "data": "2025-11-02",
+        "nome": "Finados"
+      },
+      {
+        "data": "2025-11-15",
+        "nome": "Proclamação da República"
+      },
+      {
+        "data": "2025-11-20",
+        "nome": "Dia Nacional de Zumbi e da Consciência Negra"
+      },
+      {
+        "data": "2025-12-25",
+        "nome": "Natal"
+      },
+      {
+        "data": "2026-01-01",
+        "nome": "Confraternização Universal"
+      },
+      {
+        "data": "2026-01-25",
+        "nome": "Aniversário de São Paulo (municipal)"
+      },
+      {
+        "data": "2026-02-16",
+        "nome": "Carnaval (segunda)"
+      },
+      {
+        "data": "2026-02-17",
+        "nome": "Carnaval (terça)"
+      },
+      {
+        "data": "2026-04-03",
+        "nome": "Sexta-feira Santa"
+      },
+      {
+        "data": "2026-04-21",
+        "nome": "Tiradentes"
+      },
+      {
+        "data": "2026-05-01",
+        "nome": "Dia do Trabalhador"
+      },
+      {
+        "data": "2026-06-04",
+        "nome": "Corpus Christi (municipal)"
+      },
+      {
+        "data": "2026-07-09",
+        "nome": "Revolução Constitucionalista"
+      },
+      {
+        "data": "2026-09-07",
+        "nome": "Independência do Brasil"
+      },
+      {
+        "data": "2026-10-12",
+        "nome": "Nossa Senhora Aparecida"
+      },
+      {
+        "data": "2026-11-02",
+        "nome": "Finados"
+      },
+      {
+        "data": "2026-11-15",
+        "nome": "Proclamação da República"
+      },
+      {
+        "data": "2026-11-20",
+        "nome": "Dia Nacional de Zumbi e da Consciência Negra"
+      },
+      {
+        "data": "2026-12-25",
+        "nome": "Natal"
+      },
+      {
+        "data": "2027-01-01",
+        "nome": "Confraternização Universal"
+      },
+      {
+        "data": "2027-01-25",
+        "nome": "Aniversário de São Paulo (municipal)"
+      },
+      {
+        "data": "2027-02-08",
+        "nome": "Carnaval (segunda)"
+      },
+      {
+        "data": "2027-02-09",
+        "nome": "Carnaval (terça)"
+      },
+      {
+        "data": "2027-03-26",
+        "nome": "Sexta-feira Santa"
+      },
+      {
+        "data": "2027-04-21",
+        "nome": "Tiradentes"
+      },
+      {
+        "data": "2027-05-01",
+        "nome": "Dia do Trabalhador"
+      },
+      {
+        "data": "2027-05-27",
+        "nome": "Corpus Christi (municipal)"
+      },
+      {
+        "data": "2027-07-09",
+        "nome": "Revolução Constitucionalista"
+      },
+      {
+        "data": "2027-09-07",
+        "nome": "Independência do Brasil"
+      },
+      {
+        "data": "2027-10-12",
+        "nome": "Nossa Senhora Aparecida"
+      },
+      {
+        "data": "2027-11-02",
+        "nome": "Finados"
+      },
+      {
+        "data": "2027-11-15",
+        "nome": "Proclamação da República"
+      },
+      {
+        "data": "2027-11-20",
+        "nome": "Dia Nacional de Zumbi e da Consciência Negra"
+      },
+      {
+        "data": "2027-12-25",
+        "nome": "Natal"
+      },
+      {
+        "data": "2028-01-01",
+        "nome": "Confraternização Universal"
+      },
+      {
+        "data": "2028-01-25",
+        "nome": "Aniversário de São Paulo (municipal)"
+      },
+      {
+        "data": "2028-02-28",
+        "nome": "Carnaval (segunda)"
+      },
+      {
+        "data": "2028-02-29",
+        "nome": "Carnaval (terça)"
+      },
+      {
+        "data": "2028-04-14",
+        "nome": "Sexta-feira Santa"
+      },
+      {
+        "data": "2028-04-21",
+        "nome": "Tiradentes"
+      },
+      {
+        "data": "2028-05-01",
+        "nome": "Dia do Trabalhador"
+      },
+      {
+        "data": "2028-06-15",
+        "nome": "Corpus Christi (municipal)"
+      },
+      {
+        "data": "2028-07-09",
+        "nome": "Revolução Constitucionalista"
+      },
+      {
+        "data": "2028-09-07",
+        "nome": "Independência do Brasil"
+      },
+      {
+        "data": "2028-10-12",
+        "nome": "Nossa Senhora Aparecida"
+      },
+      {
+        "data": "2028-11-02",
+        "nome": "Finados"
+      },
+      {
+        "data": "2028-11-15",
+        "nome": "Proclamação da República"
+      },
+      {
+        "data": "2028-11-20",
+        "nome": "Dia Nacional de Zumbi e da Consciência Negra"
+      },
+      {
+        "data": "2028-12-25",
+        "nome": "Natal"
+      },
+      {
+        "data": "2029-01-01",
+        "nome": "Confraternização Universal"
+      },
+      {
+        "data": "2029-01-25",
+        "nome": "Aniversário de São Paulo (municipal)"
+      },
+      {
+        "data": "2029-02-12",
+        "nome": "Carnaval (segunda)"
+      },
+      {
+        "data": "2029-02-13",
+        "nome": "Carnaval (terça)"
+      },
+      {
+        "data": "2029-03-30",
+        "nome": "Sexta-feira Santa"
+      },
+      {
+        "data": "2029-04-21",
+        "nome": "Tiradentes"
+      },
+      {
+        "data": "2029-05-01",
+        "nome": "Dia do Trabalhador"
+      },
+      {
+        "data": "2029-05-31",
+        "nome": "Corpus Christi (municipal)"
+      },
+      {
+        "data": "2029-07-09",
+        "nome": "Revolução Constitucionalista"
+      },
+      {
+        "data": "2029-09-07",
+        "nome": "Independência do Brasil"
+      },
+      {
+        "data": "2029-10-12",
+        "nome": "Nossa Senhora Aparecida"
+      },
+      {
+        "data": "2029-11-02",
+        "nome": "Finados"
+      },
+      {
+        "data": "2029-11-15",
+        "nome": "Proclamação da República"
+      },
+      {
+        "data": "2029-11-20",
+        "nome": "Dia Nacional de Zumbi e da Consciência Negra"
+      },
+      {
+        "data": "2029-12-25",
+        "nome": "Natal"
+      },
+      {
+        "data": "2030-01-01",
+        "nome": "Confraternização Universal"
+      },
+      {
+        "data": "2030-01-25",
+        "nome": "Aniversário de São Paulo (municipal)"
+      },
+      {
+        "data": "2030-03-04",
+        "nome": "Carnaval (segunda)"
+      },
+      {
+        "data": "2030-03-05",
+        "nome": "Carnaval (terça)"
+      },
+      {
+        "data": "2030-04-19",
+        "nome": "Sexta-feira Santa"
+      },
+      {
+        "data": "2030-04-21",
+        "nome": "Tiradentes"
+      },
+      {
+        "data": "2030-05-01",
+        "nome": "Dia do Trabalhador"
+      },
+      {
+        "data": "2030-06-20",
+        "nome": "Corpus Christi (municipal)"
+      },
+      {
+        "data": "2030-07-09",
+        "nome": "Revolução Constitucionalista"
+      },
+      {
+        "data": "2030-09-07",
+        "nome": "Independência do Brasil"
+      },
+      {
+        "data": "2030-10-12",
+        "nome": "Nossa Senhora Aparecida"
+      },
+      {
+        "data": "2030-11-02",
+        "nome": "Finados"
+      },
+      {
+        "data": "2030-11-15",
+        "nome": "Proclamação da República"
+      },
+      {
+        "data": "2030-11-20",
+        "nome": "Dia Nacional de Zumbi e da Consciência Negra"
+      },
+      {
+        "data": "2030-12-25",
+        "nome": "Natal"
+      }
+    ]
+  },
+  "treino": {
+    "fonte": "Infosiga SP e INMET A701 (São Paulo, Mirante), dados públicos reais",
+    "periodoFinal": "2019-01-01 a 2025-12-31",
+    "horasFinal": 61368,
+    "sinistrosGravesFinal": 13028,
+    "selecaoHiperparametros": "GridSearchCV, 27 combinações, 5 dobras anuais expansivas dentro de 2019 a 2024, critério deviance de Poisson média na validação",
+    "hiperparametros": {
+      "max_depth": 5,
+      "learning_rate": 0.03,
+      "n_estimators": 200,
+      "objective": "count:poisson",
+      "tree_method": "hist",
+      "random_state": 42
+    },
+    "teste": "ano de 2025 inteiro, avaliado uma única vez antes do retreino final"
+  },
+  "metricas": {
+    "validacao": {
+      "MAE": 0.3294,
+      "RMSE": 0.4612,
+      "deviance_poisson": 0.6977,
+      "D2": 0.0341,
+      "vies_nivel": -0.0251
+    },
+    "teste": {
+      "MAE": 0.3491,
+      "RMSE": 0.4956,
+      "deviance_poisson": 0.7429,
+      "D2": 0.0373,
+      "vies_nivel": -0.1012
+    },
+    "linhaDeBaseTeste": {
+      "MAE": 0.3487,
+      "RMSE": 0.4967,
+      "deviance_poisson": 0.7485,
+      "D2": 0.03,
+      "vies_nivel": -0.1017
+    },
+    "linhaDeBase": "média histórica por hora e dia da semana"
+  },
+  "limites": [
+    "O modelo não usa o ano: prevê o nível médio de 2019 a 2025 para cada horário (2025 ficou acima dessa média).",
+    "É uma média da cidade inteira por hora, não a probabilidade de um entregador específico sofrer um sinistro.",
+    "Não há dado de exposição (quantas motos circulavam em cada hora), então horário com mais sinistros mistura risco e movimento."
+  ],
+  "versoesBibliotecas": {
+    "python": "3.13.18",
+    "pandas": "2.2.3",
+    "numpy": "2.4.6",
+    "scikit-learn": "1.6.1",
+    "xgboost": "3.4.1",
+    "matplotlib": "3.10.0",
+    "seaborn": "0.13.2",
+    "pyarrow": "23.0.1",
+    "holidays": "0.108"
+  }
+}
