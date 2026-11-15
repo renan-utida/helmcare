@@ -4,6 +4,7 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
+import xgboost
 
 from app.dominio.calculadora_indice import PrevisaoTempo, calcular_resultado_indice
 from app.dominio.componentes import Componentes
@@ -90,6 +91,23 @@ def test_previsor_modelo_corrompido_erro_claro(diretorio_modelo: Path, tmp_path:
 
     # Act e Assert
     with pytest.raises(ArtefatoModeloError, match="modelo"):
+        PrevisorXgboost(artefatos)
+
+
+def test_previsor_modelo_com_outras_variaveis_erro_claro(
+    diretorio_modelo: Path, tmp_path: Path
+) -> None:
+    # Arrange: o modelo real salvo de novo com os nomes das variáveis trocados.
+    previsor_real = PrevisorXgboost.carregar(diretorio_modelo)
+    booster = xgboost.Booster()
+    booster.load_model(str(previsor_real.artefatos.caminho_modelo))
+    booster.feature_names = ["hora", "dia_semana", "mes", "chuva"]
+    outro = tmp_path / "modelo_sinistros_xgb.json"
+    booster.save_model(str(outro))
+    artefatos = replace(previsor_real.artefatos, caminho_modelo=outro)
+
+    # Act e Assert
+    with pytest.raises(ArtefatoModeloError, match="variáveis"):
         PrevisorXgboost(artefatos)
 
 
