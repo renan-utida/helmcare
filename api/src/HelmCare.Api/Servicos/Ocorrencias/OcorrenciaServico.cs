@@ -70,6 +70,21 @@ public sealed class OcorrenciaServico
             throw new RecursoNaoEncontradoException("Voluntário não encontrado.");
         }
 
+        return MontarResposta(ocorrencia, voluntarioId);
+    }
+
+    /// <summary>
+    /// Monta o corpo do <c>GET /ocorrencias/{id}</c> a partir da ocorrência já carregada (com o impacto
+    /// e os aceites). É o mesmo corpo do aceite (para quem aceitou, com a localização exata), do
+    /// cancelar e do encerrar (sem voluntário, com a aproximada).
+    /// </summary>
+    /// <param name="ocorrencia">Ocorrência com o impacto e os aceites carregados.</param>
+    /// <param name="voluntarioId">Voluntário que consulta, ou nulo.</param>
+    /// <returns>O status e o cronômetro.</returns>
+    public OcorrenciaResposta MontarResposta(Ocorrencia ocorrencia, Guid? voluntarioId)
+    {
+        ArgumentNullException.ThrowIfNull(ocorrencia);
+
         Guid? quemAceitou = ocorrencia.Aceites.FirstOrDefault()?.VoluntarioId;
         bool exata = voluntarioId is not null && voluntarioId == quemAceitou;
 

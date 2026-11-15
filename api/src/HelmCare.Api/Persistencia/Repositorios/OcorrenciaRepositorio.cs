@@ -85,4 +85,14 @@ public sealed class OcorrenciaRepositorio : RepositorioBase<Ocorrencia>, IOcorre
             .OrderBy(o => o.CriadaEm)
             .ToListAsync(cancellationToken);
     }
+
+    /// <inheritdoc/>
+    public Task<Ocorrencia?> ObterMaisRecenteDoEntregadorAsync(Guid entregadorId, CancellationToken cancellationToken)
+    {
+        return Conjunto
+            .AsNoTracking()
+            .Where(o => o.EntregadorId == entregadorId)
+            .OrderByDescending(o => o.CriadaEm)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
 }

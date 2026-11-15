@@ -29,6 +29,11 @@ public sealed class FakeUnidadeDeTrabalho : IUnidadeDeTrabalho
     /// </summary>
     public Func<int, Exception?>? FalhaNaChamada { get; set; }
 
+    /// <summary>
+    /// Quantas vezes <see cref="DescartarAlteracoes"/> foi chamado.
+    /// </summary>
+    public int VezesDescartado { get; private set; }
+
     /// <inheritdoc/>
     public Task SalvarAsync(CancellationToken cancellationToken)
     {
@@ -46,5 +51,11 @@ public sealed class FakeUnidadeDeTrabalho : IUnidadeDeTrabalho
 
         VezesSalvo++;
         return Task.CompletedTask;
+    }
+
+    /// <inheritdoc/>
+    public void DescartarAlteracoes()
+    {
+        VezesDescartado++;
     }
 }

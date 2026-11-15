@@ -19,6 +19,7 @@ public sealed class FakeOcorrenciaRepositorio : IOcorrenciaRepositorio
     private readonly List<Ocorrencia> _ocorrencias = [];
     private readonly Lock _trava = new();
     private readonly Channel<DateTime> _consultasDeVencidas = Channel.CreateUnbounded<DateTime>();
+    private readonly Dictionary<Guid, Queue<Ocorrencia>> _versoes = [];
 
     /// <summary>
     /// Ocorrências adicionadas ou semeadas.
@@ -49,9 +50,32 @@ public sealed class FakeOcorrenciaRepositorio : IOcorrenciaRepositorio
         return Task.FromResult(Ocorrencias.FirstOrDefault(o => o.Id == id));
     }
 
+    /// <summary>
+    /// Define o que <see cref="ObterAsync"/> devolve para o id em leituras seguidas, como o banco
+    /// devolveria depois de outra requisição gravar (a última versão se repete). Simula a releitura do
+    /// aceite depois de um conflito de concorrência; cada versão é um objeto próprio.
+    /// </summary>
+    /// <param name="id">Id pedido na rota.</param>
+    /// <param name="versoes">Versões na ordem das leituras.</param>
+    public void SemearVersoes(Guid id, params Ocorrencia[] versoes)
+    {
+        lock (_trava)
+        {
+            _versoes[id] = new Queue<Ocorrencia>(versoes);
+        }
+    }
+
     /// <inheritdoc/>
     public Task<Ocorrencia?> ObterAsync(Guid id, CancellationToken cancellationToken)
     {
+        lock (_trava)
+        {
+            if (_versoes.TryGetValue(id, out Queue<Ocorrencia>? fila))
+            {
+                return Task.FromResult<Ocorrencia?>(fila.Count > 1 ? fila.Dequeue() : fila.Peek());
+            }
+        }
+
         return ObterPorIdAsync(id, cancellationToken);
     }
 
@@ -92,6 +116,15 @@ public sealed class FakeOcorrenciaRepositorio : IOcorrenciaRepositorio
             .ToList();
         _consultasDeVencidas.Writer.TryWrite(criadaAte);
         return Task.FromResult(lista);
+    }
+
+    /// <inheritdoc/>
+    public Task<Ocorrencia?> ObterMaisRecenteDoEntregadorAsync(Guid entregadorId, CancellationToken cancellationToken)
+    {
+        return Task.FromResult(Copia()
+            .Where(o => o.EntregadorId == entregadorId)
+            .OrderByDescending(o => o.CriadaEm)
+            .FirstOrDefault());
     }
 
     // Cópia feita sob a trava: quem consulta nunca percorre a lista enquanto outra thread acrescenta.

@@ -336,3 +336,60 @@ Accept: application/json
 ### V12. Chamados próximos de voluntário inexistente (404)
 GET {{baseUrl}}/api/v1/ocorrencias/proximas?voluntarioId={{voluntarioInexistente}}
 Accept: application/json
+
+# ---------------------------------------------------------------------------
+# Aceite, cancelamento e encerramento da ocorrência (rodada 2 do SOS escalonado). Troque o id pela
+# ocorrência aberta pelo SOS de teste. O aceite publica SOCORRO_A_CAMINHO; cancelar e encerrar
+# publicam ENCERRAR. Os comandos saem depois de gravar e não bloqueiam a rota.
+# ---------------------------------------------------------------------------
+
+@ocorrenciaSosId = 00000000-0000-0000-0000-000000000003
+@voluntarioMasp = 01a1df61-e6b2-7652-8580-2c6d26b7f04b
+@voluntarioConsolacao = 01a1df61-e7df-760f-976c-628853c23bdb
+
+### A1. Aceite do voluntário do MASP (201, localização exata e cronômetro parado; Location com o voluntarioId)
+POST {{baseUrl}}/api/v1/ocorrencias/{{ocorrenciaSosId}}/aceites
+Content-Type: application/json
+
+{
+  "voluntarioId": "{{voluntarioMasp}}"
+}
+
+### A2. Segundo aceite, da Consolação (409)
+POST {{baseUrl}}/api/v1/ocorrencias/{{ocorrenciaSosId}}/aceites
+Content-Type: application/json
+
+{
+  "voluntarioId": "{{voluntarioConsolacao}}"
+}
+
+### A3. Aceite sem voluntarioId (400)
+POST {{baseUrl}}/api/v1/ocorrencias/{{ocorrenciaSosId}}/aceites
+Content-Type: application/json
+
+{}
+
+### A4. Aceite com voluntário inexistente (404)
+POST {{baseUrl}}/api/v1/ocorrencias/{{ocorrenciaSosId}}/aceites
+Content-Type: application/json
+
+{
+  "voluntarioId": "{{voluntarioInexistente}}"
+}
+
+### A5. Ocorrência vista por quem aceitou (200, exata) e por outro voluntário (200, aproximada)
+GET {{baseUrl}}/api/v1/ocorrencias/{{ocorrenciaSosId}}?voluntarioId={{voluntarioMasp}}
+Accept: application/json
+
+###
+GET {{baseUrl}}/api/v1/ocorrencias/{{ocorrenciaSosId}}?voluntarioId={{voluntarioConsolacao}}
+Accept: application/json
+
+### A6. Encerrar (200, aproximada; publica ENCERRAR)
+POST {{baseUrl}}/api/v1/ocorrencias/{{ocorrenciaSosId}}/encerrar
+
+### A7. Cancelar depois de encerrar (409; cancelar só vale em SOS_CAMADA_1 ou SOS_CAMADA_2)
+POST {{baseUrl}}/api/v1/ocorrencias/{{ocorrenciaSosId}}/cancelar
+
+### A8. Cancelar ou encerrar ocorrência inexistente (404)
+POST {{baseUrl}}/api/v1/ocorrencias/{{voluntarioInexistente}}/cancelar

@@ -55,4 +55,13 @@ public interface IOcorrenciaRepositorio : IRepositorio<Ocorrencia>
     /// <param name="cancellationToken">Cancelamento da operação.</param>
     /// <returns>As ocorrências da camada 1 com o tempo de aceite esgotado.</returns>
     Task<IReadOnlyList<Ocorrencia>> ListarCamada1VencidasAsync(DateTime criadaAte, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Busca, só para leitura, a ocorrência mais recente do entregador (pelo <c>CriadaEm</c>), em
+    /// qualquer estado. Usada no <c>SOS</c> repetido para decidir se o comando deve ser refeito.
+    /// </summary>
+    /// <param name="entregadorId">Id do entregador.</param>
+    /// <param name="cancellationToken">Cancelamento da operação.</param>
+    /// <returns>A ocorrência mais recente, ou nulo se o entregador nunca teve uma.</returns>
+    Task<Ocorrencia?> ObterMaisRecenteDoEntregadorAsync(Guid entregadorId, CancellationToken cancellationToken);
 }

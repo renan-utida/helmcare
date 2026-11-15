@@ -78,6 +78,10 @@ builder.Services.AddScoped<IProcessadorEvento, ProcessadorCancelado>();
 builder.Services.AddScoped<IProcessadorEvento, ProcessadorSos>();
 builder.Services.AddScoped<RoteadorMensagemMqtt>();
 
+// Comandos da ocorrência (SOCORRO_A_CAMINHO e ENCERRAR): publicados depois de gravar, sem bloquear
+// a rota nem o roteador. Scoped porque procura o capacete da vítima no banco.
+builder.Services.AddScoped<PublicadorComandosOcorrencia>();
+
 // Aviso ao contato de emergência, simulado no protótipo (só uma linha de log, sem dado pessoal).
 builder.Services.AddSingleton<INotificadorContato, NotificadorContatoSimulado>();
 builder.Services.AddHostedService<AssinanteMqtt>();
@@ -111,6 +115,7 @@ builder.Services.AddScoped<TrechosCriticosServico>();
 // Casos de uso do turno, da consulta de ocorrências e da rede de voluntários.
 builder.Services.AddScoped<TurnoServico>();
 builder.Services.AddScoped<OcorrenciaServico>();
+builder.Services.AddScoped<AtendimentoOcorrenciaServico>();
 builder.Services.AddScoped<VoluntarioServico>();
 
 // Escalonamento para a camada 2 em segundo plano, sem depender de requisição: uma rodada na subida
