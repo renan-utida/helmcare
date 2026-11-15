@@ -16,7 +16,7 @@ Este arquivo orienta o Claude Code quando ele trabalha na pasta `api/` do monore
 
 ## Fonte da verdade
 
-1. `docs/contrato-integracao.md` (versão 1.7).
+1. `docs/contrato-integracao.md` (versão 1.11).
 2. Este arquivo.
 
 Nunca renomeie entidades, campos, enums, rotas, payloads ou tópicos MQTT do contrato. Se algo do contrato parecer impossível ou contraditório, pare e me avise, explicando o motivo, sem improvisar.
@@ -115,10 +115,17 @@ Use estas versões (as mesmas dos templates do professor). Se uma versão não r
 - Uma mensagem inválida ou de capacete desconhecido nunca derruba o assinante: é registrada no log e descartada.
 - Logs de MQTT levam só o código do capacete, o tipo, o `ts` e ids; nunca o payload, que tem coordenadas.
 
+## Serviço de Risco
+
+- A API chama o Serviço de Risco (`POST indice-turno` e `GET trechos-criticos`) por um HttpClient tipado, com URL base e tempo limite na seção `ServicoRisco` da configuração. O app nunca chama o serviço direto.
+- Com 503, qualquer 5xx, erro de rede ou tempo esgotado, o índice do turno vem da versão simulada, com aviso no log. Um 4xx ou uma resposta fora do formato é erro de integração: log de erro e versão simulada. O turno nunca falha por causa do Serviço de Risco.
+- A versão simulada usa a mesma regra do serviço (média ponderada das horas do turno e o mesmo texto da explicação), para o mesmo turno ter o mesmo índice com o serviço no ar ou não.
+- Logs da integração levam só o motivo, o status HTTP e o tempo; nunca o corpo da requisição ou da resposta.
+
 ## Dados pessoais (seção 9 do contrato)
 
 - Nunca registre em log: `cpf`, `cnh`, `telefone`, `nome`, contatos de emergência, ficha médica, coordenadas exatas, senhas ou tokens. Logs usam ids (GUID) e o código do capacete.
-- Respostas mascaradas: CPF `***.***.***-12`, telefone `(11) *****-1234`. A ficha médica completa só volta no `PUT /api/v1/entregadores/{id}/ficha-medica`, para quem acabou de enviá-la; no Cofre saem só `tipoSanguineo`, `alergias` e `condicoesCriticas` (seção 7 do contrato).
+- Respostas mascaradas: CPF `***.***.***-12`, CNH `*******8900`, celular `(11) *****-1234` e telefone fixo `(11) ****-4567`. A ficha médica completa só volta no `PUT /api/v1/entregadores/{id}/ficha-medica`, para quem acabou de enviá-la; no Cofre saem só `tipoSanguineo`, `alergias` e `condicoesCriticas` (seção 7 do contrato).
 - Dados de seed são sempre simulados.
 
 ## Testes (`HelmCare.Testes`)
@@ -145,6 +152,7 @@ Esse comando lista o que entraria no próximo commit (arquivos novos e alterados
 - Trabalhe na branch atual e deixe as alterações sem commit. Quem commita é o Renan.
 - No fim de cada etapa, sugira os commits: para cada um, a mensagem em Conventional Commits, em português, com escopo `api` (`feat(api): ...`, `test(api): ...`, `chore(api): ...`, `docs(api): ...`), e a lista exata de arquivos.
 - Nunca rode `git add`, `git commit`, push, PR ou merge.
+- As mensagens de commit sugeridas e os textos de PR não levam nenhuma linha de atribuição nem menção a ferramentas de IA (nada de Co-Authored-By ou Claude-Session).
 
 ## Ao terminar cada etapa, mostre
 
