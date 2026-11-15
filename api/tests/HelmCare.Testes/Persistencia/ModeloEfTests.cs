@@ -227,6 +227,21 @@ public sealed class ModeloEfTests
         return entidade;
     }
 
+    /// <summary>
+    /// Garante que o índice único de Voluntario.EntregadorId tem no banco o nome que o
+    /// TratadorExcecoes procura para responder 409 de entregador que já é voluntário.
+    /// </summary>
+    [TestMethod]
+    public void Indice_VoluntarioPorEntregador_TemONomeDoTratador()
+    {
+        // Arrange e Act
+        IIndex? indice = Indice(typeof(Voluntario), "EntregadorId");
+
+        // Assert
+        Assert.IsNotNull(indice);
+        Assert.AreEqual(VoluntarioConfiguracao.IndiceEntregadorUnico, indice.GetDatabaseName());
+    }
+
     private static IIndex? Indice(Type tipo, params string[] propriedades)
     {
         return Entidade(tipo).GetIndexes()
