@@ -24,6 +24,11 @@ testpaths = ["tests"]
 markers = [
     "integracao: testes que precisam do PostgreSQL de testes (RISCO_TESTES_DATABASE_URL)",
 ]
+# O Starlette 1.10 avisa que o TestClient com httpx será trocado por httpx2. O CLAUDE.md
+# fixa o httpx, e o aviso não afeta os testes; ele fica filtrado só aqui, pelo texto.
+filterwarnings = [
+    "ignore:Using .httpx. with .starlette.testclient. is deprecated",
+]
 
 [tool.coverage.run]
 source = ["app"]
