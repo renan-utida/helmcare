@@ -1,0 +1,499 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "HelmCare: Serviço de Risco",
+    "description": "Serviço independente do HelmCare que calcula o Índice de Risco do Turno (modelo de ML com o histórico de sinistros graves, mais chuva e calor) e fornece os trechos críticos de sinistros. Quem o chama é a API principal em C#; o app nunca o chama direto. Erros em application/problem+json (RFC 9457).",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/risco/v1/indice-turno": {
+      "post": {
+        "tags": [
+          "Índice de risco"
+        ],
+        "summary": "Calcula o Índice de Risco do Turno",
+        "description": "Calcula o índice de 0 a 100 de um turno: 50% sinistro (modelo de ML, média ponderada das horas do turno), 25% chuva e 25% calor. A previsão do tempo é uma só para o turno inteiro. Cada cálculo é gravado no histórico; se a gravação falhar, a resposta continua 200.",
+        "operationId": "calcular_indice_turno_risco_v1_indice_turno_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IndiceTurnoEntrada"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IndiceTurnoSaida"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requisição inválida: data sem fuso, fim antes do início, turno acima de 24 h ou previsão fora das faixas.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemaDetalhes"
+                },
+                "example": {
+                  "type": "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+                  "title": "Requisição inválida",
+                  "status": 400,
+                  "detail": "Um ou mais campos da requisição são inválidos.",
+                  "errors": {
+                    "fim": [
+                      "O fim do turno deve ser depois do início."
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Modelo de ML não carregado.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemaDetalhes"
+                },
+                "example": {
+                  "type": "https://tools.ietf.org/html/rfc9110#section-15.6.4",
+                  "title": "Serviço indisponível",
+                  "status": 503,
+                  "detail": "O modelo de ML não está carregado."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/risco/v1/trechos-criticos": {
+      "get": {
+        "tags": [
+          "Trechos críticos"
+        ],
+        "summary": "Lista os trechos com mais sinistros graves",
+        "description": "Devolve os trechos de vias públicas com mais sinistros graves com motocicleta, em ordem decrescente de quantidade.",
+        "operationId": "listar_trechos_criticos_risco_v1_trechos_criticos_get",
+        "parameters": [
+          {
+            "name": "limite",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "description": "Quantidade de trechos (1 a 50).",
+              "default": 10,
+              "title": "Limite"
+            },
+            "description": "Quantidade de trechos (1 a 50)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrechosCriticosSaida"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parâmetro limite fora de 1 a 50 ou não numérico.",
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "type": "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+                  "title": "Requisição inválida",
+                  "status": 400,
+                  "detail": "Um ou mais campos da requisição são inválidos.",
+                  "errors": {
+                    "limite": [
+                      "Deve ser menor ou igual a 50."
+                    ]
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemaDetalhes"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Banco de dados fora do ar ou nenhum conjunto de trechos carregado.",
+            "content": {
+              "application/problem+json": {
+                "example": {
+                  "type": "https://tools.ietf.org/html/rfc9110#section-15.6.4",
+                  "title": "Serviço indisponível",
+                  "status": 503,
+                  "detail": "Não foi possível ler os trechos críticos."
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemaDetalhes"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/risco/v1/saude": {
+      "get": {
+        "tags": [
+          "Saúde"
+        ],
+        "summary": "Verificação de saúde",
+        "description": "200 com Healthy quando o modelo está carregado e o banco responde; 503 com Unhealthy caso contrário. O monitoramento olha o status HTTP.",
+        "operationId": "verificar_saude_risco_v1_saude_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaudeSaida"
+                },
+                "example": {
+                  "status": "Healthy"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Modelo não carregado ou banco indisponível.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaudeSaida"
+                },
+                "example": {
+                  "status": "Unhealthy"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ComponentesSaida": {
+        "properties": {
+          "sinistro": {
+            "type": "integer",
+            "title": "Sinistro"
+          },
+          "chuva": {
+            "type": "integer",
+            "title": "Chuva"
+          },
+          "calor": {
+            "type": "integer",
+            "title": "Calor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sinistro",
+          "chuva",
+          "calor"
+        ],
+        "title": "ComponentesSaida",
+        "description": "Os três componentes do índice, cada um inteiro de 0 a 100."
+      },
+      "FaixaRisco": {
+        "type": "string",
+        "enum": [
+          "BAIXO",
+          "MODERADO",
+          "ALTO",
+          "MUITO_ALTO"
+        ],
+        "title": "FaixaRisco",
+        "description": "Faixa do índice, com os valores do enum exatamente como no contrato."
+      },
+      "IndiceTurnoEntrada": {
+        "properties": {
+          "inicio": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Inicio",
+            "description": "Início do turno, ISO 8601 com fuso (Z ou -03:00)."
+          },
+          "fim": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Fim",
+            "description": "Fim do turno, ISO 8601 com fuso; depois do início e no máximo 24 h depois."
+          },
+          "previsao": {
+            "$ref": "#/components/schemas/PrevisaoEntrada"
+          }
+        },
+        "type": "object",
+        "required": [
+          "inicio",
+          "fim",
+          "previsao"
+        ],
+        "title": "IndiceTurnoEntrada",
+        "description": "Corpo do POST /risco/v1/indice-turno.",
+        "examples": [
+          {
+            "fim": "2026-11-13T00:00:00Z",
+            "inicio": "2026-11-12T20:00:00Z",
+            "previsao": {
+              "chuvaMmHora": 7.0,
+              "temperaturaC": 24.0,
+              "umidadePct": 85
+            }
+          }
+        ]
+      },
+      "IndiceTurnoSaida": {
+        "properties": {
+          "indiceRisco": {
+            "type": "integer",
+            "title": "Indicerisco",
+            "description": "Índice de Risco do Turno, de 0 a 100."
+          },
+          "faixaRisco": {
+            "$ref": "#/components/schemas/FaixaRisco",
+            "description": "Faixa do índice."
+          },
+          "componentes": {
+            "$ref": "#/components/schemas/ComponentesSaida"
+          },
+          "explicacao": {
+            "type": "string",
+            "title": "Explicacao",
+            "description": "Frase para o entregador."
+          }
+        },
+        "type": "object",
+        "required": [
+          "indiceRisco",
+          "faixaRisco",
+          "componentes",
+          "explicacao"
+        ],
+        "title": "IndiceTurnoSaida",
+        "description": "Resposta do POST /risco/v1/indice-turno (exatamente os campos do contrato).",
+        "examples": [
+          {
+            "componentes": {
+              "calor": 0,
+              "chuva": 70,
+              "sinistro": 84
+            },
+            "explicacao": "Risco alto: chuva prevista no turno e o seu horário tem histórico de sinistros graves (pico às 19h).",
+            "faixaRisco": "ALTO",
+            "indiceRisco": 60
+          }
+        ]
+      },
+      "PrevisaoEntrada": {
+        "properties": {
+          "chuvaMmHora": {
+            "type": "number",
+            "maximum": 200.0,
+            "minimum": 0.0,
+            "title": "Chuvammhora",
+            "description": "Chuva em mm/h (0 a 200)."
+          },
+          "temperaturaC": {
+            "type": "number",
+            "maximum": 50.0,
+            "minimum": -10.0,
+            "title": "Temperaturac",
+            "description": "Temperatura em °C (-10 a 50)."
+          },
+          "umidadePct": {
+            "type": "number",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Umidadepct",
+            "description": "Umidade relativa em % (0 a 100)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "chuvaMmHora",
+          "temperaturaC",
+          "umidadePct"
+        ],
+        "title": "PrevisaoEntrada",
+        "description": "Previsão do tempo para o turno inteiro."
+      },
+      "ProblemaDetalhes": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "status": {
+            "type": "integer",
+            "title": "Status"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          },
+          "errors": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errors"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "title",
+          "status",
+          "detail"
+        ],
+        "title": "ProblemaDetalhes",
+        "description": "Corpo de erro em application/problem+json (RFC 9457, antigo RFC 7807).\n\nerrors só aparece nos erros de validação: campo para a lista de mensagens."
+      },
+      "SaudeSaida": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "Healthy",
+              "Unhealthy"
+            ],
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "SaudeSaida",
+        "description": "Resposta do GET /risco/v1/saude, com os valores da API principal."
+      },
+      "TrechoCriticoSaida": {
+        "properties": {
+          "posicao": {
+            "type": "integer",
+            "title": "Posicao"
+          },
+          "logradouro": {
+            "type": "string",
+            "title": "Logradouro"
+          },
+          "latitude": {
+            "type": "number",
+            "title": "Latitude"
+          },
+          "longitude": {
+            "type": "number",
+            "title": "Longitude"
+          },
+          "quantidadeSinistrosGraves": {
+            "type": "integer",
+            "title": "Quantidadesinistrosgraves"
+          }
+        },
+        "type": "object",
+        "required": [
+          "posicao",
+          "logradouro",
+          "latitude",
+          "longitude",
+          "quantidadeSinistrosGraves"
+        ],
+        "title": "TrechoCriticoSaida",
+        "description": "Um trecho crítico de via pública."
+      },
+      "TrechosCriticosSaida": {
+        "properties": {
+          "periodo": {
+            "type": "string",
+            "title": "Periodo"
+          },
+          "trechos": {
+            "items": {
+              "$ref": "#/components/schemas/TrechoCriticoSaida"
+            },
+            "type": "array",
+            "title": "Trechos"
+          }
+        },
+        "type": "object",
+        "required": [
+          "periodo",
+          "trechos"
+        ],
+        "title": "TrechosCriticosSaida",
+        "description": "Resposta do GET /risco/v1/trechos-criticos.",
+        "examples": [
+          {
+            "periodo": "2019 a 2025",
+            "trechos": [
+              {
+                "latitude": -23.58341,
+                "logradouro": "SP 270 (RODOVIA RAPOSO TAVARES)",
+                "longitude": -46.77771,
+                "posicao": 1,
+                "quantidadeSinistrosGraves": 46
+              },
+              {
+                "latitude": -23.58481,
+                "logradouro": "SP 270 (RODOVIA RAPOSO TAVARES)",
+                "longitude": -46.78738,
+                "posicao": 2,
+                "quantidadeSinistrosGraves": 38
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Índice de risco",
+      "description": "Cálculo do Índice de Risco do Turno."
+    },
+    {
+      "name": "Trechos críticos",
+      "description": "Trechos de vias com mais sinistros graves."
+    },
+    {
+      "name": "Saúde",
+      "description": "Verificação de saúde para o monitoramento."
+    }
+  ]
+}

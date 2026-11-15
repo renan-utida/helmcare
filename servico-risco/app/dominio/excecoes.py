@@ -1,6 +1,6 @@
 """Exceções do domínio do Serviço de Risco.
 
-A camada de API (Rodada 2) traduz cada uma para um status HTTP em ProblemDetails:
+A camada de API (app/api/erros.py) traduz cada uma para um status HTTP em ProblemDetails:
 ValidacaoDominioError vira 400 e RegraNegocioError vira 409.
 """
 

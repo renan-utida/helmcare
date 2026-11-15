@@ -75,6 +75,28 @@ def test_semeador_primeira_carga_100_trechos_segunda_nao_duplica(
     assert contar(sessao, TrechoCriticoModelo) == 100
 
 
+def test_semeador_corrida_hash_repetido_devolve_nao_carregado_sem_duplicar(
+    sessao: Session, diretorio_modelo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Arrange: a primeira carga grava o arquivo. Depois, a checagem "já existe" passa a
+    # devolver None, como numa segunda instância que consultou antes da primeira gravar.
+    caminho = diretorio_modelo / ARQUIVO_TRECHOS
+    primeira = carregar_trechos(sessao, caminho, RelogioFixo())
+    with monkeypatch.context() as remendo:
+        remendo.setattr(sessao, "scalar", lambda *_args, **_kwargs: None)
+
+        # Act: o INSERT repetido bate na constraint única do hash (IntegrityError).
+        segunda = carregar_trechos(sessao, caminho, RelogioFixo())
+
+    # Assert: conta como "já carregado", nada duplica e a sessão segue usável.
+    assert primeira.carregado is True
+    assert segunda.carregado is False
+    assert segunda.hash_arquivo == primeira.hash_arquivo
+    assert segunda.quantidade_trechos == 100
+    assert contar(sessao, ConjuntoTrechosCriticosModelo) == 1
+    assert contar(sessao, TrechoCriticoModelo) == 100
+
+
 def test_semeador_arquivo_novo_vira_conjunto_mais_recente(
     sessao: Session, diretorio_modelo: Path, tmp_path: Path
 ) -> None:

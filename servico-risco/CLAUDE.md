@@ -27,7 +27,7 @@ Este arquivo orienta o Claude Code quando ele trabalha na pasta `servico-risco/`
 
 ## Fonte da verdade
 
-1. `docs/contrato-integracao.md` (**versão 1.10**), seções 2, 6.1, 8 e 8.1.
+1. `docs/contrato-integracao.md` (**versão 1.12**), seções 1 ("Chamada ao Serviço de Risco"), 2, 6.1, 7 (503 dos trechos críticos), 8 e 8.1.
 2. Este arquivo.
 3. Os artefatos de `ml/modelo/` (seção 8.1 do contrato).
 
@@ -138,8 +138,8 @@ Valores de referência (testes): 33,4 °C e 58% dão 39,8 °C; 23,5 °C e 58% d�
 - Abre com `Risco {faixa em minúsculas e com espaço}: ` (`baixo`, `moderado`, `alto`, `muito alto`), junta os trechos com vírgula e " e " antes do último, e termina com ponto final.
 - Ordem dos trechos: chuva, histórico do horário e calor.
 - Chuva (componente 1 ou mais): "chuva prevista no turno". Sem citar a hora da chuva.
-- Histórico do horário (sempre): componente sinistro 51 ou mais, "o seu horário tem histórico de sinistros graves (pico às {hora}h)"; de 26 a 50, "o seu horário tem histórico moderado de sinistros graves"; até 25, "o seu horário tem poucos sinistros graves no histórico". A `{hora}` é a hora local de maior valor entre as horas do turno (a primeira, em caso de empate).
-- Calor (componente 1 ou mais): "calor previsto no turno (índice de calor de {x,x} °C)", com uma casa decimal e vírgula.
+- Histórico do horário (sempre), pelo componente sinistro já arredondado a inteiro (o mesmo da resposta): 51 ou mais, "o seu horário tem histórico de sinistros graves (pico às {hora}h)"; de 26 a 50, "o seu horário tem histórico moderado de sinistros graves"; até 25, "o seu horário tem poucos sinistros graves no histórico". A `{hora}` é a hora local de maior valor entre as horas do turno (a primeira, em caso de empate).
+- Calor (componente 1 ou mais): "calor previsto no turno (índice de calor de {x,x} °C)", com uma casa decimal, vírgula e 0,5 para cima.
 - Exemplo de referência: "Risco alto: chuva prevista no turno e o seu horário tem histórico de sinistros graves (pico às 19h)."
 - **Nunca** diga que a chuva aumenta, eleva ou causa sinistros ou acidentes. Um teste varre as combinações de componentes e falha se a frase relacionar chuva e aumento de sinistros.
 
@@ -167,7 +167,7 @@ PostgreSQL 17.6. URL em `RISCO_DATABASE_URL` (formato `postgresql+psycopg://helm
 
 `compose.yaml`: o PostgreSQL da API já roda no Docker na porta 5432, então este compose precisa ser totalmente separado dele. `name: helmcare-risco` (a API usa `helmcare-api`), serviço `postgres` com `container_name: helmcare-risco-postgres`, volume com nome próprio `dados-postgres-risco`, imagem `postgres:17.6`, portas `127.0.0.1:5433:5432`, banco `helmcare_risco`, usuário `helmcare`, senha de `${POSTGRES_PASSWORD:?Configure servico-risco/.env}`, healthcheck com `pg_isready`. Nada de `network_mode` nem de volume ou rede compartilhados com a API. `.env.example` só com os nomes (veja Segredos) e um comentário de como gerar a senha (`openssl rand -hex 16`). Nenhuma senha versionada.
 
-**503 por degradação (aprovado):** modelo que não carrega ou banco fora do ar no startup não derrubam o serviço: ele sobe, e `/saude` e `/indice-turno` respondem 503. A API em C# trata esse 503 como falha do serviço e usa a versão simulada. Isso entra na próxima versão do contrato (1.11); até lá, o texto da seção API deste arquivo é a regra.
+**503 por degradação (aprovado):** modelo que não carrega ou banco fora do ar no startup não derrubam o serviço: ele sobe, e `/saude` e `/indice-turno` respondem 503. A API em C# trata esse 503 como falha do serviço e usa a versão simulada. A regra está na seção 8 do contrato 1.12 ("Degradação").
 
 Tabelas (nomes no singular, colunas em snake_case, tipos do SQLAlchemy 2: `Uuid`, `DateTime(timezone=True)`, `Float` para medidas e coordenadas). Defina `naming_convention` no `MetaData` para os nomes de constraints serem previsíveis.
 

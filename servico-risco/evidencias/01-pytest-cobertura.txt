@@ -1,0 +1,79 @@
+$ .venv/Scripts/python -m pytest --cov=app --cov-report=term-missing
+============================= test session starts =============================
+platform win32 -- Python 3.13.17, pytest-9.2.0, pluggy-1.7.0
+rootdir: c:\Users\ronal\Downloads\helmcare\servico-risco
+configfile: pyproject.toml
+testpaths: tests
+plugins: anyio-4.16.0, cov-7.1.0
+collected 254 items
+
+tests\api\test_erros_e_openapi.py ............                           [  4%]
+tests\api\test_inicializacao.py ........                                 [  7%]
+tests\api\test_rota_indice_turno.py .......................              [ 16%]
+tests\api\test_rotas_trechos_e_saude.py ............                     [ 21%]
+tests\aplicacao\test_servico_indice_turno.py .......                     [ 24%]
+tests\aplicacao\test_servico_saude.py ...                                [ 25%]
+tests\aplicacao\test_servico_trechos_criticos.py ......                  [ 27%]
+tests\dominio\test_agregacao.py ..........                               [ 31%]
+tests\dominio\test_calculadora_indice.py ...........                     [ 36%]
+tests\dominio\test_calendario.py .............                           [ 41%]
+tests\dominio\test_componentes.py ............................           [ 52%]
+tests\dominio\test_dependencias_dominio.py .............                 [ 57%]
+tests\dominio\test_explicacao.py ...............                         [ 63%]
+tests\dominio\test_faixa_risco.py ............                           [ 68%]
+tests\dominio\test_horas_turno.py ...............                        [ 74%]
+tests\dominio\test_indice_calor.py .....                                 [ 75%]
+tests\dominio\test_trecho_critico.py ................                    [ 82%]
+tests\infraestrutura\ml\test_artefatos.py ...........                    [ 86%]
+tests\infraestrutura\ml\test_previsor_xgboost.py .........               [ 90%]
+tests\infraestrutura\persistencia\test_semeador_conversao.py .....       [ 92%]
+tests\integracao\test_api_banco.py ...                                   [ 93%]
+tests\integracao\test_migracoes.py ..No new upgrade operations detected.
+.                                   [ 94%]
+tests\integracao\test_persistencia.py .........                          [ 98%]
+tests\test_config.py .....                                               [100%]
+
+=============================== tests coverage ================================
+______________ coverage: platform win32, python 3.13.17-final-0 _______________
+
+Name                                                  Stmts   Miss  Cover   Missing
+-----------------------------------------------------------------------------------
+app\__init__.py                                           0      0   100%
+app\api\__init__.py                                       0      0   100%
+app\api\dependencias.py                                  45      0   100%
+app\api\erros.py                                         84      0   100%
+app\api\esquemas.py                                      69      0   100%
+app\api\rotas_risco.py                                   37      0   100%
+app\aplicacao\__init__.py                                 0      0   100%
+app\aplicacao\excecoes.py                                 1      0   100%
+app\aplicacao\servico_indice_turno.py                    37      0   100%
+app\aplicacao\servico_saude.py                            7      0   100%
+app\aplicacao\servico_trechos_criticos.py                20      0   100%
+app\config.py                                            17      1    94%   48
+app\dominio\__init__.py                                   0      0   100%
+app\dominio\agregacao.py                                 34      0   100%
+app\dominio\calculadora_indice.py                        58      0   100%
+app\dominio\calendario.py                                31      0   100%
+app\dominio\componentes.py                               31      0   100%
+app\dominio\excecoes.py                                   3      0   100%
+app\dominio\explicacao.py                                29      0   100%
+app\dominio\faixa_risco.py                               25      0   100%
+app\dominio\horas_turno.py                               42      0   100%
+app\dominio\indice_calor.py                              12      0   100%
+app\dominio\portas.py                                    18      0   100%
+app\dominio\trecho_critico.py                            47      0   100%
+app\infraestrutura\__init__.py                            0      0   100%
+app\infraestrutura\ml\__init__.py                         0      0   100%
+app\infraestrutura\ml\artefatos.py                       68      0   100%
+app\infraestrutura\ml\previsor_xgboost.py                37      0   100%
+app\infraestrutura\persistencia\__init__.py               0      0   100%
+app\infraestrutura\persistencia\base.py                   5      0   100%
+app\infraestrutura\persistencia\modelos.py               63      0   100%
+app\infraestrutura\persistencia\repositorios.py          29      0   100%
+app\infraestrutura\persistencia\semeador_trechos.py      68      1    99%   153
+app\infraestrutura\persistencia\sessao.py                19      0   100%
+app\infraestrutura\relogio.py                             4      0   100%
+app\main.py                                              77      0   100%
+-----------------------------------------------------------------------------------
+TOTAL                                                  1017      2    99%
+============================ 254 passed in 16.56s =============================

@@ -6,8 +6,8 @@ Para rodar (a partir de servico-risco/):
 
 No startup (lifespan), o serviço carrega o modelo, prepara o banco e carrega os
 trechos críticos. Nada disso derruba o serviço: o que falhar fica indisponível, é
-registrado no log, e as rotas que dependem dele respondem 503 (degradação aprovada,
-que entra no Contrato v1.11).
+registrado no log, e as rotas que dependem dele respondem 503 (seção 8 do Contrato
+1.12, "Degradação").
 """
 
 import logging
