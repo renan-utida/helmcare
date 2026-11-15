@@ -5,14 +5,16 @@ namespace HelmCare.Api.Contratos.Turnos;
 
 /// <summary>
 /// Estado do alerta de queda, no formato do exemplo do <c>GET /turnos/{id}/alerta</c> da seção 7
-/// do contrato. Os campos nulos saem como <c>null</c> no JSON, como no exemplo.
+/// do contrato. Os campos nulos saem como <c>null</c> no JSON, como no exemplo. Sem capacete
+/// vinculado (turno com <c>protecaoAtiva</c> falso), os quatro campos saem <c>null</c>.
 /// </summary>
 public sealed class AlertaTurnoResposta
 {
     /// <summary>
-    /// Último estado recebido do capacete, por evento ou por telemetria.
+    /// Último estado recebido do capacete, por evento ou por telemetria, ou nulo quando o
+    /// entregador não tem capacete vinculado.
     /// </summary>
-    public required EstadoDispositivo EstadoCapacete { get; init; }
+    public required EstadoDispositivo? EstadoCapacete { get; init; }
 
     /// <summary>
     /// Fim da contagem, só em <c>CONTAGEM</c>. Vem do relógio do capacete: o app conta a partir

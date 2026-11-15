@@ -24,6 +24,9 @@ public static class CalculadoraIndiceRisco
     /// </summary>
     public const double CalorMaximoC = 41.0;
 
+    // Mesma margem do Serviço de Risco (TOLERANCIA_ARREDONDAMENTO em componentes.py).
+    private const double ToleranciaArredondamento = 1e-9;
+
     /// <summary>
     /// Calcula o índice e a faixa. Cada componente e o índice são arredondados para o inteiro
     /// mais próximo, com 0,5 para cima, e limitados a 0..100. O índice é calculado sobre os
@@ -54,11 +57,26 @@ public static class CalculadoraIndiceRisco
             componenteCalor);
     }
 
-    // Arredonda com 0,5 para cima (AwayFromZero). O padrão do Math.Round é o arredondamento
-    // bancário, que levaria 64,5 para 64. Depois limita a 0..100.
+    /// <summary>
+    /// Arredonda para o inteiro mais próximo, com 0,5 sempre para cima (64,5 vira 65), exatamente
+    /// como o <c>arredondar_meio_para_cima</c> do Serviço de Risco: <c>floor(valor + 0,5 + 1e-9)</c>.
+    /// </summary>
+    /// <remarks>
+    /// A margem de 1e-9 absorve o ruído do ponto flutuante (uma conta que deveria dar 64,5 pode dar
+    /// 64,49999999999999). Sem ela, a API e o serviço poderiam arredondar o mesmo turno para lados
+    /// diferentes. O <c>Math.Round</c> padrão faria o arredondamento bancário (64,5 para 64).
+    /// </remarks>
+    /// <param name="valor">Valor a arredondar (não negativo).</param>
+    /// <returns>O inteiro arredondado.</returns>
+    public static int ArredondarMeioParaCima(double valor)
+    {
+        return (int)Math.Floor(valor + 0.5 + ToleranciaArredondamento);
+    }
+
+    // Limita a 0..100 antes de arredondar, na mesma ordem do serviço (limitar e depois arredondar).
     private static int Normalizar(double valor)
     {
-        return (int)Math.Clamp(Math.Round(valor, MidpointRounding.AwayFromZero), 0, 100);
+        return ArredondarMeioParaCima(Math.Clamp(valor, 0, 100));
     }
 
     private static void ExigirFinito(double valor, string parametro)

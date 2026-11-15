@@ -56,8 +56,7 @@ public sealed partial class ProcessadorSos : IProcessadorEvento
         _ocorrencias = ocorrencias;
         _relogio = relogio;
         _logger = logger;
-        _antecedenciaEstimada = TimeSpan.FromSeconds(
-            opcoes.Value.JanelaObservacaoS + opcoes.Value.ContagemCancelamentoS);
+        _antecedenciaEstimada = opcoes.Value.TrechoCapacetePadrao;
     }
 
     /// <inheritdoc/>
