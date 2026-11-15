@@ -99,13 +99,11 @@ public sealed class TurnosController : ControllerBase
     /// <param name="id">Id do turno.</param>
     /// <param name="cancellationToken">Cancelamento da requisição.</param>
     /// <returns>O estado do alerta.</returns>
-    /// <response code="200">Estado do alerta.</response>
+    /// <response code="200">Estado do alerta (os quatro campos nulos quando o entregador não tem capacete).</response>
     /// <response code="404">Turno inexistente.</response>
-    /// <response code="409">Entregador sem capacete vinculado.</response>
     [HttpGet("{id:guid}/alerta")]
     [ProducesResponseType<AlertaTurnoResposta>(StatusCodes.Status200OK, "application/json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
     public async Task<ActionResult<AlertaTurnoResposta>> ObterAlerta(Guid id, CancellationToken cancellationToken)
     {
         return Ok(await _servico.ObterAlertaAsync(id, cancellationToken));

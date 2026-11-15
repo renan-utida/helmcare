@@ -173,7 +173,7 @@ Content-Type: application/json
 ###
 @turnoSemProtecaoId = {{iniciarTurnoSemProtecao.response.body.$.turnoId}}
 
-### T7d. Alerta de quem não tem capacete (409)
+### T7d. Alerta de quem não tem capacete (200, os quatro campos null)
 GET {{baseUrl}}/api/v1/turnos/{{turnoSemProtecaoId}}/alerta
 Accept: application/json
 
@@ -208,4 +208,33 @@ Accept: application/json
 
 ### T9c. Ocorrência inexistente (404)
 GET {{baseUrl}}/api/v1/ocorrencias/{{$guid}}
+Accept: application/json
+
+### R1. Turno do exemplo do contrato, sem proteção (201: 60, ALTO, 84/70/0). Com o Serviço de Risco
+### fora do ar, o mesmo resultado vem da versão simulada. Use um entregador sem turno ativo.
+# @name iniciarTurnoExemplo
+POST {{baseUrl}}/api/v1/turnos
+Content-Type: application/json
+Accept: application/json
+
+{
+  "entregadorId": "{{semCapaceteId}}",
+  "inicio": "2026-11-12T20:00:00Z",
+  "fimPrevisto": "2026-11-13T00:00:00Z",
+  "protecaoAtiva": false
+}
+
+###
+@turnoExemploId = {{iniciarTurnoExemplo.response.body.$.turnoId}}
+
+### R2. Encerrar o turno do exemplo (200)
+POST {{baseUrl}}/api/v1/turnos/{{turnoExemploId}}/encerrar
+Accept: application/json
+
+### R3. Trechos críticos (200, os dois primeiros; 503 com o Serviço de Risco fora do ar)
+GET {{baseUrl}}/api/v1/trechos-criticos?limite=2
+Accept: application/json
+
+### R4. Trechos críticos com limite fora de 1 a 50 (400)
+GET {{baseUrl}}/api/v1/trechos-criticos?limite=0
 Accept: application/json

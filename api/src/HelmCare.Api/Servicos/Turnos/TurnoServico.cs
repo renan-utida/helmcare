@@ -195,14 +195,27 @@ public sealed class TurnoServico
     /// <param name="id">Id do turno.</param>
     /// <param name="cancellationToken">Cancelamento da requisição.</param>
     /// <returns>O estado do alerta.</returns>
+    /// <remarks>
+    /// Sem capacete vinculado (turno com <c>protecaoAtiva</c> falso), responde com os quatro campos
+    /// nulos, como manda o contrato; só o cancelamento do alerta responde 409 nesse caso.
+    /// </remarks>
     /// <exception cref="RecursoNaoEncontradoException">Turno inexistente (404).</exception>
-    /// <exception cref="RegraNegocioException">Entregador sem capacete (409).</exception>
     public async Task<AlertaTurnoResposta> ObterAlertaAsync(Guid id, CancellationToken cancellationToken)
     {
         Turno turno = await _turnos.ObterAsync(id, cancellationToken) ?? throw TurnoNaoEncontrado();
 
-        DadosAlertaTurno dados = await _turnos.ObterDadosAlertaAsync(turno.EntregadorId, cancellationToken)
-            ?? throw SemCapacete();
+        DadosAlertaTurno? dados = await _turnos.ObterDadosAlertaAsync(turno.EntregadorId, cancellationToken);
+
+        if (dados is null)
+        {
+            return new AlertaTurnoResposta
+            {
+                EstadoCapacete = null,
+                ContagemTerminaEm = null,
+                OcorrenciaId = null,
+                IndiceCalorC = null,
+            };
+        }
 
         // O contagemTerminaEm vem do relógio do capacete (no Wokwi, atrasado): ele é repassado como
         // está, sem comparar com a hora do servidor. Quem decide se a contagem acabou é o estado.

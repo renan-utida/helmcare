@@ -72,13 +72,13 @@ public sealed class TurnoServicoTests
         // Assert
         Turno gravado = _turnos.Turnos.Single();
         Assert.AreEqual(gravado.Id, resposta.TurnoId);
-        Assert.AreEqual(58, resposta.IndiceRisco);
+        Assert.AreEqual(60, resposta.IndiceRisco);
         Assert.AreEqual(FaixaRisco.Alto, resposta.FaixaRisco);
-        Assert.AreEqual(80, resposta.Componentes.Sinistro);
+        Assert.AreEqual(84, resposta.Componentes.Sinistro);
         Assert.AreEqual(70, resposta.Componentes.Chuva);
         Assert.AreEqual(0, resposta.Componentes.Calor);
         Assert.AreEqual(gravado.Explicacao, resposta.Explicacao);
-        Assert.AreEqual(58, gravado.IndiceRisco);
+        Assert.AreEqual(60, gravado.IndiceRisco);
         Assert.IsTrue(gravado.ProtecaoAtiva);
         Assert.AreEqual(new ComandoPublicadoFake("HC-0001", TipoComandoMqtt.Armar), _publicador.Comandos.Single());
         Assert.AreEqual(1, _unidade.VezesSalvo);
@@ -491,18 +491,38 @@ public sealed class TurnoServicoTests
     }
 
     /// <summary>
-    /// Garante o 409 do alerta sem capacete e o 404 do turno inexistente.
+    /// Garante que o alerta de quem não tem capacete responde com os quatro campos nulos (200), e que
+    /// o cancelamento continua com 409 nesse caso.
     /// </summary>
     /// <returns>A tarefa do teste.</returns>
     [TestMethod]
-    public async Task ObterAlertaAsync_SemCapaceteOuInexistente_Lanca409E404()
+    public async Task ObterAlertaAsync_SemCapacete_QuatroCamposNulosECancelar409()
     {
         // Arrange: sem DefinirDadosAlerta, a consulta não encontra capacete.
-        Turno turno = SemearTurno();
+        Entregador semCapacete = SemearEntregadorSemCapacete();
+        Turno turno = SemearTurno(semCapacete.Id, protecaoAtiva: false);
 
-        // Act e Assert
+        // Act
+        AlertaTurnoResposta alerta = await _servico.ObterAlertaAsync(turno.Id, CancellationToken.None);
+
+        // Assert
+        Assert.IsNull(alerta.EstadoCapacete);
+        Assert.IsNull(alerta.ContagemTerminaEm);
+        Assert.IsNull(alerta.OcorrenciaId);
+        Assert.IsNull(alerta.IndiceCalorC);
         await Assert.ThrowsExactlyAsync<RegraNegocioException>(
-            () => _servico.ObterAlertaAsync(turno.Id, CancellationToken.None));
+            () => _servico.CancelarAlertaAsync(turno.Id, CancellationToken.None));
+        Assert.IsEmpty(_publicador.Comandos);
+    }
+
+    /// <summary>
+    /// Garante o 404 do alerta de turno inexistente.
+    /// </summary>
+    /// <returns>A tarefa do teste.</returns>
+    [TestMethod]
+    public async Task ObterAlertaAsync_TurnoInexistente_Lanca404()
+    {
+        // Act e Assert
         await Assert.ThrowsExactlyAsync<RecursoNaoEncontradoException>(
             () => _servico.ObterAlertaAsync(Guid.NewGuid(), CancellationToken.None));
     }
