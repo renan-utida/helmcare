@@ -1,6 +1,6 @@
 # HelmCare - Contrato de Integração
 
-**Versão 1.12 - 14/11/2026**
+**Versão 1.13 - 15/11/2026**
 
 Este documento define como as partes do HelmCare conversam entre si: nomes, tópicos MQTT, endpoints, payloads, estados e regras. **Todas as disciplinas seguem este contrato.** Mudanças só entram por meio da conversa central de coordenação, que gera uma nova versão.
 
@@ -219,6 +219,7 @@ Tópico `helmcare-rdu/v1/HC-0001/comando`:
 | GET | `/turnos/{id}/alerta` | Estado do alerta de queda do capacete no turno (tela de alerta do app) |
 | POST | `/turnos/{id}/alerta/cancelar` | Cancela o alerta durante a contagem (a API publica o comando `CANCELAR`) |
 | GET | `/trechos-criticos?limite=10` | Repassa a lista do Serviço de Risco, com o mesmo parâmetro `limite` |
+| POST | `/voluntarios` | Torna um entregador cadastrado voluntário da rede (começa indisponível) |
 | PUT | `/voluntarios/{id}/disponibilidade` | Atualiza a disponibilidade e a posição do voluntário |
 | GET | `/ocorrencias/proximas?voluntarioId=` | Chamados que o voluntário pode atender, pela disponibilidade e pela posição do último `PUT /voluntarios/{id}/disponibilidade` (localização aproximada) |
 | GET | `/ocorrencias/{id}?voluntarioId=` | Status de uma ocorrência e o cronômetro. `voluntarioId` é opcional: a localização só vem exata para o voluntário que aceitou |
@@ -237,7 +238,7 @@ A página web do Cofre fica **fora** do `/api/v1`, em `GET /cofre/{qrToken}` (HT
 
 | Situação | Código |
 |---|---|
-| Criação de recurso (`POST /entregadores`, `/entregadores/{id}/contatos`, `/dispositivos`, `/turnos` e `/ocorrencias/{id}/aceites`) | `201 Created`, com o cabeçalho `Location`. Quando o recurso não tem `GET` próprio, o `Location` aponta para o recurso de leitura mais próximo: contatos e dispositivo para `/entregadores/{id}`, turno para `/turnos/{id}/risco` |
+| Criação de recurso (`POST /entregadores`, `/entregadores/{id}/contatos`, `/dispositivos`, `/turnos`, `/voluntarios` e `/ocorrencias/{id}/aceites`) | `201 Created`, com o cabeçalho `Location`. Quando o recurso não tem `GET` próprio, o `Location` aponta para o recurso de leitura mais próximo: contatos, dispositivo e voluntário para `/entregadores/{entregadorId}`, turno para `/turnos/{id}/risco` e aceite para `/ocorrencias/{id}?voluntarioId={voluntarioId}` |
 | Leitura, `PUT` e ações sobre um recurso existente (encerrar, cancelar) | `200 OK`, com o recurso atualizado |
 | Comando enviado ao capacete sem esperar resposta (`POST /turnos/{id}/alerta/cancelar`) | `202 Accepted` |
 | Dados inválidos (validações da seção 3, parâmetros fora da faixa) | `400 Bad Request` |
@@ -267,13 +268,18 @@ Todos os erros saem em ProblemDetails.
 **Regras da rede de voluntários:**
 
 - **Quem é o voluntário:** como o protótipo não tem login para voluntários, as rotas da rede identificam o voluntário pelo `voluntarioId`. A disponibilidade e a posição usadas em todas as regras (raio da camada 1, quem pode ver e quem pode aceitar) são as do último `PUT /voluntarios/{id}/disponibilidade`.
-- **Chamados próximos:** `GET /ocorrencias/proximas?voluntarioId=` devolve só os chamados que o voluntário pode atender: na camada 1, a até `RAIO_CAMADA_1_KM`; na camada 2, todos. Voluntário indisponível recebe a lista vazia, e o entregador nunca vê o próprio SOS. `voluntarioId` ausente, `400`; inexistente, `404`.
-- **Aceite:** o `POST /ocorrencias/{id}/aceites` recebe `{ "voluntarioId": "..." }` e, no `201`, devolve a localização exata para esse voluntário.
+- **Cadastro:** `POST /voluntarios` recebe `{ "entregadorId": "...", "tipo": "ENTREGADOR" }` (`TipoVoluntario`). Responde `201` com `{ voluntarioId, entregadorId, tipo, disponivel, latitude, longitude }`, com `disponivel` falso e a posição `null`. Campo ausente ou `tipo` inválido, `400`; entregador inexistente, `404`; entregador que já é voluntário, `409` (um entregador tem no máximo um `Voluntario`).
+- **Disponibilidade:** `PUT /voluntarios/{id}/disponibilidade` recebe `{ disponivel, latitude, longitude }`. `disponivel` é obrigatório, a latitude vai de -90 a 90 e a longitude de -180 a 180. Disponível sem as duas coordenadas, `400`; indisponível apaga a posição, mesmo que ela venha na requisição; voluntário inexistente, `404`. Responde `200` no mesmo formato do cadastro. A posição só volta nessa resposta, para o próprio voluntário, e nunca vai para o log.
+- **Chamados próximos:** `GET /ocorrencias/proximas?voluntarioId=` devolve só os chamados que o voluntário pode atender: na camada 1, a até `RAIO_CAMADA_1_KM`; na camada 2, todos. Voluntário indisponível recebe a lista vazia, e o entregador nunca vê o próprio SOS. `voluntarioId` ausente, `400`; inexistente, `404`. Cada item traz `ocorrenciaId`, `estado`, `camada`, `criadaEm`, `latitude` e `longitude` (aproximadas, seção 9), `distanciaKm` (1 casa decimal) e `cronometro` (mesmo formato do `GET /ocorrencias/{id}`), em ordem crescente de distância e, no empate, de `criadaEm`.
+- **Distância mostrada:** o filtro do raio usa a posição exata da ocorrência, mas a `distanciaKm` é calculada da posição do voluntário até a localização aproximada, para a distância não revelar a posição exata. Por isso ela pode diferir da distância real em até cerca de 0,7 km.
+- **Aceite:** o `POST /ocorrencias/{id}/aceites` recebe `{ "voluntarioId": "..." }` e, no `201`, devolve o mesmo corpo do `GET /ocorrencias/{id}` com a localização exata para esse voluntário. `voluntarioId` ausente, `400`; ocorrência ou voluntário inexistente, `404`.
+- **Cancelar e encerrar:** o `200` do `POST /ocorrencias/{id}/cancelar` e do `POST /ocorrencias/{id}/encerrar` traz o mesmo corpo do `GET /ocorrencias/{id}`, com a localização aproximada.
 - **Localização:** em `GET /ocorrencias/{id}`, a localização só vem exata quando o `voluntarioId` é o do voluntário que aceitou. Sem `voluntarioId`, ou com outro voluntário, vem aproximada (seção 9).
 
 **Regras do SOS na API:**
 
-- **Camada 2:** a ocorrência escala quando passam `TEMPO_ACEITE_CAMADA_1_S` desde a criação, inclusive (60 s exatos já escalam).
+- **Camada 2:** a ocorrência escala quando passam `TEMPO_ACEITE_CAMADA_1_S` desde a criação, inclusive (60 s exatos já escalam). O escalonamento roda em segundo plano na API, sem depender de nenhuma requisição, e confere as ocorrências a cada 1 s (configuração interna da API, fora da seção 5). Assim, a ocorrência escala até 1 s depois dos 60 s.
+- **Aviso ao contato de emergência:** no protótipo, é simulado. Depois que a ocorrência é gravada, a API registra no log só o `ocorrenciaId` e a quantidade de contatos, nunca nome, telefone ou localização.
 - **Raio da camada 1:** inclusivo (um voluntário a exatamente 2 km entra).
 - **Comandos da ocorrência:** o `SOCORRO_A_CAMINHO` (no aceite) e o `ENCERRAR` (no cancelamento e no encerramento) são publicados depois de gravar, sem bloquear a rota: se o broker falhar, a rota responde normalmente, porque o socorro não pode depender do capacete. O comando é refeito no próximo reenvio do `SOS` (seção 6.2).
 - **Cronômetro:** `GET /ocorrencias/{id}` traz `cronometro` com `segundosDesdeQueda`, `metaSegundos` (`META_TEMPO_ACEITE_S`) e `parado`. O `segundosDesdeQueda` segue a regra dos dois trechos do indicador, com o trecho do servidor indo até o aceite, até o encerramento ou até agora. `parado` é verdadeiro depois do aceite ou do fim da ocorrência. Entre uma consulta e outra, o app pode somar os segundos no próprio relógio.
@@ -495,3 +501,4 @@ Máscaras padrão: CPF `***.***.***-12`, CNH `*******8900`, celular `(11) *****-
 | 1.10 | 14/11/2026 | Agregação das horas do turno pela média ponderada pelos minutos (fim da pendência da seção 8.1), também na versão simulada da API; regras da requisição do `POST /indice-turno` (fuso obrigatório, duração, faixas da previsão); corpo do `/saude` do Serviço de Risco; histórico dos cálculos sem bloquear a resposta; explicação com "chuva prevista no turno"; resultado real do exemplo da seção 8 |
 | 1.11 | 14/11/2026 | Degradação do Serviço de Risco (o que cada rota responde sem o modelo ou sem o banco); erros em problem+json e caminho da documentação; formato da explicação em uma frase, com o pico do horário; exemplo do `POST /turnos` com o resultado real; pesos da agregação em segundos |
 | 1.12 | 14/11/2026 | Integração da API com o Serviço de Risco: URL base com `127.0.0.1` e tempo limite de 3 s sem novas tentativas; falhas que levam à versão simulada, com aviso ou erro no log; cancelamento do cliente fora da reserva; `503` do `GET /trechos-criticos` com o serviço fora; tabela de novembro sem feriado na versão simulada; as três frases do histórico do horário e a hora do pico na explicação |
+| 1.13 | 15/11/2026 | Rede de voluntários: `POST /voluntarios` (cadastro, começa indisponível), corpo e validações do `PUT /voluntarios/{id}/disponibilidade`, campos e ordem dos chamados próximos, distância até a localização aproximada; respostas do aceite, do cancelar e do encerrar da ocorrência; `Location` do voluntário e do aceite; escalonamento em segundo plano a cada 1 s; aviso simulado ao contato de emergência |
