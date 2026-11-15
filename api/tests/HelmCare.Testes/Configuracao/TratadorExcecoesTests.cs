@@ -37,6 +37,7 @@ public sealed class TratadorExcecoesTests
     [DataRow("concorrencia", StatusCodes.Status409Conflict)]
     [DataRow("unico", StatusCodes.Status409Conflict)]
     [DataRow("mensageria", StatusCodes.Status503ServiceUnavailable)]
+    [DataRow("servicoRisco", StatusCodes.Status503ServiceUnavailable)]
     [DataRow("bancoOutro", StatusCodes.Status500InternalServerError)]
     [DataRow("inesperada", StatusCodes.Status500InternalServerError)]
     public async Task TryHandleAsync_CadaExcecao_RespondeOStatusCerto(string caso, int statusEsperado)
@@ -87,6 +88,7 @@ public sealed class TratadorExcecoesTests
     [DataRow("bancoOutro")]
     [DataRow("unico")]
     [DataRow("mensageria")]
+    [DataRow("servicoRisco")]
     public async Task TryHandleAsync_ErroInterno_NaoExpoeAMensagemInterna(string caso)
     {
         // Arrange
@@ -120,6 +122,28 @@ public sealed class TratadorExcecoesTests
         // Assert
         Assert.AreEqual(StatusCodes.Status503ServiceUnavailable, contexto.Response.StatusCode);
         Assert.AreEqual("O capacete não pôde ser avisado agora; tente de novo.", problemas.Escrito?.Detail);
+    }
+
+    /// <summary>
+    /// Garante que o Serviço de Risco indisponível (GET /trechos-criticos) vira 503 com o título e o
+    /// detalhe fixos.
+    /// </summary>
+    /// <returns>A tarefa do teste.</returns>
+    [TestMethod]
+    public async Task TryHandleAsync_ServicoRiscoIndisponivel_Responde503ComTextoFixo()
+    {
+        // Arrange
+        (TratadorExcecoes tratador, FakeProblemDetailsService problemas) = Criar();
+        var contexto = new DefaultHttpContext();
+        var excecao = new ServicoRiscoIndisponivelException(MotivoFalhaServicoRisco.ErroDeRede, null, MensagemInterna);
+
+        // Act
+        await tratador.TryHandleAsync(contexto, excecao, CancellationToken.None);
+
+        // Assert
+        Assert.AreEqual(StatusCodes.Status503ServiceUnavailable, contexto.Response.StatusCode);
+        Assert.AreEqual("Serviço de Risco indisponível", problemas.Escrito?.Title);
+        Assert.AreEqual("Os trechos críticos não estão disponíveis agora; tente de novo.", problemas.Escrito?.Detail);
     }
 
     /// <summary>
@@ -166,6 +190,7 @@ public sealed class TratadorExcecoesTests
             "transicao" => new TransicaoInvalidaException("A ocorrência já foi encerrada."),
             "regra" => new RegraNegocioException("O entregador já tem um capacete vinculado."),
             "mensageria" => new MensageriaIndisponivelException(MensagemInterna),
+            "servicoRisco" => new ServicoRiscoIndisponivelException(MotivoFalhaServicoRisco.ServicoIndisponivel, 503, MensagemInterna),
             "concorrencia" => new DbUpdateConcurrencyException(MensagemInterna),
             "unico" => new DbUpdateException(
                 MensagemInterna,
