@@ -1,8 +1,12 @@
 """Texto da explicação devolvida ao entregador (campo explicacao).
 
-Função pura, com frases fixas, para o texto ser testável. Regra do contrato: a
-explicação nunca diz que a chuva aumenta, eleva ou causa sinistros ou acidentes,
-porque o histórico não mostra isso. Ela só avisa que há chuva prevista.
+Função pura, com frases fixas, para o texto ser testável. É uma frase só, como o
+exemplo da seção 7 do contrato ("Risco alto: chuva prevista no turno e o seu horário
+tem histórico de sinistros graves."), na ordem: chuva, histórico do horário e calor.
+
+Regra do contrato: a explicação nunca diz que a chuva aumenta, eleva ou causa
+sinistros ou acidentes, porque o histórico não mostra isso. Ela só avisa que há
+chuva prevista, num trecho separado do trecho do histórico.
 """
 
 from app.dominio.componentes import Componentes, arredondar_meio_para_cima
@@ -14,8 +18,9 @@ COMPONENTE_MINIMO_PARA_CITAR = 1
 FRASE_SINISTRO_ALTO = "o seu horário tem histórico de sinistros graves (pico às {hora}h)"
 FRASE_SINISTRO_MODERADO = "o seu horário tem histórico moderado de sinistros graves"
 FRASE_SINISTRO_BAIXO = "o seu horário tem poucos sinistros graves no histórico"
-FRASE_CHUVA = "chuva prevista no turno, atenção redobrada na pista"
-FRASE_CALOR = "calor previsto no turno (índice de calor de {indice} °C), faça pausas e hidrate-se"
+# Os trechos não têm vírgula interna, para a junção com vírgula e " e " ficar limpa.
+FRASE_CHUVA = "chuva prevista no turno"
+FRASE_CALOR = "calor previsto no turno (índice de calor de {indice} °C)"
 
 
 def formatar_uma_casa(valor: float) -> str:
@@ -43,14 +48,17 @@ def frase_sinistro(componente_sinistro: int, hora_pico: int) -> str:
 def gerar_explicacao(
     faixa: FaixaRisco, componentes: Componentes, hora_pico: int, indice_calor_c: float
 ) -> str:
-    """Monta a explicação: "Risco {faixa}: " seguido dos trechos de sinistro, chuva e calor.
+    """Monta a explicação em uma frase: "Risco {faixa}: " e os trechos, com ponto final.
 
-    hora_pico é a hora local (0 a 23) de maior valor de sinistro no turno. O trecho
-    do sinistro sempre aparece; chuva e calor só quando o componente é 1 ou mais.
+    Ordem dos trechos: chuva (componente 1 ou mais), histórico do horário (sempre) e
+    calor (componente 1 ou mais). hora_pico é a hora local (0 a 23) de maior valor de
+    sinistro no turno. Exemplo de referência: "Risco alto: chuva prevista no turno e o
+    seu horário tem histórico de sinistros graves (pico às 19h)."
     """
-    trechos = [frase_sinistro(componentes.sinistro, hora_pico)]
+    trechos: list[str] = []
     if componentes.chuva >= COMPONENTE_MINIMO_PARA_CITAR:
         trechos.append(FRASE_CHUVA)
+    trechos.append(frase_sinistro(componentes.sinistro, hora_pico))
     if componentes.calor >= COMPONENTE_MINIMO_PARA_CITAR:
         trechos.append(FRASE_CALOR.format(indice=formatar_uma_casa(indice_calor_c)))
-    return f"Risco {faixa.rotulo}: {juntar_trechos(trechos)}"
+    return f"Risco {faixa.rotulo}: {juntar_trechos(trechos)}."

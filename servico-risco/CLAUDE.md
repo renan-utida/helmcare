@@ -134,11 +134,13 @@ Valores de referência (testes): 33,4 °C e 58% dão 39,8 °C; 23,5 °C e 58% d�
 
 **Resposta** (exatamente estes campos): `indiceRisco`, `faixaRisco`, `componentes` (`sinistro`, `chuva`, `calor`) e `explicacao`.
 
-**Explicação** (`explicacao.py`, função pura, texto fixo e testável):
-- Abre com `Risco {faixa em minúsculas e com espaço}: ` (`baixo`, `moderado`, `alto`, `muito alto`) e junta os trechos com vírgula e " e ".
-- Sinistro: componente 51 ou mais, "o seu horário tem histórico de sinistros graves (pico às {hora}h)"; de 26 a 50, "o seu horário tem histórico moderado de sinistros graves"; até 25, "o seu horário tem poucos sinistros graves no histórico". A `{hora}` é a hora local de maior valor entre as horas do turno (a primeira, em caso de empate).
-- Chuva (componente 1 ou mais): "chuva prevista no turno, atenção redobrada na pista". Sem citar a hora da chuva.
-- Calor (componente 1 ou mais): "calor previsto no turno (índice de calor de {x,x} °C), faça pausas e hidrate-se", com uma casa decimal e vírgula.
+**Explicação** (`explicacao.py`, função pura, texto fixo e testável), uma frase só, no formato do exemplo da seção 7 do contrato:
+- Abre com `Risco {faixa em minúsculas e com espaço}: ` (`baixo`, `moderado`, `alto`, `muito alto`), junta os trechos com vírgula e " e " antes do último, e termina com ponto final.
+- Ordem dos trechos: chuva, histórico do horário e calor.
+- Chuva (componente 1 ou mais): "chuva prevista no turno". Sem citar a hora da chuva.
+- Histórico do horário (sempre): componente sinistro 51 ou mais, "o seu horário tem histórico de sinistros graves (pico às {hora}h)"; de 26 a 50, "o seu horário tem histórico moderado de sinistros graves"; até 25, "o seu horário tem poucos sinistros graves no histórico". A `{hora}` é a hora local de maior valor entre as horas do turno (a primeira, em caso de empate).
+- Calor (componente 1 ou mais): "calor previsto no turno (índice de calor de {x,x} °C)", com uma casa decimal e vírgula.
+- Exemplo de referência: "Risco alto: chuva prevista no turno e o seu horário tem histórico de sinistros graves (pico às 19h)."
 - **Nunca** diga que a chuva aumenta, eleva ou causa sinistros ou acidentes. Um teste varre as combinações de componentes e falha se a frase relacionar chuva e aumento de sinistros.
 
 **Exemplo de referência dos testes** (seção 8 do contrato): `POST /risco/v1/indice-turno` com `inicio` 2026-11-12T20:00:00Z, `fim` 2026-11-13T00:00:00Z e previsão 7,0 mm/h, 24,0 °C e 85% dá as horas locais 17h, 18h, 19h e 20h de quinta-feira (previsões 0,26925; 0,27508; 0,28257; 0,25319), `sinistro` 84 (média 83,62), `chuva` 70, `calor` 0 (índice de calor 24,7 °C), `indiceRisco` 60 e faixa `ALTO`.

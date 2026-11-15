@@ -27,8 +27,8 @@ def test_gerar_explicacao_exemplo_referencia_texto_completo() -> None:
 
     # Assert
     assert texto == (
-        "Risco alto: o seu horário tem histórico de sinistros graves (pico às 19h) "
-        "e chuva prevista no turno, atenção redobrada na pista"
+        "Risco alto: chuva prevista no turno e o seu horário tem histórico de sinistros "
+        "graves (pico às 19h)."
     )
 
 
@@ -51,10 +51,10 @@ def test_gerar_explicacao_sem_chuva_nao_cita_chuva() -> None:
     texto = gerar_explicacao(FaixaRisco.BAIXO, componentes, hora_pico=3, indice_calor_c=20.0)
 
     # Assert
-    assert texto == "Risco baixo: o seu horário tem poucos sinistros graves no histórico"
+    assert texto == "Risco baixo: o seu horário tem poucos sinistros graves no histórico."
 
 
-def test_gerar_explicacao_tres_trechos_virgula_e_calor_com_uma_casa() -> None:
+def test_gerar_explicacao_tres_trechos_ordem_chuva_horario_calor() -> None:
     # Arrange
     componentes = Componentes(sinistro=40, chuva=50, calor=91)
 
@@ -65,10 +65,37 @@ def test_gerar_explicacao_tres_trechos_virgula_e_calor_com_uma_casa() -> None:
 
     # Assert
     assert texto == (
-        "Risco muito alto: o seu horário tem histórico moderado de sinistros graves, "
-        "chuva prevista no turno, atenção redobrada na pista e "
-        "calor previsto no turno (índice de calor de 39,8 °C), faça pausas e hidrate-se"
+        "Risco muito alto: chuva prevista no turno, o seu horário tem histórico moderado "
+        "de sinistros graves e calor previsto no turno (índice de calor de 39,8 °C)."
     )
+
+
+def test_gerar_explicacao_calor_sem_chuva_horario_e_calor() -> None:
+    # Arrange
+    componentes = Componentes(sinistro=60, chuva=0, calor=91)
+
+    # Act
+    texto = gerar_explicacao(FaixaRisco.ALTO, componentes, hora_pico=14, indice_calor_c=39.8049)
+
+    # Assert
+    assert texto == (
+        "Risco alto: o seu horário tem histórico de sinistros graves (pico às 14h) "
+        "e calor previsto no turno (índice de calor de 39,8 °C)."
+    )
+
+
+def test_gerar_explicacao_sem_clausulas_removidas_e_termina_com_ponto() -> None:
+    # Arrange: chuva e calor presentes, o caso em que as cláusulas antigas apareciam.
+    componentes = Componentes(sinistro=84, chuva=70, calor=50)
+
+    # Act
+    texto = gerar_explicacao(FaixaRisco.ALTO, componentes, hora_pico=19, indice_calor_c=34.0)
+
+    # Assert
+    assert "atenção redobrada" not in texto
+    assert "hidrate-se" not in texto
+    assert texto.endswith(".")
+    assert texto.count(".") == 1
 
 
 @pytest.mark.parametrize(

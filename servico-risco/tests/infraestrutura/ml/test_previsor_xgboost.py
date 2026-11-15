@@ -110,6 +110,6 @@ def test_exemplo_referencia_previsor_real_e_dominio_84_70_0_60_alto(
     assert resultado.indice_risco == 60
     assert resultado.faixa_risco is FaixaRisco.ALTO
     assert resultado.explicacao == (
-        "Risco alto: o seu horário tem histórico de sinistros graves (pico às 19h) "
-        "e chuva prevista no turno, atenção redobrada na pista"
+        "Risco alto: chuva prevista no turno e o seu horário tem histórico de sinistros "
+        "graves (pico às 19h)."
     )
