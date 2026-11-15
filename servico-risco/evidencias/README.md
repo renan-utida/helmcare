@@ -1,4 +1,6 @@
-# Evidências do Serviço de Risco
+# Evidências de Arquitetura Orientada a Serviços (SOA) e Web Services: Serviço de Risco do HelmCare
+
+Evidências da entrega da disciplina Arquitetura Orientada a Serviços (SOA) e Web Services, do Prof. Thiago Dourado, na Global Solution 2026.2 da FIAP, feita por Renan Dias Utida (RM 558540). O documento principal é o [README do serviço](../README.md).
 
 Saídas reais dos comandos, salvas sem edição, e prints da execução. Os arquivos de texto foram gerados em 15/11/2026, e a integração com a API em C# é de 14/11/2026. Nenhum arquivo traz senha, URL de conexão ou dado pessoal.
 

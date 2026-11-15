@@ -1,11 +1,19 @@
-# HelmCare: Serviço de Risco
+# Arquitetura Orientada a Serviços (SOA) e Web Services: Serviço de Risco do HelmCare
 
-Serviço web independente, em Python e FastAPI, que calcula o Índice de Risco do Turno do entregador de moto e fornece os trechos críticos de sinistros graves da cidade de São Paulo. Faz parte da arquitetura orientada a serviços do HelmCare: a API principal em C# é a porta de entrada, e o app do entregador nunca chama este serviço direto.
+Esta é a entrega da disciplina Arquitetura Orientada a Serviços (SOA) e Web Services, do Prof. Thiago Dourado, na Global Solution 2026.2 da FIAP (Engenharia de Software, turma 3ESPW, tema CitizenTech), feita individualmente por Renan Dias Utida (RM 558540), dentro do projeto HelmCare.
+
+O Serviço de Risco é um serviço web independente, em Python e FastAPI, que calcula o Índice de Risco do Turno do entregador de moto e fornece os trechos críticos de sinistros graves da cidade de São Paulo. Faz parte da arquitetura orientada a serviços do HelmCare: a API principal em C# é a porta de entrada, e o app do entregador nunca chama este serviço direto.
 
 ## Sumário
 
 - [Identificação](#identificação)
 - [O problema e a solução](#o-problema-e-a-solução)
+  - [O problema](#o-problema)
+  - [A solução HelmCare](#a-solução-helmcare)
+  - [O que o entregador recebe](#o-que-o-entregador-recebe)
+  - [Como o índice é calculado](#como-o-índice-é-calculado)
+  - [Por que um serviço separado](#por-que-um-serviço-separado)
+  - [Papel na SOA do HelmCare](#papel-na-soa-do-helmcare)
 - [Arquitetura](#arquitetura)
 - [Como executar](#como-executar)
 - [Endpoints e documentação](#endpoints-e-documentação)
@@ -24,6 +32,7 @@ Serviço web independente, em Python e FastAPI, que calcula o Índice de Risco d
 | Integrante | Renan Dias Utida, RM 558540, turma 3ESPW |
 | Curso | FIAP, Engenharia de Software |
 | Disciplina | Arquitetura Orientada a Serviços (SOA) e Web Services |
+| Professor | Prof. Thiago Dourado |
 | Entrega | Global Solution 2026.2, tema CitizenTech |
 | Projeto | HelmCare |
 | Repositório | https://github.com/renan-utida/helmcare (este serviço fica na pasta `servico-risco/`) |
@@ -33,9 +42,35 @@ Serviço web independente, em Python e FastAPI, que calcula o Índice de Risco d
 
 ## O problema e a solução
 
-O entregador de moto decide sair para o turno sem nenhuma medida do risco que vai correr naquele horário. O HelmCare devolve, na abertura do turno, um **Índice de Risco do Turno** de 0 a 100, com a faixa e uma explicação curta em português.
+### O problema
 
-O Serviço de Risco calcula esse índice com três componentes, cada um de 0 a 100:
+A cidade de São Paulo registrou **1.034 mortes no trânsito em 2025**, o maior número desde 2015. Os motociclistas formam o maior grupo de vítimas, com **475 mortes** no ano. Entre janeiro e agosto de 2026, as motos estiveram envolvidas em **dois de cada três (67,3%)** dos acidentes graves ou fatais da cidade (dados do Infosiga SP, Detran-SP).
+
+Por trás desses números está o entregador de moto, que passa o dia exposto à chuva, ao calor e ao trânsito sem nenhuma informação sobre o risco do seu turno. Ele decide sair sem nenhuma medida do risco que vai correr naquele horário.
+
+Em novembro de 2026, o autor conversou com dois entregadores que rodam ou rodavam na região da Paulista, identificados só pelas iniciais (LSU e RCD). As conversas foram informais, e as respostas foram registradas de memória. Os dois evitam horários específicos (picos de trânsito, almoço nos dias quentes), redobram a cautela na chuva e disseram que usariam um alerta de risco antes do turno. Ressalva: foram só duas conversas, com pessoas próximas do autor, e um dos entrevistados já não trabalha como entregador. Os resultados orientam o desenho do HelmCare, mas não representam todos os entregadores de São Paulo.
+
+### A solução HelmCare
+
+O HelmCare atua em três momentos, com três pilares:
+
+- **Prevenir (antes da queda):** antes de sair, o entregador vê o risco do seu turno e os trechos com mais sinistros graves. **Este serviço é o pilar Prevenir.**
+- **Socorrer (durante):** o capacete detecta a queda e, se o entregador não cancelar, dispara um SOS para a rede de entregadores mais próxima e para o contato de emergência, com a orientação de ligar para o SAMU 192.
+- **Proteger (depois):** o QR Code do capacete libera a ficha médica só para socorristas verificados, durante a emergência, com expiração e auditoria.
+
+### O que o entregador recebe
+
+O HelmCare devolve, na abertura do turno, um **Índice de Risco do Turno** de 0 a 100, com a faixa e uma explicação curta em português. Ao abrir um turno de quinta-feira, das 17h às 21h, com 7 mm/h de chuva, 24 °C e 85% de umidade previstos, o entregador vê:
+
+> **Índice 60, faixa ALTO.** "Risco alto: chuva prevista no turno e o seu horário tem histórico de sinistros graves (pico às 19h)."
+
+Com isso, ele decide antes de sair, com a explicação em linguagem simples. Pode evitar os horários de mais risco, como os dois entregadores ouvidos já fazem por conta própria, e redobrar a cautela na chuva.
+
+O serviço também guarda e expõe os **100 trechos críticos** (logradouros com mais sinistros graves com moto de 2019 a 2025), que o app mostra ao entregador.
+
+### Como o índice é calculado
+
+O Serviço de Risco calcula o índice com três componentes, cada um de 0 a 100:
 
 | Componente | Peso | Como é calculado |
 |---|---|---|
@@ -45,9 +80,22 @@ O Serviço de Risco calcula esse índice com três componentes, cada um de 0 a 1
 
 O índice é `0,5 × sinistro + 0,25 × chuva + 0,25 × calor`, sempre com arredondamento de 0,5 para cima. As faixas são 0 a 25 `BAIXO`, 26 a 50 `MODERADO`, 51 a 75 `ALTO` e 76 a 100 `MUITO_ALTO`. A explicação é uma frase só e nunca diz que a chuva aumenta os sinistros, porque o histórico não mostra isso.
 
-O serviço também guarda e expõe os **100 trechos críticos** (logradouros com mais sinistros graves com moto de 2019 a 2025), que o app mostra no mapa.
+**Fontes de dados:**
 
-**Papel na SOA do HelmCare:** é um serviço autônomo, com processo, banco, dependências e migrações próprios, consumido pela API principal em C# por HTTP e JSON. A API usa o serviço em duas rotas (`POST /api/v1/turnos` e `GET /api/v1/trechos-criticos`) e tem uma versão simulada de reserva para o índice, de modo que o turno nunca falha por causa dele. O app do entregador fala só com a API.
+| Dado | Fonte | Uso |
+|---|---|---|
+| Sinistros de trânsito com motocicletas na capital, de 2019 a 2025 | Infosiga SP, Detran-SP (dados abertos, públicos) | Treino do modelo do componente `sinistro` e cálculo dos trechos críticos |
+| Dados meteorológicos horários (chuva, temperatura e umidade) | INMET, estação A701, Mirante de Santana | Testados no notebook de ML. Não melhoraram as previsões e ficaram fora do modelo final; a chuva e o calor entram só pelos seus componentes, a partir da previsão do tempo do turno |
+
+### Por que um serviço separado
+
+- **Tecnologia própria:** o modelo de ML foi treinado em Python com XGBoost, e o serviço o carrega no mesmo ecossistema, sem converter o modelo para outra linguagem.
+- **Banco e implantação independentes:** o serviço tem PostgreSQL próprio (`helmcare_risco`), migrações, dependências e processo próprios. Ele pode ser atualizado, por exemplo com uma nova versão do modelo, sem reimplantar a API.
+- **A API continua respondendo:** se o serviço cair, a API abre o turno com a versão simulada do índice (veja [Resiliência e degradação](#resiliência-e-degradação)).
+
+### Papel na SOA do HelmCare
+
+É um serviço autônomo, com processo, banco, dependências e migrações próprios, consumido pela API principal em C# por HTTP e JSON. A API usa o serviço em duas rotas (`POST /api/v1/turnos` e `GET /api/v1/trechos-criticos`) e tem uma versão simulada de reserva para o índice, de modo que o turno nunca falha por causa dele. O app do entregador fala só com a API.
 
 ## Arquitetura
 
