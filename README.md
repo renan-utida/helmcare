@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/marca/logo-horizontal.png" alt="Logo do HelmCare: um capacete de moto com uma linha de batimento cardíaco na viseira" width="560"></p>
+
 # HelmCare
 
 > **Do risco ao resgate, cuidado em cada corrida.**
@@ -59,7 +61,7 @@ Por trás desses números está um trabalhador que:
 ## Os três pilares
 
 ### 1. Prevenir
-- **Índice de Risco do Turno (0 a 100):** antes de sair, o entregador vê o risco do seu turno, com a explicação em linguagem simples. Exemplo: *"Risco alto: chuva prevista no turno e o seu horário tem histórico de sinistros graves."*
+- **Índice de Risco do Turno (0 a 100):** antes de sair, o entregador vê o risco do seu turno, com a explicação em linguagem simples. Exemplo: *"Risco alto: chuva prevista no turno e o seu horário tem histórico de sinistros graves (pico às 19h)."*
 - **Alerta de calor:** o capacete mede a temperatura e a umidade, e o app sugere pausa e hidratação quando o índice de calor fica perigoso.
 - **Trechos críticos:** uma lista ou mapa simples dos pontos com mais sinistros graves, pré-calculados a partir do Infosiga.
 
@@ -417,7 +419,7 @@ Nenhum dado pessoal real é utilizado no protótipo.
 
 ## Uso de IA
 
-A IA foi utilizada como copiloto para aprender, planejar e revisar. Todos os prompts estão registrados em [`prompts.md`](prompts.md), e cada linha do projeto pode ser explicada pelo integrante.
+A IA foi utilizada como copiloto para aprender, planejar e revisar. Todos os prompts estão registrados em [`prompts.md`](prompts.md), e cada linha do projeto pode ser explicada pelo integrante. O logo e o símbolo da marca (pasta [`docs/marca/`](docs/marca/)) foram gerados com o ChatGPT, a partir de um briefing escrito pelo integrante.
 
 ---
 
