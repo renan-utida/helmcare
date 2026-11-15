@@ -1,6 +1,6 @@
 # HelmCare - Contrato de Integração
 
-**Versão 1.11 - 14/11/2026**
+**Versão 1.12 - 14/11/2026**
 
 Este documento define como as partes do HelmCare conversam entre si: nomes, tópicos MQTT, endpoints, payloads, estados e regras. **Todas as disciplinas seguem este contrato.** Mudanças só entram por meio da conversa central de coordenação, que gera uma nova versão.
 
@@ -23,6 +23,8 @@ Este documento define como as partes do HelmCare conversam entre si: nomes, tóp
 **Regra de arquitetura:** o app **nunca** chama o Serviço de Risco diretamente. A API principal funciona como porta de entrada (gateway) e repassa as chamadas.
 
 **Configuração e saúde da API:** a connection string vem da variável de ambiente `ConnectionStrings__HelmCareApi` (em desenvolvimento, do user-secrets), nunca de arquivo versionado. O `GET /api/v1/saude` responde `200` com o texto `Healthy` ou `503` com `Unhealthy` (inclui o teste de conexão com o banco), então o monitoramento deve olhar o status HTTP.
+
+**Chamada ao Serviço de Risco:** a API usa a URL base da configuração `ServicoRisco:UrlBase` (variável de ambiente `ServicoRisco__UrlBase`, absoluta e terminada em barra) e o tempo limite `ServicoRisco:TempoLimiteS` (padrão 3 s, de 1 a 30, sem novas tentativas). No desenvolvimento, o padrão é `http://127.0.0.1:8000/risco/v1/`, e não `localhost`, porque o uvicorn sobe em `127.0.0.1` e, no Windows, o `localhost` tenta primeiro o IPv6 (`::1`), o que gasta cerca de 2 s numa conexão recusada. Na VM, a URL vem da variável de ambiente.
 
 ---
 
@@ -244,6 +246,7 @@ A página web do Cofre fica **fora** do `/api/v1`, em `GET /cofre/{qrToken}` (HT
 | Id ou `qrToken` inexistente (entregador, turno, ocorrência, voluntário, dispositivo, Cofre) | `404 Not Found` |
 | Regra de negócio ou transição de estado inválida (segundo turno ativo, ocorrência já encerrada, alerta fora da contagem, aceite simultâneo) | `409 Conflict` |
 | Comando ao capacete que não chegou ao broker, nas rotas do turno (`POST /turnos` com `protecaoAtiva`, `POST /turnos/{id}/encerrar` e `POST /turnos/{id}/alerta/cancelar`) | `503 Service Unavailable`, e nada é gravado. O app pede para tentar de novo |
+| Serviço de Risco fora no `GET /trechos-criticos` (qualquer falha da seção 8, "Na API principal") | `503 Service Unavailable`, com o título "Serviço de Risco indisponível". Não há lista simulada. O `POST /turnos` nunca responde esse `503`: usa a versão simulada |
 
 Todos os erros saem em ProblemDetails.
 
@@ -367,11 +370,29 @@ Resposta: o mesmo formato de `indiceRisco`, `faixaRisco`, `componentes` e `expli
 | Modelo não carregou | `503` em ProblemDetails | `200` | `503` |
 | Banco fora do ar | `200`, sem gravar o histórico | `503` em ProblemDetails | `503` |
 
-A API principal trata `503`, erro de rede e tempo esgotado como falha do Serviço de Risco e usa a versão simulada.
+**Na API principal:** no `POST /turnos`, qualquer falha do Serviço de Risco leva à versão simulada, e o turno nunca falha por causa dele.
+
+| Falha na chamada ao Serviço de Risco | Log da API | Resultado |
+|---|---|---|
+| `503`, outro `5xx`, erro de rede ou tempo esgotado | Aviso | Versão simulada |
+| `4xx` ou resposta fora do formato (JSON inválido, campo faltando, índice ou componente fora de 0 a 100, faixa desconhecida, explicação vazia) | Erro (é erro de integração) | Versão simulada |
+| Requisição cancelada pelo próprio cliente | Nenhum | Não é falha do serviço: o cancelamento sobe e a simulada não é usada |
+
+Os logs levam só o motivo, o status HTTP e o tempo, nunca o corpo da requisição ou da resposta. No `GET /api/v1/trechos-criticos`, as mesmas falhas dão `503` (seção 7), e o `limite` fora de 1 a 50 dá `400` sem chamar o serviço.
+
+**Versão simulada da API:** usa uma tabela de 7 dias × 24 horas com o componente `sinistro` de cada hora local já normalizado (100 × previsão ÷ P95, limitado a 100, com 2 casas), gerada com o modelo real (versão 1.0.0) para novembro e sem feriado, e as mesmas horas do turno, agregação e explicação do serviço (seção 8.1). Para turnos de novembro em dias sem feriado, dá o mesmo resultado do serviço; em feriados (como 15/11 e 20/11) e em outros meses, pode diferir. Se a versão do modelo mudar, a tabela é gerada de novo.
 
 **Erros e documentação:** os erros saem em `application/problem+json` (`400`, `404`, `405`, `500` e `503`), sem repetir o valor recebido e sem detalhes internos. A documentação fica em `/risco/v1/docs` (Swagger) e o esquema em `/risco/v1/openapi.json`.
 
-**Explicação:** uma frase só, com ponto final, nesta ordem: `Risco {faixa}: `, depois `chuva prevista no turno` (componente `chuva` 1 ou mais), depois o histórico do horário (com `(pico às {hora}h)` quando o componente `sinistro` é 51 ou mais) e, por último, `calor previsto no turno (índice de calor de {x,x} °C)` (componente `calor` 1 ou mais). Os trechos são unidos por vírgula, com " e " antes do último. A versão simulada da API gera o mesmo texto.
+**Explicação:** uma frase só, com ponto final, nesta ordem: `Risco {faixa}: `, depois `chuva prevista no turno` (componente `chuva` 1 ou mais), depois o histórico do horário, sempre presente, e, por último, `calor previsto no turno (índice de calor de {x,x} °C)` (componente `calor` 1 ou mais, com uma casa decimal, vírgula e 0,5 para cima). Os trechos são unidos por vírgula, com " e " antes do último. A versão simulada da API gera o mesmo texto. O histórico do horário é uma de três frases, escolhida pelo componente `sinistro`:
+
+| Componente `sinistro` | Frase |
+|---|---|
+| 51 ou mais | `o seu horário tem histórico de sinistros graves (pico às {hora}h)` |
+| 26 a 50 | `o seu horário tem histórico moderado de sinistros graves` |
+| Até 25 | `o seu horário tem poucos sinistros graves no histórico` |
+
+Os limites das frases valem sobre os componentes já arredondados a inteiro, os mesmos da resposta. A `{hora}` do pico é a hora local de maior valor de `sinistro` entre as horas do turno (a primeira delas, em caso de empate).
 
 **Histórico dos cálculos:** cada `POST /indice-turno` grava as entradas, o resultado, as previsões de cada hora e a versão do modelo no banco `helmcare_risco`, sem nenhum dado pessoal. Se a gravação falhar, o cálculo responde `200` mesmo assim e o erro vai para o log: o entregador precisa do índice mais do que o serviço precisa do histórico. Não há rota para consultar o histórico.
 
@@ -473,3 +494,4 @@ Máscaras padrão: CPF `***.***.***-12`, CNH `*******8900`, celular `(11) *****-
 | 1.9 | 14/11/2026 | Modelo de ML só com o calendário (as variáveis do tempo não melhoraram as previsões); a chuva entra só pelo componente `chuva`, e a explicação nunca diz que ela aumenta os sinistros graves; P95 único de 0,322927; conversão das horas do turno de UTC para o horário local; campos do `trechos_criticos.json` e exemplo do `GET /trechos-criticos`; velocidade do Wokwi depois dos ajustes do capacete |
 | 1.10 | 14/11/2026 | Agregação das horas do turno pela média ponderada pelos minutos (fim da pendência da seção 8.1), também na versão simulada da API; regras da requisição do `POST /indice-turno` (fuso obrigatório, duração, faixas da previsão); corpo do `/saude` do Serviço de Risco; histórico dos cálculos sem bloquear a resposta; explicação com "chuva prevista no turno"; resultado real do exemplo da seção 8 |
 | 1.11 | 14/11/2026 | Degradação do Serviço de Risco (o que cada rota responde sem o modelo ou sem o banco); erros em problem+json e caminho da documentação; formato da explicação em uma frase, com o pico do horário; exemplo do `POST /turnos` com o resultado real; pesos da agregação em segundos |
+| 1.12 | 14/11/2026 | Integração da API com o Serviço de Risco: URL base com `127.0.0.1` e tempo limite de 3 s sem novas tentativas; falhas que levam à versão simulada, com aviso ou erro no log; cancelamento do cliente fora da reserva; `503` do `GET /trechos-criticos` com o serviço fora; tabela de novembro sem feriado na versão simulada; as três frases do histórico do horário e a hora do pico na explicação |
