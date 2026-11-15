@@ -2,6 +2,7 @@ using System;
 using System.Text.Json;
 using System.Threading.Tasks;
 using HelmCare.Api.Configuracao;
+using HelmCare.Api.Integracoes.ServicoRisco;
 using HelmCare.Api.Mensageria;
 using HelmCare.Api.Mensageria.Processadores;
 using HelmCare.Api.Persistencia;
@@ -9,6 +10,7 @@ using HelmCare.Api.Persistencia.Repositorios;
 using HelmCare.Api.Servicos.Cadastro;
 using HelmCare.Api.Servicos.Ocorrencias;
 using HelmCare.Api.Servicos.Risco;
+using HelmCare.Api.Servicos.TrechosCriticos;
 using HelmCare.Api.Servicos.Turnos;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
@@ -17,6 +19,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -79,10 +82,27 @@ builder.Services.AddHostedService<AssinanteMqtt>();
 builder.Services.AddScoped<EntregadorServico>();
 builder.Services.AddScoped<DispositivoServico>();
 
-// Índice de Risco do Turno simulado (seção 8), sem rede: na sexta entram a Open-Meteo e o
-// cliente HTTP do Serviço de Risco, e estas duas implementações ficam como reserva.
+// Previsão do tempo fixa (exemplo da seção 8) até entrar a Open-Meteo.
 builder.Services.AddSingleton<IPrevisaoTempo, PrevisaoTempoSimulada>();
-builder.Services.AddSingleton<IServicoRisco, ServicoRiscoSimulado>();
+
+// Serviço de Risco (seção 8): URL base e tempo limite na seção "ServicoRisco" (sem segredo; na VM,
+// ServicoRisco__UrlBase). O HttpClient tipado vem da fábrica, que cuida do ciclo das conexões.
+builder.Services.AddOptions<OpcoesServicoRisco>()
+    .Bind(builder.Configuration.GetSection(OpcoesServicoRisco.Secao))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+builder.Services.AddHttpClient<ClienteServicoRisco>((sp, http) =>
+{
+    OpcoesServicoRisco opcoes = sp.GetRequiredService<IOptions<OpcoesServicoRisco>>().Value;
+    http.BaseAddress = opcoes.UrlBase;
+    http.Timeout = TimeSpan.FromSeconds(opcoes.TempoLimiteS);
+});
+
+// O TurnoServico recebe o decorador: tenta o Serviço de Risco e, se ele falhar, usa a versão
+// simulada (mesma regra, mesmo índice). O turno nunca falha por causa do Serviço de Risco.
+builder.Services.AddSingleton<ServicoRiscoSimulado>();
+builder.Services.AddScoped<IServicoRisco, ServicoRiscoComReserva>();
+builder.Services.AddScoped<TrechosCriticosServico>();
 
 // Casos de uso do turno e da consulta de ocorrências.
 builder.Services.AddScoped<TurnoServico>();

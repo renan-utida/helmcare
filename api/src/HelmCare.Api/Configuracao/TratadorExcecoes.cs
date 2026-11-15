@@ -91,6 +91,12 @@ public sealed partial class TratadorExcecoes : IExceptionHandler
                 StatusCodes.Status503ServiceUnavailable,
                 "Capacete indisponível",
                 "O capacete não pôde ser avisado agora; tente de novo."),
+            // Também fora do quadro "Códigos padrão" da seção 7: só o GET /trechos-criticos chega aqui,
+            // porque o POST /turnos usa a versão simulada e nunca deixa esta exceção escapar.
+            ServicoRiscoIndisponivelException => (
+                StatusCodes.Status503ServiceUnavailable,
+                "Serviço de Risco indisponível",
+                "Os trechos críticos não estão disponíveis agora; tente de novo."),
             DbUpdateConcurrencyException => (
                 StatusCodes.Status409Conflict,
                 "Conflito de concorrência",
@@ -116,11 +122,12 @@ public sealed partial class TratadorExcecoes : IExceptionHandler
         };
     }
 
-    // Erro inesperado (500) vai como Error; as falhas esperadas (4xx) vão como Warning.
-    // O IsEnabled evita montar os argumentos quando o nível está desligado.
+    // Só o erro inesperado (500) vai como Error; as falhas esperadas (4xx e os 503 de broker ou
+    // Serviço de Risco fora do ar) vão como Warning. O IsEnabled evita montar os argumentos quando
+    // o nível está desligado.
     private void Registrar(Exception exception, int status, string traceId)
     {
-        if (status >= StatusCodes.Status500InternalServerError)
+        if (status == StatusCodes.Status500InternalServerError)
         {
             if (_logger.IsEnabled(LogLevel.Error))
             {
