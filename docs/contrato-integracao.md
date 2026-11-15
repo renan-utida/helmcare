@@ -1,6 +1,6 @@
 # HelmCare - Contrato de Integração
 
-**Versão 1.13 - 15/11/2026**
+**Versão 1.14 - 15/11/2026**
 
 Este documento define como as partes do HelmCare conversam entre si: nomes, tópicos MQTT, endpoints, payloads, estados e regras. **Todas as disciplinas seguem este contrato.** Mudanças só entram por meio da conversa central de coordenação, que gera uma nova versão.
 
@@ -170,7 +170,7 @@ Tópico `helmcare-rdu/v1/HC-0001/evento`, a cada mudança de estado:
 - **Detecção:** um impacto acontece quando a aceleração total é maior ou igual a `LIMIAR_IMPACTO_G`. O campo `orientacaoAnormal` (inclinação maior que 60°) é só informativo e não bloqueia a detecção, porque uma queda real pode terminar com o capacete na posição normal.
 - **Dados do impacto:** todos os eventos de um mesmo impacto repetem `picoG`, `orientacaoAnormal`, `pilotandoAntes`, `presencaAntes`, `latitude` e `longitude`. O `ts` é o instante de cada evento.
 - **Relógio do capacete:** o `ts` vem do relógio do ESP32, sincronizado por NTP só na inicialização. No Wokwi, esse relógio anda na velocidade da simulação (de 25% a 50% da real antes dos ajustes de desempenho do capacete, e perto de 89% depois deles), então o `ts` atrasa em relação à hora real, e o atraso cresce com o tempo de simulação (no teste de 12/11, a 47% da velocidade real, chegou a 1 min 55 s depois de cerca de 2 min). A API nunca rejeita um evento por causa do `ts` nem compara o `ts` com o relógio do servidor. Diferenças de tempo só são calculadas entre dois instantes do mesmo relógio (veja o indicador de impacto, na seção 7).
-- **Reenvio do SOS:** enquanto estiver em `SOS_ENVIADO`, o capacete republica o evento `SOS` com o **mesmo** `ts` a cada `INTERVALO_TELEMETRIA_S`, até receber `SOCORRO_A_CAMINHO` ou `ENCERRAR`. A API trata eventos com o mesmo `dispositivo`, `tipo` e `ts` como um só (idempotência). Um `SOS` repetido não cria nada, mas, se a ocorrência dele já estiver em `SOCORRO_A_CAMINHO`, a API publica `SOCORRO_A_CAMINHO` de novo, e, se já estiver `ENCERRADA` ou `CANCELADA`, publica `ENCERRAR` de novo. Assim, um comando que se perdeu é refeito no próximo reenvio, sem fila nem nova tentativa na API.
+- **Reenvio do SOS:** enquanto estiver em `SOS_ENVIADO`, o capacete republica o evento `SOS` com o **mesmo** `ts` a cada `INTERVALO_TELEMETRIA_S`, até receber `SOCORRO_A_CAMINHO` ou `ENCERRAR`. A API trata eventos com o mesmo `dispositivo`, `tipo` e `ts` como um só (idempotência). Um `SOS` repetido não cria nada, mas a API olha a ocorrência mais recente do entregador: se ela já estiver em `SOCORRO_A_CAMINHO`, a API publica `SOCORRO_A_CAMINHO` de novo, e, se já estiver `ENCERRADA` ou `CANCELADA`, publica `ENCERRAR` de novo. Assim, um comando que se perdeu é refeito no próximo reenvio, sem fila nem nova tentativa na API.
 - **SOS sem impacto em aberto:** como os eventos saem em QoS 0, o `IMPACTO_DETECTADO` pode se perder. Se chegar um `SOS` sem impacto em aberto para o dispositivo, a API cria o `EventoImpacto` com os dados do próprio SOS, `ocorridoEm` = `ts` menos 25 s (`JANELA_OBSERVACAO_S` + `CONTAGEM_CANCELAMENTO_S`) e `ocorridoEmEstimado` = verdadeiro. Assim, nem o SOS nem o indicador de impacto se perdem.
 
 **Como a API registra cada evento:**
@@ -238,7 +238,7 @@ A página web do Cofre fica **fora** do `/api/v1`, em `GET /cofre/{qrToken}` (HT
 
 | Situação | Código |
 |---|---|
-| Criação de recurso (`POST /entregadores`, `/entregadores/{id}/contatos`, `/dispositivos`, `/turnos`, `/voluntarios` e `/ocorrencias/{id}/aceites`) | `201 Created`, com o cabeçalho `Location`. Quando o recurso não tem `GET` próprio, o `Location` aponta para o recurso de leitura mais próximo: contatos, dispositivo e voluntário para `/entregadores/{entregadorId}`, turno para `/turnos/{id}/risco` e aceite para `/ocorrencias/{id}?voluntarioId={voluntarioId}` |
+| Criação de recurso (`POST /entregadores`, `/entregadores/{id}/contatos`, `/dispositivos`, `/turnos`, `/voluntarios` e `/ocorrencias/{id}/aceites`) | `201 Created`, com o cabeçalho `Location`. Quando o recurso não tem `GET` próprio, o `Location` aponta para o recurso de leitura mais próximo: contatos, dispositivo e voluntário para `/entregadores/{entregadorId}`, turno para `/turnos/{id}/risco` e aceite para `/ocorrencias/{id}?voluntarioId={voluntarioId}`. O `Location` é sempre uma URL absoluta |
 | Leitura, `PUT` e ações sobre um recurso existente (encerrar, cancelar) | `200 OK`, com o recurso atualizado |
 | Comando enviado ao capacete sem esperar resposta (`POST /turnos/{id}/alerta/cancelar`) | `202 Accepted` |
 | Dados inválidos (validações da seção 3, parâmetros fora da faixa) | `400 Bad Request` |
@@ -249,7 +249,7 @@ A página web do Cofre fica **fora** do `/api/v1`, em `GET /cofre/{qrToken}` (HT
 | Comando ao capacete que não chegou ao broker, nas rotas do turno (`POST /turnos` com `protecaoAtiva`, `POST /turnos/{id}/encerrar` e `POST /turnos/{id}/alerta/cancelar`) | `503 Service Unavailable`, e nada é gravado. O app pede para tentar de novo |
 | Serviço de Risco fora no `GET /trechos-criticos` (qualquer falha da seção 8, "Na API principal") | `503 Service Unavailable`, com o título "Serviço de Risco indisponível". Não há lista simulada. O `POST /turnos` nunca responde esse `503`: usa a versão simulada |
 
-Todos os erros saem em ProblemDetails.
+Todos os erros saem em ProblemDetails. O app decide pelo status HTTP, nunca pelo texto do `title` ou do `detail`, que pode variar para o mesmo código (por exemplo, o `409` de um aceite atrasado e o de um aceite simultâneo).
 
 **Regras do cadastro:**
 
@@ -281,7 +281,9 @@ Todos os erros saem em ProblemDetails.
 - **Camada 2:** a ocorrência escala quando passam `TEMPO_ACEITE_CAMADA_1_S` desde a criação, inclusive (60 s exatos já escalam). O escalonamento roda em segundo plano na API, sem depender de nenhuma requisição, e confere as ocorrências a cada 1 s (configuração interna da API, fora da seção 5). Assim, a ocorrência escala até 1 s depois dos 60 s.
 - **Aviso ao contato de emergência:** no protótipo, é simulado. Depois que a ocorrência é gravada, a API registra no log só o `ocorrenciaId` e a quantidade de contatos, nunca nome, telefone ou localização.
 - **Raio da camada 1:** inclusivo (um voluntário a exatamente 2 km entra).
-- **Comandos da ocorrência:** o `SOCORRO_A_CAMINHO` (no aceite) e o `ENCERRAR` (no cancelamento e no encerramento) são publicados depois de gravar, sem bloquear a rota: se o broker falhar, a rota responde normalmente, porque o socorro não pode depender do capacete. O comando é refeito no próximo reenvio do `SOS` (seção 6.2).
+- **Comandos da ocorrência:** o `SOCORRO_A_CAMINHO` (no aceite) e o `ENCERRAR` (no cancelamento e no encerramento) são publicados depois de gravar, sem bloquear a rota: se o broker falhar, a rota responde normalmente, porque o socorro não pode depender do capacete. O comando é refeito no próximo reenvio do `SOS` (seção 6.2). Se a vítima não tem capacete vinculado, nenhum comando é publicado: fica um aviso no log, e a rota responde normalmente.
+- **Concorrência:** o escalonamento e as rotas da ocorrência mudam a mesma linha. O aceite faz uma nova tentativa automática num conflito de concorrência e, se a ocorrência relida já não aguarda aceite, responde `409`. O cancelar e o encerrar respondem `409` num conflito, e o app repete a chamada.
+- **Escalonamento com o banco fora:** o laço registra um erro a cada rodada (1 s) e continua; volta a escalar sozinho quando o banco volta.
 - **Cronômetro:** `GET /ocorrencias/{id}` traz `cronometro` com `segundosDesdeQueda`, `metaSegundos` (`META_TEMPO_ACEITE_S`) e `parado`. O `segundosDesdeQueda` segue a regra dos dois trechos do indicador, com o trecho do servidor indo até o aceite, até o encerramento ou até agora. `parado` é verdadeiro depois do aceite ou do fim da ocorrência. Entre uma consulta e outra, o app pode somar os segundos no próprio relógio.
 - **Indicador de impacto:** `tempoAteAceiteSegundos` é o tempo da queda até o aceite, medido em dois trechos, cada um no próprio relógio, para nunca misturar o relógio do capacete com o do servidor:
   1. **Trecho do capacete:** `contagemTerminaEm` menos `ocorridoEm` do `EventoImpacto`, os dois no relógio do capacete. Vale `JANELA_OBSERVACAO_S` + `CONTAGEM_CANCELAMENTO_S` (25 s) quando o impacto foi estimado (`ocorridoEmEstimado`) ou quando o `contagemTerminaEm` está vazio porque o `CONTAGEM_INICIADA` se perdeu.
@@ -502,3 +504,4 @@ Máscaras padrão: CPF `***.***.***-12`, CNH `*******8900`, celular `(11) *****-
 | 1.11 | 14/11/2026 | Degradação do Serviço de Risco (o que cada rota responde sem o modelo ou sem o banco); erros em problem+json e caminho da documentação; formato da explicação em uma frase, com o pico do horário; exemplo do `POST /turnos` com o resultado real; pesos da agregação em segundos |
 | 1.12 | 14/11/2026 | Integração da API com o Serviço de Risco: URL base com `127.0.0.1` e tempo limite de 3 s sem novas tentativas; falhas que levam à versão simulada, com aviso ou erro no log; cancelamento do cliente fora da reserva; `503` do `GET /trechos-criticos` com o serviço fora; tabela de novembro sem feriado na versão simulada; as três frases do histórico do horário e a hora do pico na explicação |
 | 1.13 | 15/11/2026 | Rede de voluntários: `POST /voluntarios` (cadastro, começa indisponível), corpo e validações do `PUT /voluntarios/{id}/disponibilidade`, campos e ordem dos chamados próximos, distância até a localização aproximada; respostas do aceite, do cancelar e do encerrar da ocorrência; `Location` do voluntário e do aceite; escalonamento em segundo plano a cada 1 s; aviso simulado ao contato de emergência |
+| 1.14 | 15/11/2026 | SOS escalonado na API: o SOS repetido olha a ocorrência mais recente do entregador; `Location` sempre absoluto; o app decide pelo status HTTP, não pelo texto do erro; sem capacete vinculado, o comando da ocorrência não é publicado; nova tentativa só no aceite e `409` no cancelar e no encerrar em conflito de concorrência; erro por rodada no escalonamento com o banco fora |
