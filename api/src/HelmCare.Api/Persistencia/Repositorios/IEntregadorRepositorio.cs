@@ -25,4 +25,13 @@ public interface IEntregadorRepositorio : IRepositorio<Entregador>
     /// <param name="cancellationToken">Cancelamento da requisição.</param>
     /// <returns><see langword="true"/> se o CPF já está cadastrado.</returns>
     Task<bool> CpfJaCadastradoAsync(string cpf, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Conta os contatos de emergência do entregador, sem carregar nenhum dado deles. Usada pelo
+    /// aviso simulado ao contato, que só registra a quantidade.
+    /// </summary>
+    /// <param name="entregadorId">Id do entregador.</param>
+    /// <param name="cancellationToken">Cancelamento da operação.</param>
+    /// <returns>A quantidade de contatos (zero se não houver nenhum).</returns>
+    Task<int> ContarContatosAsync(Guid entregadorId, CancellationToken cancellationToken);
 }

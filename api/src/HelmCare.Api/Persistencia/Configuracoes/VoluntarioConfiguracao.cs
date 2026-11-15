@@ -10,6 +10,13 @@ namespace HelmCare.Api.Persistencia.Configuracoes;
 /// </summary>
 public sealed class VoluntarioConfiguracao : IEntityTypeConfiguration<Voluntario>
 {
+    /// <summary>
+    /// Nome, no banco, do índice único de <c>EntregadorId</c> (o nome padrão do EF Core, já criado
+    /// pela migration inicial). O <c>TratadorExcecoes</c> usa o nome para responder 409 com a
+    /// mensagem certa quando dois cadastros do mesmo entregador chegam juntos.
+    /// </summary>
+    public const string IndiceEntregadorUnico = "IX_Voluntarios_EntregadorId";
+
     /// <inheritdoc/>
     public void Configure(EntityTypeBuilder<Voluntario> builder)
     {

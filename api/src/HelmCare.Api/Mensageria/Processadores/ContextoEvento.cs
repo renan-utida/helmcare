@@ -32,4 +32,27 @@ public sealed class ContextoEvento
     /// Evento lido do payload.
     /// </summary>
     public EventoMensagem Evento { get; }
+
+    /// <summary>
+    /// Preenchida pelo processador do <c>SOS</c> quando ele abriu uma ocorrência nesta mensagem; nula
+    /// nos outros casos. O roteador usa para avisar o contato de emergência depois de gravar.
+    /// </summary>
+    public AberturaOcorrencia? OcorrenciaAberta { get; private set; }
+
+    /// <summary>
+    /// Informa que esta mensagem abriu uma ocorrência.
+    /// </summary>
+    /// <param name="ocorrenciaId">Ocorrência aberta (ainda não gravada).</param>
+    /// <param name="quantidadeContatos">Quantos contatos de emergência o entregador tem.</param>
+    public void InformarOcorrenciaAberta(Guid ocorrenciaId, int quantidadeContatos)
+    {
+        OcorrenciaAberta = new AberturaOcorrencia(ocorrenciaId, quantidadeContatos);
+    }
 }
+
+/// <summary>
+/// Ocorrência aberta por uma mensagem <c>SOS</c>, com o que o aviso ao contato precisa (nenhum dado pessoal).
+/// </summary>
+/// <param name="OcorrenciaId">Ocorrência aberta.</param>
+/// <param name="QuantidadeContatos">Quantos contatos de emergência o entregador tem.</param>
+public sealed record AberturaOcorrencia(Guid OcorrenciaId, int QuantidadeContatos);

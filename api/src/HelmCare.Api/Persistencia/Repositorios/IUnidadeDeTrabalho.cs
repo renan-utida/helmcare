@@ -16,4 +16,10 @@ public interface IUnidadeDeTrabalho
     /// <param name="cancellationToken">Cancelamento da requisição.</param>
     /// <returns>A tarefa da gravação.</returns>
     Task SalvarAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Esquece tudo o que está rastreado (alterações pendentes e entidades lidas), para a próxima
+    /// leitura vir do banco. Usada na nova tentativa do aceite depois de um conflito de concorrência.
+    /// </summary>
+    void DescartarAlteracoes();
 }

@@ -9,6 +9,7 @@ using HelmCare.Api.Mensageria.Mensagens;
 using HelmCare.Api.Mensageria.Processadores;
 using HelmCare.Api.Persistencia.Modelos;
 using HelmCare.Api.Persistencia.Repositorios;
+using HelmCare.Api.Servicos.Ocorrencias;
 using HelmCare.Dominio.Comum;
 using HelmCare.Dominio.Entidades;
 using HelmCare.Dominio.Enums;
@@ -30,6 +31,15 @@ namespace HelmCare.Api.Mensageria;
 /// processado é descartado. O registro em <c>EventosMqttProcessados</c> entra na mesma gravação do
 /// efeito: ou os dois ficam, ou nenhum. Se duas cópias chegarem juntas, o índice único barra a
 /// segunda (SqlState 23505), tratada como duplicata.</para>
+/// <para>Aviso ao contato de emergência: quando o <c>SOS</c> abre uma ocorrência, o
+/// <see cref="INotificadorContato"/> é chamado só depois que o <c>SalvarAsync</c> gravou. Nunca antes,
+/// nunca numa duplicata e nunca quando nenhuma ocorrência abriu. Uma falha do aviso vira log e não
+/// desfaz a ocorrência, que já está gravada.</para>
+/// <para>SOS repetido (seção 6.2): uma duplicata do <c>SOS</c> continua sem gravar nada, mas, se a
+/// ocorrência mais recente do entregador já estiver em <c>SOCORRO_A_CAMINHO</c>, o roteador publica
+/// <c>SOCORRO_A_CAMINHO</c> de novo e, se já estiver <c>ENCERRADA</c> ou <c>CANCELADA</c>, <c>ENCERRAR</c>.
+/// Assim um comando perdido é refeito no próximo reenvio, sem fila. A publicação passa pelo
+/// <see cref="PublicadorComandosOcorrencia"/> e nunca lança.</para>
 /// <para>Nunca lança: toda recusa e todo erro viram log (código do capacete, tipo e <c>ts</c>,
 /// nunca o payload) e um <see cref="ResultadoRoteamento"/>.</para>
 /// </remarks>
@@ -40,6 +50,9 @@ public sealed partial class RoteadorMensagemMqtt
     private readonly IUnidadeDeTrabalho _unidadeDeTrabalho;
     private readonly ProcessadorTelemetria _telemetria;
     private readonly FrozenDictionary<TipoEventoMqtt, IProcessadorEvento> _processadores;
+    private readonly INotificadorContato _notificador;
+    private readonly IOcorrenciaRepositorio _ocorrencias;
+    private readonly PublicadorComandosOcorrencia _comandos;
     private readonly TimeProvider _relogio;
     private readonly string _raizTopicos;
     private readonly ILogger<RoteadorMensagemMqtt> _logger;
@@ -52,6 +65,9 @@ public sealed partial class RoteadorMensagemMqtt
     /// <param name="unidadeDeTrabalho">Grava o efeito e o registro de idempotência juntos.</param>
     /// <param name="telemetria">Processador da telemetria.</param>
     /// <param name="processadores">Um processador por tipo de evento.</param>
+    /// <param name="notificador">Aviso ao contato de emergência quando um SOS abre ocorrência.</param>
+    /// <param name="ocorrencias">Repositório de ocorrências (para o comando do SOS repetido).</param>
+    /// <param name="comandos">Publicação dos comandos da ocorrência sem bloquear.</param>
     /// <param name="relogio">Relógio do servidor (só para o <c>recebidoEm</c> do registro).</param>
     /// <param name="opcoes">Raiz dos tópicos.</param>
     /// <param name="logger">Log da aplicação.</param>
@@ -62,6 +78,9 @@ public sealed partial class RoteadorMensagemMqtt
         IUnidadeDeTrabalho unidadeDeTrabalho,
         ProcessadorTelemetria telemetria,
         IEnumerable<IProcessadorEvento> processadores,
+        INotificadorContato notificador,
+        IOcorrenciaRepositorio ocorrencias,
+        PublicadorComandosOcorrencia comandos,
         TimeProvider relogio,
         IOptions<OpcoesMqtt> opcoes,
         ILogger<RoteadorMensagemMqtt> logger)
@@ -73,6 +92,9 @@ public sealed partial class RoteadorMensagemMqtt
         _unidadeDeTrabalho = unidadeDeTrabalho;
         _telemetria = telemetria;
         _processadores = MontarProcessadores(processadores);
+        _notificador = notificador;
+        _ocorrencias = ocorrencias;
+        _comandos = comandos;
         _relogio = relogio;
         _raizTopicos = opcoes.Value.RaizTopicos;
         _logger = logger;
@@ -191,9 +213,12 @@ public sealed partial class RoteadorMensagemMqtt
 
         string tipo = NomeContrato.Para(evento.Tipo);
 
+        // Fora do try para o catch da corrida (23505) também poder refazer o comando do SOS repetido.
+        Dispositivo? dispositivo = null;
+
         try
         {
-            Dispositivo? dispositivo = await _dispositivos.ObterPorCodigoAsync(codigo, cancellationToken);
+            dispositivo = await _dispositivos.ObterPorCodigoAsync(codigo, cancellationToken);
 
             if (dispositivo is null)
             {
@@ -204,16 +229,24 @@ public sealed partial class RoteadorMensagemMqtt
             if (await _processados.JaProcessadoAsync(codigo, evento.Tipo, evento.Ts, cancellationToken))
             {
                 RegistrarDuplicata(_logger, codigo, tipo, evento.Ts);
+                await RefazerComandoDoSosAsync(evento.Tipo, dispositivo, cancellationToken);
                 return ResultadoRoteamento.Duplicada;
             }
 
-            await _processadores[evento.Tipo].ProcessarAsync(new ContextoEvento(dispositivo, evento), cancellationToken);
+            var contexto = new ContextoEvento(dispositivo, evento);
+            await _processadores[evento.Tipo].ProcessarAsync(contexto, cancellationToken);
 
             await _processados.AdicionarAsync(
                 new EventoMqttProcessado(codigo, evento.Tipo, evento.Ts, _relogio.GetUtcNow().UtcDateTime),
                 cancellationToken);
 
             await _unidadeDeTrabalho.SalvarAsync(cancellationToken);
+
+            if (contexto.OcorrenciaAberta is { } abertura)
+            {
+                await AvisarContatoAsync(abertura, cancellationToken);
+            }
+
             return ResultadoRoteamento.Processada;
         }
         catch (DominioException ex)
@@ -226,12 +259,64 @@ public sealed partial class RoteadorMensagemMqtt
         {
             // Outra cópia do mesmo evento foi gravada entre a consulta e a gravação.
             RegistrarDuplicata(_logger, codigo, tipo, evento.Ts);
+            await RefazerComandoDoSosAsync(evento.Tipo, dispositivo, cancellationToken);
             return ResultadoRoteamento.Duplicada;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             RegistrarFalha(_logger, ex.GetType().Name, codigo, tipo, evento.Ts);
             return ResultadoRoteamento.Falhou;
+        }
+    }
+
+    // SOS repetido: refaz o comando conforme o estado da ocorrência mais recente do entregador. Não
+    // grava nada e trata as próprias falhas, para a duplicata continuar sendo só uma duplicata.
+    private async Task RefazerComandoDoSosAsync(TipoEventoMqtt tipo, Dispositivo? dispositivo, CancellationToken cancellationToken)
+    {
+        if (tipo != TipoEventoMqtt.Sos || dispositivo is null)
+        {
+            return;
+        }
+
+        try
+        {
+            Ocorrencia? recente = await _ocorrencias.ObterMaisRecenteDoEntregadorAsync(dispositivo.EntregadorId, cancellationToken);
+
+            TipoComandoMqtt? comando = recente?.Estado switch
+            {
+                EstadoOcorrencia.SocorroACaminho => TipoComandoMqtt.SocorroACaminho,
+                EstadoOcorrencia.Encerrada or EstadoOcorrencia.Cancelada => TipoComandoMqtt.Encerrar,
+
+                // Ainda aguardando aceite (o capacete deve continuar reenviando) ou sem ocorrência.
+                _ => null,
+            };
+
+            if (recente is null || comando is not { } refeito)
+            {
+                return;
+            }
+
+            string nomeDoComando = NomeContrato.Para(refeito);
+            RegistrarComandoRefeito(_logger, dispositivo.Codigo, nomeDoComando, recente.Id);
+            await _comandos.PublicarSemBloquearAsync(dispositivo.Codigo, recente.Id, refeito, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            RegistrarFalhaAoRefazer(_logger, ex.GetType().Name, dispositivo.Codigo);
+        }
+    }
+
+    // Trata as próprias falhas: a ocorrência já foi gravada, então uma falha aqui não pode cair no
+    // catch do evento (que registraria "nada foi gravado") nem mudar o resultado da mensagem.
+    private async Task AvisarContatoAsync(AberturaOcorrencia abertura, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _notificador.NotificarAberturaAsync(abertura.OcorrenciaId, abertura.QuantidadeContatos, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            RegistrarFalhaNoAviso(_logger, ex.GetType().Name, abertura.OcorrenciaId);
         }
     }
 
@@ -252,4 +337,13 @@ public sealed partial class RoteadorMensagemMqtt
 
     [LoggerMessage(EventId = 205, Level = LogLevel.Error, Message = "Falha {TipoExcecao} ao processar {Tipo} do capacete {Codigo} (ts {Ts:o}); nada foi gravado.")]
     private static partial void RegistrarFalha(ILogger logger, string tipoExcecao, string codigo, string tipo, DateTime ts);
+
+    [LoggerMessage(EventId = 206, Level = LogLevel.Warning, Message = "Falha {TipoExcecao} no aviso ao contato de emergência da ocorrência {OcorrenciaId}; a ocorrência continua gravada.")]
+    private static partial void RegistrarFalhaNoAviso(ILogger logger, string tipoExcecao, Guid ocorrenciaId);
+
+    [LoggerMessage(EventId = 207, Level = LogLevel.Information, Message = "SOS repetido do capacete {Codigo} (duplicata, nada gravado): comando {Comando} refeito para a ocorrência {OcorrenciaId}.")]
+    private static partial void RegistrarComandoRefeito(ILogger logger, string codigo, string comando, Guid ocorrenciaId);
+
+    [LoggerMessage(EventId = 208, Level = LogLevel.Warning, Message = "Falha {TipoExcecao} ao conferir o comando do SOS repetido do capacete {Codigo}; nada foi publicado.")]
+    private static partial void RegistrarFalhaAoRefazer(ILogger logger, string tipoExcecao, string codigo);
 }

@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using HelmCare.Api.Configuracao;
 using HelmCare.Api.Persistencia.Configuracoes;
 using HelmCare.Api.Servicos.Comum;
+using HelmCare.Api.Servicos.Voluntarios;
 using HelmCare.Dominio.Comum;
 using HelmCare.Testes.Fakes;
 using Microsoft.AspNetCore.Http;
@@ -172,6 +173,35 @@ public sealed class TratadorExcecoesTests
         // Assert
         Assert.AreEqual(StatusCodes.Status409Conflict, contexto.Response.StatusCode);
         Assert.AreEqual("O entregador já tem um turno ativo.", problemas.Escrito?.Detail);
+    }
+
+    /// <summary>
+    /// Garante que a violação do índice único de Voluntario.EntregadorId (dois POST /voluntarios do
+    /// mesmo entregador ao mesmo tempo) vira 409 com a mesma mensagem da checagem do serviço.
+    /// </summary>
+    /// <returns>A tarefa do teste.</returns>
+    [TestMethod]
+    public async Task TryHandleAsync_IndiceDeVoluntarioPorEntregador_Responde409JaVoluntario()
+    {
+        // Arrange
+        (TratadorExcecoes tratador, FakeProblemDetailsService problemas) = Criar();
+        var contexto = new DefaultHttpContext();
+        var excecao = new DbUpdateException(
+            MensagemInterna,
+            new PostgresException(
+                MensagemInterna,
+                "ERROR",
+                "ERROR",
+                PostgresErrorCodes.UniqueViolation,
+                constraintName: VoluntarioConfiguracao.IndiceEntregadorUnico));
+
+        // Act
+        await tratador.TryHandleAsync(contexto, excecao, CancellationToken.None);
+
+        // Assert
+        Assert.AreEqual(StatusCodes.Status409Conflict, contexto.Response.StatusCode);
+        Assert.AreEqual("Regra de negócio violada", problemas.Escrito?.Title);
+        Assert.AreEqual(VoluntarioServico.MensagemJaVoluntario, problemas.Escrito?.Detail);
     }
 
     private static (TratadorExcecoes Tratador, FakeProblemDetailsService Problemas) Criar()

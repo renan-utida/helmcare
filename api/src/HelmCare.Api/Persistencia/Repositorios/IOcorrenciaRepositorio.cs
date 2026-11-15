@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using HelmCare.Dominio.Entidades;
@@ -35,4 +36,32 @@ public interface IOcorrenciaRepositorio : IRepositorio<Ocorrencia>
     /// <param name="cancellationToken">Cancelamento da operação.</param>
     /// <returns>A ocorrência completa, ou nulo se não existir.</returns>
     Task<Ocorrencia?> ObterParaConsultaAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Lista, só para leitura e com o impacto carregado (para o cronômetro), as ocorrências aguardando
+    /// aceite (<c>SOS_CAMADA_1</c> e <c>SOS_CAMADA_2</c>) de outros entregadores. Quem decide se o
+    /// voluntário pode atender cada uma é o <see cref="Voluntario.PodeAtender"/>, não esta consulta.
+    /// </summary>
+    /// <param name="entregadorId">Entregador do voluntário que consulta (o próprio SOS fica de fora).</param>
+    /// <param name="cancellationToken">Cancelamento da requisição.</param>
+    /// <returns>As ocorrências aguardando aceite, sem ordem definida.</returns>
+    Task<IReadOnlyList<Ocorrencia>> ListarAguardandoAceiteDeOutrosAsync(Guid entregadorId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Lista, rastreadas (para o escalonamento gravar), as ocorrências em <c>SOS_CAMADA_1</c> criadas
+    /// até o instante informado, das mais antigas para as mais novas.
+    /// </summary>
+    /// <param name="criadaAte">Limite inclusivo do <c>CriadaEm</c> (agora menos <c>TEMPO_ACEITE_CAMADA_1_S</c>), em UTC.</param>
+    /// <param name="cancellationToken">Cancelamento da operação.</param>
+    /// <returns>As ocorrências da camada 1 com o tempo de aceite esgotado.</returns>
+    Task<IReadOnlyList<Ocorrencia>> ListarCamada1VencidasAsync(DateTime criadaAte, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Busca, só para leitura, a ocorrência mais recente do entregador (pelo <c>CriadaEm</c>), em
+    /// qualquer estado. Usada no <c>SOS</c> repetido para decidir se o comando deve ser refeito.
+    /// </summary>
+    /// <param name="entregadorId">Id do entregador.</param>
+    /// <param name="cancellationToken">Cancelamento da operação.</param>
+    /// <returns>A ocorrência mais recente, ou nulo se o entregador nunca teve uma.</returns>
+    Task<Ocorrencia?> ObterMaisRecenteDoEntregadorAsync(Guid entregadorId, CancellationToken cancellationToken);
 }

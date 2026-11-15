@@ -65,6 +65,38 @@ public sealed class OpcoesHelmCareTests
         Assert.Contains(nameof(OpcoesHelmCare.RaioCamada1Km), excecao.Message);
     }
 
+    /// <summary>
+    /// Garante o intervalo do escalonamento: 1 s por padrão, aceito de 1 a 10 s.
+    /// </summary>
+    /// <param name="intervalo">Intervalo configurado.</param>
+    /// <param name="aceito">Se a validação aprova.</param>
+    [TestMethod]
+    [DataRow(1, true)]
+    [DataRow(10, true)]
+    [DataRow(0, false)]
+    [DataRow(11, false)]
+    public void Validacao_IntervaloEscalonamento_De1A10(int intervalo, bool aceito)
+    {
+        // Arrange
+        using ServiceProvider provedor = Provedor(o => o.IntervaloEscalonamentoS = intervalo);
+        IOptions<OpcoesHelmCare> opcoes = provedor.GetRequiredService<IOptions<OpcoesHelmCare>>();
+
+        // Act
+        Exception? erro = null;
+        try
+        {
+            _ = opcoes.Value;
+        }
+        catch (OptionsValidationException ex)
+        {
+            erro = ex;
+        }
+
+        // Assert
+        Assert.AreEqual(1, new OpcoesHelmCare().IntervaloEscalonamentoS);
+        Assert.AreEqual(aceito, erro is null);
+    }
+
     // Mesma montagem do Program.cs (ValidateDataAnnotations), sem a fonte de configuração.
     private static ServiceProvider Provedor(Action<OpcoesHelmCare> configurar)
     {

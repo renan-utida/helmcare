@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -24,12 +25,22 @@ public sealed class FakePublicadorComandos : IPublicadorComandos
     /// </summary>
     public bool Indisponivel { get; set; }
 
+    /// <summary>
+    /// Quando verdadeiro, toda publicação lança <see cref="InvalidOperationException"/> (uma falha que não é do broker).
+    /// </summary>
+    public bool FalhaInesperada { get; set; }
+
     /// <inheritdoc/>
     public Task PublicarAsync(string codigoDispositivo, TipoComandoMqtt tipo, CancellationToken cancellationToken)
     {
         if (Indisponivel)
         {
             throw new MensageriaIndisponivelException("Broker simulado fora do ar.");
+        }
+
+        if (FalhaInesperada)
+        {
+            throw new InvalidOperationException("Falha simulada na publicação.");
         }
 
         _comandos.Add(new ComandoPublicadoFake(codigoDispositivo, tipo));

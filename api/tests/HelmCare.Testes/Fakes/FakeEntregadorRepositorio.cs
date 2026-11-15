@@ -54,4 +54,10 @@ public sealed class FakeEntregadorRepositorio : IEntregadorRepositorio
     {
         return Task.FromResult(_entregadores.Exists(e => e.Cpf == cpf));
     }
+
+    /// <inheritdoc/>
+    public Task<int> ContarContatosAsync(Guid entregadorId, CancellationToken cancellationToken)
+    {
+        return Task.FromResult(_entregadores.FirstOrDefault(e => e.Id == entregadorId)?.Contatos.Count ?? 0);
+    }
 }

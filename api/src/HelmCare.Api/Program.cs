@@ -12,6 +12,7 @@ using HelmCare.Api.Servicos.Ocorrencias;
 using HelmCare.Api.Servicos.Risco;
 using HelmCare.Api.Servicos.TrechosCriticos;
 using HelmCare.Api.Servicos.Turnos;
+using HelmCare.Api.Servicos.Voluntarios;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
@@ -76,6 +77,13 @@ builder.Services.AddScoped<IProcessadorEvento, ProcessadorFalsoPositivo>();
 builder.Services.AddScoped<IProcessadorEvento, ProcessadorCancelado>();
 builder.Services.AddScoped<IProcessadorEvento, ProcessadorSos>();
 builder.Services.AddScoped<RoteadorMensagemMqtt>();
+
+// Comandos da ocorrência (SOCORRO_A_CAMINHO e ENCERRAR): publicados depois de gravar, sem bloquear
+// a rota nem o roteador. Scoped porque procura o capacete da vítima no banco.
+builder.Services.AddScoped<PublicadorComandosOcorrencia>();
+
+// Aviso ao contato de emergência, simulado no protótipo (só uma linha de log, sem dado pessoal).
+builder.Services.AddSingleton<INotificadorContato, NotificadorContatoSimulado>();
 builder.Services.AddHostedService<AssinanteMqtt>();
 
 // Casos de uso do cadastro.
@@ -104,9 +112,16 @@ builder.Services.AddSingleton<ServicoRiscoSimulado>();
 builder.Services.AddScoped<IServicoRisco, ServicoRiscoComReserva>();
 builder.Services.AddScoped<TrechosCriticosServico>();
 
-// Casos de uso do turno e da consulta de ocorrências.
+// Casos de uso do turno, da consulta de ocorrências e da rede de voluntários.
 builder.Services.AddScoped<TurnoServico>();
 builder.Services.AddScoped<OcorrenciaServico>();
+builder.Services.AddScoped<AtendimentoOcorrenciaServico>();
+builder.Services.AddScoped<VoluntarioServico>();
+
+// Escalonamento para a camada 2 em segundo plano, sem depender de requisição: uma rodada na subida
+// e outra a cada IntervaloEscalonamentoS, cada uma com o próprio escopo (e o próprio AppDbContext).
+builder.Services.AddScoped<EscalonadorOcorrencias>();
+builder.Services.AddHostedService<ServicoEscalonamentoSos>();
 
 // Controllers com as rotas em /api/v1 (seção 7 do contrato). O JSON segue o padrão Web
 // (camelCase). Os enums não precisam de conversor global: cada tipo do domínio já traz

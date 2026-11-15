@@ -34,4 +34,10 @@ public sealed class EntregadorRepositorio : RepositorioBase<Entregador>, IEntreg
     {
         return Conjunto.AnyAsync(e => e.Cpf == cpf, cancellationToken);
     }
+
+    /// <inheritdoc/>
+    public Task<int> ContarContatosAsync(Guid entregadorId, CancellationToken cancellationToken)
+    {
+        return Contexto.Set<ContatoEmergencia>().CountAsync(c => c.EntregadorId == entregadorId, cancellationToken);
+    }
 }

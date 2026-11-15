@@ -94,6 +94,12 @@ public sealed class AppDbContext : DbContext, IUnidadeDeTrabalho
     }
 
     /// <inheritdoc/>
+    public void DescartarAlteracoes()
+    {
+        ChangeTracker.Clear();
+    }
+
+    /// <inheritdoc/>
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
         ArgumentNullException.ThrowIfNull(configurationBuilder);

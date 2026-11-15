@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Threading;
@@ -58,5 +59,40 @@ public sealed class OcorrenciaRepositorio : RepositorioBase<Ocorrencia>, IOcorre
             .Include(o => o.EventoImpacto)
             .Include(o => o.Aceites)
             .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<Ocorrencia>> ListarAguardandoAceiteDeOutrosAsync(
+        Guid entregadorId,
+        CancellationToken cancellationToken)
+    {
+        // Mesmos estados do Ocorrencia.EstaAguardandoAceite, escritos aqui para virar SQL.
+        return await Conjunto
+            .AsNoTracking()
+            .Include(o => o.EventoImpacto)
+            .Where(o => o.Estado == EstadoOcorrencia.SosCamada1 || o.Estado == EstadoOcorrencia.SosCamada2)
+            .Where(o => o.EntregadorId != entregadorId)
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<Ocorrencia>> ListarCamada1VencidasAsync(
+        DateTime criadaAte,
+        CancellationToken cancellationToken)
+    {
+        return await Conjunto
+            .Where(o => o.Estado == EstadoOcorrencia.SosCamada1 && o.CriadaEm <= criadaAte)
+            .OrderBy(o => o.CriadaEm)
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public Task<Ocorrencia?> ObterMaisRecenteDoEntregadorAsync(Guid entregadorId, CancellationToken cancellationToken)
+    {
+        return Conjunto
+            .AsNoTracking()
+            .Where(o => o.EntregadorId == entregadorId)
+            .OrderByDescending(o => o.CriadaEm)
+            .FirstOrDefaultAsync(cancellationToken);
     }
 }

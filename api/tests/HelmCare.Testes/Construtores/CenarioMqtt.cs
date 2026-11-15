@@ -32,13 +32,28 @@ internal sealed class CenarioMqtt
     public CenarioMqtt()
     {
         Relogio = new FakeTimeProvider(AgoraServidor);
-        Dispositivo = new Dispositivo(Codigo, Guid.NewGuid());
+        Entregador = CenarioSos.NovoEntregador();
+        Entregadores.Semear(Entregador);
+        Dispositivo = new Dispositivo(Codigo, Entregador.Id);
         Dispositivos.Semear(Dispositivo);
+        Notificador = new FakeNotificadorContato(Unidade);
     }
 
     public FakeTimeProvider Relogio { get; }
 
+    public Entregador Entregador { get; }
+
     public Dispositivo Dispositivo { get; }
+
+    public FakeEntregadorRepositorio Entregadores { get; } = new();
+
+    public FakeNotificadorContato Notificador { get; }
+
+    public FakePublicadorComandos Publicador { get; } = new();
+
+    public FakeLogger<PublicadorComandosOcorrencia> LogComandos { get; } = new();
+
+    public FakeLogger<RoteadorMensagemMqtt> LogRoteador { get; } = new();
 
     public FakeDispositivoRepositorio Dispositivos { get; } = new();
 
@@ -126,7 +141,7 @@ internal sealed class CenarioMqtt
             new ProcessadorContagemIniciada(Impactos, opcoes, NullLogger<ProcessadorContagemIniciada>.Instance),
             new ProcessadorFalsoPositivo(Impactos, NullLogger<ProcessadorFalsoPositivo>.Instance),
             new ProcessadorCancelado(Impactos, NullLogger<ProcessadorCancelado>.Instance),
-            new ProcessadorSos(Impactos, Ocorrencias, Relogio, opcoes, NullLogger<ProcessadorSos>.Instance),
+            new ProcessadorSos(Impactos, Ocorrencias, Entregadores, Relogio, opcoes, NullLogger<ProcessadorSos>.Instance),
         ];
     }
 
@@ -143,8 +158,11 @@ internal sealed class CenarioMqtt
             Unidade,
             new ProcessadorTelemetria(),
             Processadores(),
+            Notificador,
+            Ocorrencias,
+            new PublicadorComandosOcorrencia(Publicador, Dispositivos, LogComandos),
             Relogio,
             Options.Create(new OpcoesMqtt()),
-            NullLogger<RoteadorMensagemMqtt>.Instance);
+            LogRoteador);
     }
 }

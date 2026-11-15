@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using HelmCare.Api.Persistencia.Configuracoes;
 using HelmCare.Api.Servicos.Comum;
+using HelmCare.Api.Servicos.Voluntarios;
 using HelmCare.Dominio.Comum;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
@@ -111,6 +112,15 @@ public sealed partial class TratadorExcecoes : IExceptionHandler
                     ConstraintName: TurnoConfiguracao.IndiceTurnoAtivo,
                 },
             } => (StatusCodes.Status409Conflict, "Regra de negócio violada", "O entregador já tem um turno ativo."),
+            // Mesma corrida no POST /voluntarios: o segundo cadastro do entregador esbarra no índice único.
+            DbUpdateException
+            {
+                InnerException: PostgresException
+                {
+                    SqlState: PostgresErrorCodes.UniqueViolation,
+                    ConstraintName: VoluntarioConfiguracao.IndiceEntregadorUnico,
+                },
+            } => (StatusCodes.Status409Conflict, "Regra de negócio violada", VoluntarioServico.MensagemJaVoluntario),
             DbUpdateException { InnerException: PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } } => (
                 StatusCodes.Status409Conflict,
                 "Registro duplicado",

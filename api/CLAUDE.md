@@ -16,7 +16,7 @@ Este arquivo orienta o Claude Code quando ele trabalha na pasta `api/` do monore
 
 ## Fonte da verdade
 
-1. `docs/contrato-integracao.md` (versão 1.11).
+1. `docs/contrato-integracao.md` (versão 1.13).
 2. Este arquivo.
 
 Nunca renomeie entidades, campos, enums, rotas, payloads ou tópicos MQTT do contrato. Se algo do contrato parecer impossível ou contraditório, pare e me avise, explicando o motivo, sem improvisar.
@@ -121,6 +121,14 @@ Use estas versões (as mesmas dos templates do professor). Se uma versão não r
 - Com 503, qualquer 5xx, erro de rede ou tempo esgotado, o índice do turno vem da versão simulada, com aviso no log. Um 4xx ou uma resposta fora do formato é erro de integração: log de erro e versão simulada. O turno nunca falha por causa do Serviço de Risco.
 - A versão simulada usa a mesma regra do serviço (média ponderada das horas do turno e o mesmo texto da explicação), para o mesmo turno ter o mesmo índice com o serviço no ar ou não.
 - Logs da integração levam só o motivo, o status HTTP e o tempo; nunca o corpo da requisição ou da resposta.
+
+## Rede de voluntários e SOS
+
+- O escalonamento para a camada 2 roda em segundo plano (BackgroundService com PeriodicTimer criado com o TimeProvider), então vale sem nenhuma requisição chegando; os testes avançam o FakeTimeProvider em vez de esperar.
+- A regra de quem pode atender fica só no `Voluntario.PodeAtender`; serviços e consultas não repetem o cálculo do raio.
+- Antes do aceite, voluntário só vê a localização aproximada (2 casas, `Coordenada.Aproximada`); a exata só vai para quem aceitou. Distâncias mostradas são calculadas até a localização aproximada.
+- Os comandos da ocorrência (`SOCORRO_A_CAMINHO` e `ENCERRAR`) são publicados depois de gravar e não bloqueiam a rota: se o broker falhar, aviso no log e a rota responde normalmente.
+- O aviso ao contato de emergência é simulado: só uma linha de log com o `ocorrenciaId` e a quantidade de contatos, depois que a ocorrência é gravada; nunca nome, telefone ou localização.
 
 ## Dados pessoais (seção 9 do contrato)
 

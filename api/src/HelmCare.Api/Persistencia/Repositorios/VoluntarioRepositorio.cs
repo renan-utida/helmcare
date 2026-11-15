@@ -25,4 +25,18 @@ public sealed class VoluntarioRepositorio : RepositorioBase<Voluntario>, IVolunt
     {
         return Conjunto.AnyAsync(v => v.Id == id, cancellationToken);
     }
+
+    /// <inheritdoc/>
+    public Task<bool> ExisteDoEntregadorAsync(Guid entregadorId, CancellationToken cancellationToken)
+    {
+        return Conjunto.AnyAsync(v => v.EntregadorId == entregadorId, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public Task<Voluntario?> ObterParaConsultaAsync(Guid id, CancellationToken cancellationToken)
+    {
+        return Conjunto
+            .AsNoTracking()
+            .FirstOrDefaultAsync(v => v.Id == id, cancellationToken);
+    }
 }
