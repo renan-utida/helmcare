@@ -1,6 +1,6 @@
 """Previsor de sinistros graves com o modelo XGBoost (implementa a porta PrevisorSinistros).
 
-O modelo é carregado uma única vez (no startup, na Rodada 2) e depois só é lido. Todas
+O modelo é carregado uma única vez (no startup, em app/main.py) e depois só é lido. Todas
 as horas do turno vão numa única chamada predict, e o numpy.float32 do XGBoost vira
 float do Python aqui, na fronteira, para o domínio não depender do numpy.
 """

@@ -1,8 +1,9 @@
 """Texto da explicação devolvida ao entregador (campo explicacao).
 
 Função pura, com frases fixas, para o texto ser testável. É uma frase só, como o
-exemplo da seção 7 do contrato ("Risco alto: chuva prevista no turno e o seu horário
-tem histórico de sinistros graves."), na ordem: chuva, histórico do horário e calor.
+exemplo das seções 7 e 8 do Contrato 1.12 ("Risco alto: chuva prevista no turno e o
+seu horário tem histórico de sinistros graves (pico às 19h)."), na ordem: chuva,
+histórico do horário e calor.
 
 Regra do contrato: a explicação nunca diz que a chuva aumenta, eleva ou causa
 sinistros ou acidentes, porque o histórico não mostra isso. Ela só avisa que há

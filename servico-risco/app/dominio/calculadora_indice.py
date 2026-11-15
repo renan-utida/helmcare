@@ -56,7 +56,7 @@ class ResultadoIndice:
     """Resultado completo do cálculo.
 
     A resposta da API usa só indice_risco, faixa_risco, componentes e explicacao. O
-    índice de calor e o detalhe das horas ficam aqui para o histórico (Rodada 2).
+    índice de calor e o detalhe das horas ficam aqui para o histórico dos cálculos.
     """
 
     indice_risco: int
