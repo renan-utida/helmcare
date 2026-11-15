@@ -1,0 +1,26 @@
+# PostgreSQL local do Serviço de Risco (só o banco; o serviço roda com uvicorn).
+# Totalmente separado do compose da API: outro projeto, outro contêiner, outro volume e a porta 5433.
+# A senha vem do servico-risco/.env (veja o .env.example), que nunca é versionado.
+name: helmcare-risco
+
+services:
+  postgres:
+    image: postgres:17.6
+    container_name: helmcare-risco-postgres
+    environment:
+      POSTGRES_DB: helmcare_risco
+      POSTGRES_USER: helmcare
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Configure servico-risco/.env}
+    # Só na interface local: o banco não fica exposto na rede.
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - dados-postgres-risco:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U helmcare -d helmcare_risco"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  dados-postgres-risco:
