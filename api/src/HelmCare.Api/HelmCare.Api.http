@@ -238,3 +238,101 @@ Accept: application/json
 ### R4. Trechos críticos com limite fora de 1 a 50 (400)
 GET {{baseUrl}}/api/v1/trechos-criticos?limite=0
 Accept: application/json
+
+# ---------------------------------------------------------------------------
+# Rede de voluntários e SOS escalonado (Contrato 1.13). Usa o entregador do passo 1 (dono do
+# HC-0001) e o semCapaceteId do T7a. Posições simuladas: V na Av. Paulista, perto do capacete.
+# Os chamados próximos mostram a localização aproximada (2 casas) e a distância até ela.
+# ---------------------------------------------------------------------------
+
+### V1. Tornar o entregador sem capacete voluntário (201, indisponível e sem posição; Location para o entregador)
+# @name criarVoluntario
+POST {{baseUrl}}/api/v1/voluntarios
+Content-Type: application/json
+
+{
+  "entregadorId": "{{semCapaceteId}}",
+  "tipo": "ENTREGADOR"
+}
+
+###
+@voluntarioId = {{criarVoluntario.response.body.$.voluntarioId}}
+
+### V2. Ficar disponível no MASP (200, posição só nesta resposta)
+PUT {{baseUrl}}/api/v1/voluntarios/{{voluntarioId}}/disponibilidade
+Content-Type: application/json
+
+{
+  "disponivel": true,
+  "latitude": -23.5614,
+  "longitude": -46.6559
+}
+
+### V3. Chamados próximos (200; camada 1 só até 2 km, camada 2 todos, nunca o próprio SOS)
+GET {{baseUrl}}/api/v1/ocorrencias/proximas?voluntarioId={{voluntarioId}}
+Accept: application/json
+
+### V4. Ficar indisponível (200; a posição é apagada mesmo vindo na requisição)
+PUT {{baseUrl}}/api/v1/voluntarios/{{voluntarioId}}/disponibilidade
+Content-Type: application/json
+
+{
+  "disponivel": false,
+  "latitude": -23.5614,
+  "longitude": -46.6559
+}
+
+### V5. Chamados próximos do voluntário indisponível (200, lista vazia)
+GET {{baseUrl}}/api/v1/ocorrencias/proximas?voluntarioId={{voluntarioId}}
+Accept: application/json
+
+### V6. Cadastrar de novo o mesmo entregador (409)
+POST {{baseUrl}}/api/v1/voluntarios
+Content-Type: application/json
+
+{
+  "entregadorId": "{{semCapaceteId}}",
+  "tipo": "ENTREGADOR"
+}
+
+### V7. Entregador inexistente (404)
+POST {{baseUrl}}/api/v1/voluntarios
+Content-Type: application/json
+
+{
+  "entregadorId": "00000000-0000-0000-0000-000000000001",
+  "tipo": "ENTREGADOR"
+}
+
+### V8. Tipo fora do contrato (400)
+POST {{baseUrl}}/api/v1/voluntarios
+Content-Type: application/json
+
+{
+  "entregadorId": "{{entregadorId}}",
+  "tipo": "MOTOBOY"
+}
+
+### V9. Disponível sem posição (400)
+PUT {{baseUrl}}/api/v1/voluntarios/{{voluntarioId}}/disponibilidade
+Content-Type: application/json
+
+{
+  "disponivel": true
+}
+
+### V10. Voluntário inexistente na disponibilidade (404)
+PUT {{baseUrl}}/api/v1/voluntarios/{{voluntarioInexistente}}/disponibilidade
+Content-Type: application/json
+
+{
+  "disponivel": false
+}
+
+### V11. Chamados próximos sem voluntarioId (400)
+GET {{baseUrl}}/api/v1/ocorrencias/proximas
+Accept: application/json
+
+### V12. Chamados próximos de voluntário inexistente (404)
+GET {{baseUrl}}/api/v1/ocorrencias/proximas?voluntarioId={{voluntarioInexistente}}
+Accept: application/json

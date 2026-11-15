@@ -9,6 +9,7 @@ using HelmCare.Api.Mensageria.Mensagens;
 using HelmCare.Api.Mensageria.Processadores;
 using HelmCare.Api.Persistencia.Modelos;
 using HelmCare.Api.Persistencia.Repositorios;
+using HelmCare.Api.Servicos.Ocorrencias;
 using HelmCare.Dominio.Comum;
 using HelmCare.Dominio.Entidades;
 using HelmCare.Dominio.Enums;
@@ -30,6 +31,10 @@ namespace HelmCare.Api.Mensageria;
 /// processado é descartado. O registro em <c>EventosMqttProcessados</c> entra na mesma gravação do
 /// efeito: ou os dois ficam, ou nenhum. Se duas cópias chegarem juntas, o índice único barra a
 /// segunda (SqlState 23505), tratada como duplicata.</para>
+/// <para>Aviso ao contato de emergência: quando o <c>SOS</c> abre uma ocorrência, o
+/// <see cref="INotificadorContato"/> é chamado só depois que o <c>SalvarAsync</c> gravou. Nunca antes,
+/// nunca numa duplicata e nunca quando nenhuma ocorrência abriu. Uma falha do aviso vira log e não
+/// desfaz a ocorrência, que já está gravada.</para>
 /// <para>Nunca lança: toda recusa e todo erro viram log (código do capacete, tipo e <c>ts</c>,
 /// nunca o payload) e um <see cref="ResultadoRoteamento"/>.</para>
 /// </remarks>
@@ -40,6 +45,7 @@ public sealed partial class RoteadorMensagemMqtt
     private readonly IUnidadeDeTrabalho _unidadeDeTrabalho;
     private readonly ProcessadorTelemetria _telemetria;
     private readonly FrozenDictionary<TipoEventoMqtt, IProcessadorEvento> _processadores;
+    private readonly INotificadorContato _notificador;
     private readonly TimeProvider _relogio;
     private readonly string _raizTopicos;
     private readonly ILogger<RoteadorMensagemMqtt> _logger;
@@ -52,6 +58,7 @@ public sealed partial class RoteadorMensagemMqtt
     /// <param name="unidadeDeTrabalho">Grava o efeito e o registro de idempotência juntos.</param>
     /// <param name="telemetria">Processador da telemetria.</param>
     /// <param name="processadores">Um processador por tipo de evento.</param>
+    /// <param name="notificador">Aviso ao contato de emergência quando um SOS abre ocorrência.</param>
     /// <param name="relogio">Relógio do servidor (só para o <c>recebidoEm</c> do registro).</param>
     /// <param name="opcoes">Raiz dos tópicos.</param>
     /// <param name="logger">Log da aplicação.</param>
@@ -62,6 +69,7 @@ public sealed partial class RoteadorMensagemMqtt
         IUnidadeDeTrabalho unidadeDeTrabalho,
         ProcessadorTelemetria telemetria,
         IEnumerable<IProcessadorEvento> processadores,
+        INotificadorContato notificador,
         TimeProvider relogio,
         IOptions<OpcoesMqtt> opcoes,
         ILogger<RoteadorMensagemMqtt> logger)
@@ -73,6 +81,7 @@ public sealed partial class RoteadorMensagemMqtt
         _unidadeDeTrabalho = unidadeDeTrabalho;
         _telemetria = telemetria;
         _processadores = MontarProcessadores(processadores);
+        _notificador = notificador;
         _relogio = relogio;
         _raizTopicos = opcoes.Value.RaizTopicos;
         _logger = logger;
@@ -207,13 +216,20 @@ public sealed partial class RoteadorMensagemMqtt
                 return ResultadoRoteamento.Duplicada;
             }
 
-            await _processadores[evento.Tipo].ProcessarAsync(new ContextoEvento(dispositivo, evento), cancellationToken);
+            var contexto = new ContextoEvento(dispositivo, evento);
+            await _processadores[evento.Tipo].ProcessarAsync(contexto, cancellationToken);
 
             await _processados.AdicionarAsync(
                 new EventoMqttProcessado(codigo, evento.Tipo, evento.Ts, _relogio.GetUtcNow().UtcDateTime),
                 cancellationToken);
 
             await _unidadeDeTrabalho.SalvarAsync(cancellationToken);
+
+            if (contexto.OcorrenciaAberta is { } abertura)
+            {
+                await AvisarContatoAsync(abertura, cancellationToken);
+            }
+
             return ResultadoRoteamento.Processada;
         }
         catch (DominioException ex)
@@ -235,6 +251,20 @@ public sealed partial class RoteadorMensagemMqtt
         }
     }
 
+    // Trata as próprias falhas: a ocorrência já foi gravada, então uma falha aqui não pode cair no
+    // catch do evento (que registraria "nada foi gravado") nem mudar o resultado da mensagem.
+    private async Task AvisarContatoAsync(AberturaOcorrencia abertura, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _notificador.NotificarAberturaAsync(abertura.OcorrenciaId, abertura.QuantidadeContatos, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            RegistrarFalhaNoAviso(_logger, ex.GetType().Name, abertura.OcorrenciaId);
+        }
+    }
+
     [LoggerMessage(EventId = 200, Level = LogLevel.Warning, Message = "Mensagem MQTT descartada: tópico fora do padrão {{raiz}}/{{codigo}}/{{telemetria|evento}}.")]
     private static partial void RegistrarTopicoInvalido(ILogger logger);
 
@@ -252,4 +282,7 @@ public sealed partial class RoteadorMensagemMqtt
 
     [LoggerMessage(EventId = 205, Level = LogLevel.Error, Message = "Falha {TipoExcecao} ao processar {Tipo} do capacete {Codigo} (ts {Ts:o}); nada foi gravado.")]
     private static partial void RegistrarFalha(ILogger logger, string tipoExcecao, string codigo, string tipo, DateTime ts);
+
+    [LoggerMessage(EventId = 206, Level = LogLevel.Warning, Message = "Falha {TipoExcecao} no aviso ao contato de emergência da ocorrência {OcorrenciaId}; a ocorrência continua gravada.")]
+    private static partial void RegistrarFalhaNoAviso(ILogger logger, string tipoExcecao, Guid ocorrenciaId);
 }

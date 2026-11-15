@@ -23,6 +23,8 @@ namespace HelmCare.Api.Mensageria.Processadores;
 /// marcado como estimado, para nem o SOS nem o indicador se perderem.</item>
 /// <item>Se o entregador já tem ocorrência ativa, não abre outra (um socorro por vez). Isso é
 /// conferido antes de mexer no impacto, para não deixar um impacto estimado sem ocorrência.</item>
+/// <item>Ao abrir, informa no <see cref="ContextoEvento"/> o id da ocorrência e a quantidade de contatos de
+/// emergência, para o roteador avisar o contato depois de gravar (nunca antes).</item>
 /// <item>O <c>criadaEm</c> vem do relógio do servidor (TimeProvider), que é o relógio das regras de
 /// escalonamento; o <c>ts</c> do capacete fica no impacto.</item>
 /// </list>
@@ -31,6 +33,7 @@ public sealed partial class ProcessadorSos : IProcessadorEvento
 {
     private readonly IEventoImpactoRepositorio _impactos;
     private readonly IOcorrenciaRepositorio _ocorrencias;
+    private readonly IEntregadorRepositorio _entregadores;
     private readonly TimeProvider _relogio;
     private readonly TimeSpan _antecedenciaEstimada;
     private readonly ILogger<ProcessadorSos> _logger;
@@ -40,12 +43,14 @@ public sealed partial class ProcessadorSos : IProcessadorEvento
     /// </summary>
     /// <param name="impactos">Repositório de impactos.</param>
     /// <param name="ocorrencias">Repositório de ocorrências.</param>
+    /// <param name="entregadores">Repositório de entregadores (só para contar os contatos de emergência).</param>
     /// <param name="relogio">Relógio do servidor, para o <c>criadaEm</c>.</param>
     /// <param name="opcoes">Constantes da seção 5 (janela de observação e contagem).</param>
     /// <param name="logger">Log da aplicação.</param>
     public ProcessadorSos(
         IEventoImpactoRepositorio impactos,
         IOcorrenciaRepositorio ocorrencias,
+        IEntregadorRepositorio entregadores,
         TimeProvider relogio,
         IOptions<OpcoesHelmCare> opcoes,
         ILogger<ProcessadorSos> logger)
@@ -54,6 +59,7 @@ public sealed partial class ProcessadorSos : IProcessadorEvento
 
         _impactos = impactos;
         _ocorrencias = ocorrencias;
+        _entregadores = entregadores;
         _relogio = relogio;
         _logger = logger;
         _antecedenciaEstimada = opcoes.Value.TrechoCapacetePadrao;
@@ -99,6 +105,9 @@ public sealed partial class ProcessadorSos : IProcessadorEvento
 
         var ocorrencia = Ocorrencia.Abrir(dispositivo.EntregadorId, impacto, local, _relogio.GetUtcNow().UtcDateTime);
         await _ocorrencias.AdicionarAsync(ocorrencia, cancellationToken);
+
+        int contatos = await _entregadores.ContarContatosAsync(dispositivo.EntregadorId, cancellationToken);
+        contexto.InformarOcorrenciaAberta(ocorrencia.Id, contatos);
 
         RegistrarOcorrenciaAberta(_logger, dispositivo.Codigo, ocorrencia.Id, impacto.OcorridoEmEstimado);
     }
