@@ -1,0 +1,115 @@
+# Banco principal helmcare_risco (somente leitura)
+
+$ docker compose exec -T postgres psql -U helmcare -d helmcare_risco -a  (comandos abaixo pela entrada padrão)
+
+\dt
+                   List of relations
+ Schema |           Name            | Type  |  Owner   
+--------+---------------------------+-------+----------
+ public | alembic_version           | table | helmcare
+ public | calculo_indice            | table | helmcare
+ public | calculo_indice_hora       | table | helmcare
+ public | conjunto_trechos_criticos | table | helmcare
+ public | trecho_critico            | table | helmcare
+(5 rows)
+
+\d calculo_indice
+                          Table "public.calculo_indice"
+       Column        |           Type           | Collation | Nullable | Default 
+---------------------+--------------------------+-----------+----------+---------
+ id                  | uuid                     |           | not null | 
+ calculado_em        | timestamp with time zone |           | not null | 
+ inicio              | timestamp with time zone |           | not null | 
+ fim                 | timestamp with time zone |           | not null | 
+ chuva_mm_hora       | double precision         |           | not null | 
+ temperatura_c       | double precision         |           | not null | 
+ umidade_pct         | double precision         |           | not null | 
+ indice_calor_c      | double precision         |           | not null | 
+ componente_sinistro | integer                  |           | not null | 
+ componente_chuva    | integer                  |           | not null | 
+ componente_calor    | integer                  |           | not null | 
+ indice_risco        | integer                  |           | not null | 
+ faixa_risco         | character varying(20)    |           | not null | 
+ explicacao          | text                     |           | not null | 
+ versao_modelo       | character varying(20)    |           | not null | 
+ regra_agregacao     | character varying(50)    |           | not null | 
+Indexes:
+    "pk_calculo_indice" PRIMARY KEY, btree (id)
+Check constraints:
+    "ck_calculo_indice_componente_calor_0_a_100" CHECK (componente_calor >= 0 AND componente_calor <= 100)
+    "ck_calculo_indice_componente_chuva_0_a_100" CHECK (componente_chuva >= 0 AND componente_chuva <= 100)
+    "ck_calculo_indice_componente_sinistro_0_a_100" CHECK (componente_sinistro >= 0 AND componente_sinistro <= 100)
+    "ck_calculo_indice_faixa_risco_valida" CHECK (faixa_risco::text = ANY (ARRAY['BAIXO'::character varying, 'MODERADO'::character varying, 'ALTO'::character varying, 'MUITO_ALTO'::character varying]::text[]))
+    "ck_calculo_indice_indice_risco_0_a_100" CHECK (indice_risco >= 0 AND indice_risco <= 100)
+Referenced by:
+    TABLE "calculo_indice_hora" CONSTRAINT "fk_calculo_indice_hora_calculo_id_calculo_indice" FOREIGN KEY (calculo_id) REFERENCES calculo_indice(id) ON DELETE CASCADE
+
+\d calculo_indice_hora
+                          Table "public.calculo_indice_hora"
+          Column          |           Type           | Collation | Nullable | Default 
+--------------------------+--------------------------+-----------+----------+---------
+ id                       | uuid                     |           | not null | 
+ calculo_id               | uuid                     |           | not null | 
+ hora_inicio_utc          | timestamp with time zone |           | not null | 
+ hora_local               | integer                  |           | not null | 
+ dia_semana               | integer                  |           | not null | 
+ mes                      | integer                  |           | not null | 
+ feriado                  | boolean                  |           | not null | 
+ previsao_sinistros       | double precision         |           | not null | 
+ componente_sinistro_hora | double precision         |           | not null | 
+ minutos_no_turno         | double precision         |           | not null | 
+Indexes:
+    "pk_calculo_indice_hora" PRIMARY KEY, btree (id)
+    "uq_calculo_indice_hora_calculo_id_hora_inicio_utc" UNIQUE CONSTRAINT, btree (calculo_id, hora_inicio_utc)
+Check constraints:
+    "ck_calculo_indice_hora_hora_local_0_a_23" CHECK (hora_local >= 0 AND hora_local <= 23)
+Foreign-key constraints:
+    "fk_calculo_indice_hora_calculo_id_calculo_indice" FOREIGN KEY (calculo_id) REFERENCES calculo_indice(id) ON DELETE CASCADE
+
+\d trecho_critico
+                             Table "public.trecho_critico"
+           Column            |          Type          | Collation | Nullable | Default 
+-----------------------------+------------------------+-----------+----------+---------
+ id                          | uuid                   |           | not null | 
+ conjunto_id                 | uuid                   |           | not null | 
+ posicao                     | integer                |           | not null | 
+ logradouro                  | character varying(200) |           | not null | 
+ latitude                    | double precision       |           | not null | 
+ longitude                   | double precision       |           | not null | 
+ quantidade_sinistros_graves | integer                |           | not null | 
+Indexes:
+    "pk_trecho_critico" PRIMARY KEY, btree (id)
+    "uq_trecho_critico_conjunto_id_posicao" UNIQUE CONSTRAINT, btree (conjunto_id, posicao)
+Check constraints:
+    "ck_trecho_critico_posicao_minima" CHECK (posicao >= 1)
+    "ck_trecho_critico_quantidade_nao_negativa" CHECK (quantidade_sinistros_graves >= 0)
+Foreign-key constraints:
+    "fk_trecho_critico_conjunto_id_conjunto_trechos_criticos" FOREIGN KEY (conjunto_id) REFERENCES conjunto_trechos_criticos(id)
+
+SELECT 'conjunto_trechos_criticos' AS tabela, count(*) FROM conjunto_trechos_criticos
+UNION ALL SELECT 'trecho_critico', count(*) FROM trecho_critico
+UNION ALL SELECT 'calculo_indice', count(*) FROM calculo_indice
+UNION ALL SELECT 'calculo_indice_hora', count(*) FROM calculo_indice_hora;
+          tabela           | count 
+---------------------------+-------
+ conjunto_trechos_criticos |     1
+ trecho_critico            |   100
+ calculo_indice            |     4
+ calculo_indice_hora       |    16
+(4 rows)
+
+SELECT id, calculado_em, componente_sinistro, componente_chuva, componente_calor, indice_risco, faixa_risco, versao_modelo, regra_agregacao FROM calculo_indice ORDER BY calculado_em DESC LIMIT 1;
+                  id                  |         calculado_em          | componente_sinistro | componente_chuva | componente_calor | indice_risco | faixa_risco | versao_modelo |      regra_agregacao       
+--------------------------------------+-------------------------------+---------------------+------------------+------------------+--------------+-------------+---------------+----------------------------
+ 91df5b33-b91b-4009-a133-330e21624f5f | 2026-11-15 03:15:29.593144+00 |                  84 |               70 |                0 |           60 | ALTO        | 1.0.0         | MEDIA_PONDERADA_MINUTOS_V1
+(1 row)
+
+SELECT hora_inicio_utc, hora_local, dia_semana, mes, feriado, previsao_sinistros, round(componente_sinistro_hora::numeric, 2) AS componente_sinistro_hora, minutos_no_turno FROM calculo_indice_hora WHERE calculo_id = (SELECT id FROM calculo_indice ORDER BY calculado_em DESC LIMIT 1) ORDER BY hora_inicio_utc;
+    hora_inicio_utc     | hora_local | dia_semana | mes | feriado | previsao_sinistros  | componente_sinistro_hora | minutos_no_turno 
+------------------------+------------+------------+-----+---------+---------------------+--------------------------+------------------
+ 2026-11-12 20:00:00+00 |         17 |          3 |  11 | f       |  0.2692505419254303 |                    83.38 |               60
+ 2026-11-12 21:00:00+00 |         18 |          3 |  11 | f       | 0.27508240938186646 |                    85.18 |               60
+ 2026-11-12 22:00:00+00 |         19 |          3 |  11 | f       |  0.2825738787651062 |                    87.50 |               60
+ 2026-11-12 23:00:00+00 |         20 |          3 |  11 | f       |  0.2531943917274475 |                    78.41 |               60
+(4 rows)
+

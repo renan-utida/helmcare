@@ -1,0 +1,5 @@
+$ .venv/Scripts/python -m ruff check .
+All checks passed!
+
+$ .venv/Scripts/python -m ruff format --check .
+80 files already formatted

@@ -1,0 +1,80 @@
+# Banco principal (helmcare_risco)
+
+$ .venv/Scripts/python -m alembic history -v
+Rev: 0002 (head)
+Parent: 0001
+Path: C:\Users\ronal\Downloads\helmcare\servico-risco\migrations\versions\0002_criar_historico_calculos.py
+
+    Cria o histórico dos cálculos do índice: calculo_indice e calculo_indice_hora.
+    
+    Revisão: 0002
+    Anterior: 0001
+    Escrita à mão. Nenhuma coluna guarda dado pessoal.
+
+Rev: 0001
+Parent: <base>
+Path: C:\Users\ronal\Downloads\helmcare\servico-risco\migrations\versions\0001_criar_trechos_criticos.py
+
+    Cria as tabelas dos trechos críticos: conjunto_trechos_criticos e trecho_critico.
+    
+    Revisão: 0001
+    Anterior: nenhuma (primeira revisão)
+    Escrita à mão. Os nomes das constraints seguem a naming_convention de base.py.
+
+
+$ .venv/Scripts/python -m alembic current
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+0002 (head)
+
+$ .venv/Scripts/python -m alembic check
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.schemas
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.tables
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.types
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.constraints
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.defaults
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.comments
+No new upgrade operations detected.
+
+# Banco de testes (helmcare_risco_teste)
+
+$ .venv/Scripts/python -m alembic -x banco=teste upgrade head
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 0001, Cria as tabelas dos trechos críticos: conjunto_trechos_criticos e trecho_critico.
+INFO  [alembic.runtime.migration] Running upgrade 0001 -> 0002, Cria o histórico dos cálculos do índice: calculo_indice e calculo_indice_hora.
+
+$ .venv/Scripts/python -m alembic -x banco=teste current
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+0002 (head)
+
+$ .venv/Scripts/python -m alembic -x banco=teste check
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.schemas
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.tables
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.types
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.constraints
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.defaults
+INFO  [alembic.runtime.plugins] setting up autogenerate plugin alembic.autogenerate.comments
+No new upgrade operations detected.
+
+# Downgrade base e upgrade head exercitados pelos testes de integração, só no banco _teste
+
+$ .venv/Scripts/python -m pytest tests/integracao/test_migracoes.py -v
+============================= test session starts =============================
+platform win32 -- Python 3.13.17, pytest-9.2.0, pluggy-1.7.0 -- C:\Users\ronal\Downloads\helmcare\servico-risco\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: c:\Users\ronal\Downloads\helmcare\servico-risco
+configfile: pyproject.toml
+plugins: anyio-4.16.0, cov-7.1.0
+collecting ... collected 3 items
+
+tests/integracao/test_migracoes.py::test_migracoes_downgrade_base_e_upgrade_head_criam_e_removem_tabelas PASSED [ 33%]
+tests/integracao/test_migracoes.py::test_migracoes_constraints_com_nomes_previsiveis PASSED [ 66%]
+tests/integracao/test_migracoes.py::test_alembic_check_modelos_iguais_as_migracoes PASSED [100%]
+
+============================== 3 passed in 0.81s ==============================

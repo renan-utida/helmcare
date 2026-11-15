@@ -1,0 +1,72 @@
+# Chamada real ao Serviço de Risco (uvicorn em 127.0.0.1:8000, banco helmcare_risco)
+
+$ .venv/Scripts/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000   (em segundo plano)
+
+## Requisições
+
+$ curl -s -i -X POST http://127.0.0.1:8000/risco/v1/indice-turno -H "Content-Type: application/json" -d '{"inicio":"2026-11-12T20:00:00Z","fim":"2026-11-13T00:00:00Z","previsao":{"chuvaMmHora":7.0,"temperaturaC":24.0,"umidadePct":85}}'
+HTTP/1.1 200 OK
+date: Sun, 15 Nov 2026 03:15:29 GMT
+server: uvicorn
+content-length: 208
+content-type: application/json
+
+{"indiceRisco":60,"faixaRisco":"ALTO","componentes":{"sinistro":84,"chuva":70,"calor":0},"explicacao":"Risco alto: chuva prevista no turno e o seu horário tem histórico de sinistros graves (pico às 19h)."}
+
+$ curl -s -i "http://127.0.0.1:8000/risco/v1/trechos-criticos?limite=2"
+HTTP/1.1 200 OK
+date: Sun, 15 Nov 2026 03:15:29 GMT
+server: uvicorn
+content-length: 307
+content-type: application/json
+
+{"periodo":"2019 a 2025","trechos":[{"posicao":1,"logradouro":"SP 270 (RODOVIA RAPOSO TAVARES)","latitude":-23.58341,"longitude":-46.77771,"quantidadeSinistrosGraves":46},{"posicao":2,"logradouro":"SP 270 (RODOVIA RAPOSO TAVARES)","latitude":-23.58481,"longitude":-46.78738,"quantidadeSinistrosGraves":38}]}
+
+$ curl -s -i http://127.0.0.1:8000/risco/v1/saude
+HTTP/1.1 200 OK
+date: Sun, 15 Nov 2026 03:15:29 GMT
+server: uvicorn
+content-length: 20
+content-type: application/json
+
+{"status":"Healthy"}
+
+$ curl -s -i "http://127.0.0.1:8000/risco/v1/trechos-criticos?limite=51"
+HTTP/1.1 400 Bad Request
+date: Sun, 15 Nov 2026 03:15:29 GMT
+server: uvicorn
+content-length: 223
+content-type: application/problem+json
+
+{"type":"https://tools.ietf.org/html/rfc9110#section-15.5.1","title":"Requisição inválida","status":400,"detail":"Um ou mais campos da requisição são inválidos.","errors":{"limite":["Deve ser menor ou igual a 50."]}}
+
+$ curl -s -i http://127.0.0.1:8000/risco/v1/rota-inexistente
+HTTP/1.1 404 Not Found
+date: Sun, 15 Nov 2026 03:15:29 GMT
+server: uvicorn
+content-length: 164
+content-type: application/problem+json
+
+{"type":"https://tools.ietf.org/html/rfc9110#section-15.5.5","title":"Recurso não encontrado","status":404,"detail":"O recurso pedido não existe neste serviço."}
+
+## Log do uvicorn dessas chamadas (a última linha é o GET do openapi.json salvo em 06-openapi.json)
+
+INFO:     Started server process [38900]
+INFO:     Waiting for application startup.
+2026-11-15 00:15:28,961 INFO app.main: Modelo 1.0.0 carregado.
+2026-11-15 00:15:29,199 INFO app.infraestrutura.persistencia.semeador_trechos: Trechos críticos já carregados (hash e54a0e56b56d).
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+2026-11-15 00:15:29,592 INFO app.aplicacao.servico_indice_turno: Cálculo 91df5b33-b91b-4009-a133-330e21624f5f concluído em 5.6 ms (4 horas).
+INFO:     127.0.0.1:52404 - "POST /risco/v1/indice-turno HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52405 - "GET /risco/v1/trechos-criticos?limite=2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52406 - "GET /risco/v1/saude HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52407 - "GET /risco/v1/trechos-criticos?limite=51 HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:52408 - "GET /risco/v1/rota-inexistente HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52409 - "GET /risco/v1/openapi.json HTTP/1.1" 200 OK
+
+## Encerramento
+
+$ kill <pid do uvicorn>
+$ netstat -ano | grep -E "[:.]8000 .*LISTEN" || echo "porta 8000 livre"
+porta 8000 livre
