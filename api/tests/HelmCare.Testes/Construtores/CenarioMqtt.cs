@@ -49,6 +49,12 @@ internal sealed class CenarioMqtt
 
     public FakeNotificadorContato Notificador { get; }
 
+    public FakePublicadorComandos Publicador { get; } = new();
+
+    public FakeLogger<PublicadorComandosOcorrencia> LogComandos { get; } = new();
+
+    public FakeLogger<RoteadorMensagemMqtt> LogRoteador { get; } = new();
+
     public FakeDispositivoRepositorio Dispositivos { get; } = new();
 
     public FakeEventoImpactoRepositorio Impactos { get; } = new();
@@ -153,8 +159,10 @@ internal sealed class CenarioMqtt
             new ProcessadorTelemetria(),
             Processadores(),
             Notificador,
+            Ocorrencias,
+            new PublicadorComandosOcorrencia(Publicador, Dispositivos, LogComandos),
             Relogio,
             Options.Create(new OpcoesMqtt()),
-            NullLogger<RoteadorMensagemMqtt>.Instance);
+            LogRoteador);
     }
 }
