@@ -1,8 +1,10 @@
 import { router, Tabs } from 'expo-router';
-import { Pressable, useWindowDimensions, type ColorValue } from 'react-native';
+import { Pressable, useWindowDimensions, View, type ColorValue } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icone, type NomeIcone } from '@/componentes/Icone';
+import { SimboloMarca } from '@/componentes/Marca';
+import { Texto } from '@/componentes/Texto';
 import { useTema } from '@/contextos/TemaContext';
 
 /** Botão de engrenagem do cabeçalho, que abre o modal de Configurações. */
@@ -24,6 +26,21 @@ function BotaoConfiguracoes() {
     >
       <Icone nome="settings-outline" cor={cores.texto} tamanho={28} />
     </Pressable>
+  );
+}
+
+/** Título do cabeçalho das abas: o símbolo do HelmCare à esquerda do nome da aba. */
+function TituloComSimbolo({ children }: { children: string }) {
+  const { espaco } = useTema();
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: espaco.pequeno }}>
+      <SimboloMarca />
+      {/* O cabeçalho tem altura fixa no React Navigation: com fonte grande, o nome curto da
+          aba termina em reticências em vez de ser cortado no meio. */}
+      <Texto variante="rotulo" accessibilityRole="header" numberOfLines={1} style={{ flexShrink: 1 }}>
+        {children}
+      </Texto>
+    </View>
   );
 }
 
@@ -56,14 +73,18 @@ export default function LayoutAbas() {
         headerStyle: { backgroundColor: cores.superficie },
         headerTintColor: cores.texto,
         headerTitleStyle: { color: cores.texto },
+        headerTitleAlign: 'left',
+        headerTitle: ({ children }) => <TituloComSimbolo>{children}</TituloComSimbolo>,
         headerRight: () => <BotaoConfiguracoes />,
         headerRightContainerStyle: { paddingRight: espaco.pequeno },
-        tabBarActiveTintColor: cores.primaria,
-        tabBarInactiveTintColor: cores.textoSecundario,
+        tabBarActiveTintColor: cores.abaAtiva,
+        tabBarInactiveTintColor: cores.abaInativa,
         tabBarLabelStyle: { fontSize: tipografia.legenda.fontSize, fontWeight: '700' },
         tabBarStyle: {
           backgroundColor: cores.superficie,
-          borderTopColor: cores.borda,
+          // Faixa laranja da marca no topo da barra: só enfeite, não carrega informação.
+          borderTopColor: cores.destaque,
+          borderTopWidth: 3,
           height: alturaBarra,
           paddingTop: espaco.pequeno / 2,
           paddingBottom: insets.bottom + espaco.pequeno / 2,
@@ -71,10 +92,10 @@ export default function LayoutAbas() {
         sceneStyle: { backgroundColor: cores.fundo },
       }}
     >
-      <Tabs.Screen name="turno" options={{ title: 'Turno', tabBarIcon: iconeDaAba('speedometer', cores.textoSecundario) }} />
-      <Tabs.Screen name="chamados" options={{ title: 'Chamados', tabBarIcon: iconeDaAba('people', cores.textoSecundario) }} />
-      <Tabs.Screen name="historico" options={{ title: 'Histórico', tabBarIcon: iconeDaAba('time', cores.textoSecundario) }} />
-      <Tabs.Screen name="perfil" options={{ title: 'Perfil', tabBarIcon: iconeDaAba('person-circle', cores.textoSecundario) }} />
+      <Tabs.Screen name="turno" options={{ title: 'Turno', tabBarIcon: iconeDaAba('speedometer', cores.abaInativa) }} />
+      <Tabs.Screen name="chamados" options={{ title: 'Chamados', tabBarIcon: iconeDaAba('people', cores.abaInativa) }} />
+      <Tabs.Screen name="historico" options={{ title: 'Histórico', tabBarIcon: iconeDaAba('time', cores.abaInativa) }} />
+      <Tabs.Screen name="perfil" options={{ title: 'Perfil', tabBarIcon: iconeDaAba('person-circle', cores.abaInativa) }} />
     </Tabs>
   );
 }

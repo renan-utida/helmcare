@@ -7,6 +7,7 @@ import { Botao } from '@/componentes/Botao';
 import { Campo } from '@/componentes/Campo';
 import { FormularioCapacete } from '@/componentes/FormularioCapacete';
 import { FormularioContato } from '@/componentes/FormularioContato';
+import { LogoHorizontal } from '@/componentes/Marca';
 import { Tela } from '@/componentes/Tela';
 import { Texto } from '@/componentes/Texto';
 import { APELIDO_COM_CAPACETE, APELIDO_SEM_CAPACETE, useSessao } from '@/contextos/SessaoContext';
@@ -58,6 +59,8 @@ export default function Cadastro() {
   return (
     // A `key` recria a rolagem a cada passo, para o novo passo começar do topo.
     <Tela key={passo}>
+      {/* A marca aparece só na primeira tela do cadastro, a porta de entrada do app. */}
+      {passo === 'dados' ? <LogoHorizontal /> : null}
       {numerado ? (
         <View style={{ gap: espaco.pequeno }}>
           <Texto variante="legenda">{`Passo ${numerado.numero} de 3`}</Texto>
