@@ -69,6 +69,8 @@ export interface Cores {
   abaAtiva: string;
   /** Texto e ícone das abas não selecionadas. */
   abaInativa: string;
+  /** Escurecido semitransparente atrás do painel lateral (enfeite: nenhum texto fica sobre ele). */
+  sombraModal: string;
   /** Avisos de informação, sucesso, atenção e erro. */
   aviso: Record<'informacao' | 'sucesso' | 'atencao' | 'erro', CoresAviso>;
   /** Selos das faixas de risco. */
@@ -110,6 +112,7 @@ export const coresClaras: Cores = {
   trilha: '#D6DDE8',
   abaAtiva: AZUL_MARINHO,
   abaInativa: '#44526B',
+  sombraModal: 'rgba(0, 29, 72, 0.45)',
   aviso: {
     informacao: { fundo: '#E5EDF8', texto: AZUL_MARINHO, icone: AZUL_MARINHO },
     sucesso: { fundo: '#E3F3E8', texto: AZUL_MARINHO, icone: '#1B6E3A' },
@@ -136,6 +139,7 @@ export const coresEscuras: Cores = {
   trilha: '#2B4A7D',
   abaAtiva: LARANJA,
   abaInativa: '#C5D0E2',
+  sombraModal: 'rgba(0, 0, 0, 0.6)',
   aviso: {
     informacao: { fundo: '#0E3570', texto: BRANCO, icone: '#9CC3FF' },
     sucesso: { fundo: '#0D3B2E', texto: BRANCO, icone: '#7FD49C' },

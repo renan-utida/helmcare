@@ -42,7 +42,7 @@ const SessaoContext = createContext<ValorSessao | null>(null);
 
 /**
  * Sessão local do aparelho, guardada no SQLite (tabelas `perfil` e `preferencia`).
- * Ao abrir, também aplica a URL manual da API salva nas Configurações.
+ * Ao abrir, também aplica a URL manual da API salva nos Ajustes.
  */
 export function SessaoProvider({ children }: { children: ReactNode }) {
   const db = useSQLiteContext();

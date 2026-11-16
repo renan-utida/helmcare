@@ -2,7 +2,7 @@ import Constants from 'expo-constants';
 
 import { CAMINHO_API, PORTA_API } from './constantes';
 
-/** De onde veio a URL da API em uso, para a tela Configurações mostrar. */
+/** De onde veio a URL da API em uso, para a aba Ajustes mostrar. */
 export type OrigemUrlApi = 'manual' | 'ambiente' | 'computador' | 'emulador';
 
 /** URL base da API já resolvida, com a origem dela. */
@@ -46,7 +46,7 @@ function urlPeloComputador(): string | null {
 
 /**
  * Resolve a URL base da API na ordem do CLAUDE.md (seção "Rede"):
- * 1. a URL salva na tela Configurações;
+ * 1. a URL salva na aba Ajustes;
  * 2. a variável `EXPO_PUBLIC_API_URL`;
  * 3. o IP do computador pelo `hostUri` do Metro;
  * 4. o endereço do emulador Android.

@@ -8,7 +8,7 @@ import { temaClaro, temaEscuro, type Tema } from '@/tema';
 /** Aparência escolhida: igual ao celular (padrão), sempre clara ou sempre escura. */
 export type PreferenciaTema = 'sistema' | 'claro' | 'escuro';
 
-/** Lista das preferências, na ordem dos botões das Configurações. */
+/** Lista das preferências, na ordem dos botões dos Ajustes. */
 export const PREFERENCIAS_TEMA: readonly PreferenciaTema[] = ['sistema', 'claro', 'escuro'];
 
 /** Confere se o texto salvo no SQLite é uma preferência válida. */
@@ -26,7 +26,7 @@ const TemaContext = createContext<Tema>(temaClaro);
 const PreferenciaTemaContext = createContext<ValorPreferenciaTema | null>(null);
 
 /**
- * Fornece o tema claro ou escuro. A escolha das Configurações fica na tabela `preferencia`
+ * Fornece o tema claro ou escuro. A escolha dos Ajustes fica na tabela `preferencia`
  * (chave "tema"); o `useColorScheme` do sistema só vale no modo "Igual ao celular".
  */
 export function TemaProvider({ children }: { children: ReactNode }) {
@@ -69,7 +69,7 @@ export function TemaProvider({ children }: { children: ReactNode }) {
 
 /**
  * Tema do celular, sem ler o SQLite. Serve só para a abertura, que aparece antes de o
- * banco abrir (e, portanto, antes de a escolha das Configurações poder ser lida).
+ * banco abrir (e, portanto, antes de a escolha dos Ajustes poder ser lida).
  */
 export function TemaDoSistema({ children }: { children: ReactNode }) {
   const tema = useColorScheme() === 'dark' ? temaEscuro : temaClaro;
@@ -81,7 +81,7 @@ export function useTema(): Tema {
   return useContext(TemaContext);
 }
 
-/** Preferência de aparência das Configurações. Só funciona dentro do `TemaProvider`. */
+/** Preferência de aparência dos Ajustes. Só funciona dentro do `TemaProvider`. */
 export function usePreferenciaTema(): ValorPreferenciaTema {
   const valor = useContext(PreferenciaTemaContext);
   if (!valor) {

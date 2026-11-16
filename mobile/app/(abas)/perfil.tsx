@@ -22,7 +22,7 @@ import { mensagemComum } from '@/utils/mensagensErro';
 /** Mensagem de erro do Perfil para cada tipo de erro da API. */
 function mensagemDoErro(erro: ErroApi): string {
   if (erro.tipo === 'nao-encontrado') {
-    return 'Este cadastro não foi encontrado na API. Escolha outro perfil em Configurações.';
+    return 'Este cadastro não foi encontrado na API. Escolha outro perfil em Ajustes.';
   }
   return mensagemComum(erro);
 }
@@ -87,7 +87,7 @@ export default function Perfil() {
     return (
       <Tela dentroDeAbas aoAtualizar={atualizar} atualizando={atualizando}>
         <EstadoErro mensagem={mensagemDoErro(erro)} aoTentarDeNovo={atualizar} tentando={atualizando} />
-        <Botao titulo="Abrir Configurações" variante="secundaria" aoPressionar={() => router.push('/configuracoes')} />
+        <Botao titulo="Abrir os Ajustes" variante="secundaria" aoPressionar={() => router.navigate('/ajustes')} />
       </Tela>
     );
   }
@@ -109,7 +109,6 @@ export default function Perfil() {
             <LinhaInfo rotulo="CPF" valor={dados.cpf} mascarado />
             <LinhaInfo rotulo="CNH" valor={dados.cnh} mascarado />
             <LinhaInfo rotulo="Telefone" valor={dados.telefone} mascarado />
-            <LinhaInfo rotulo="Código do cadastro" valor={dados.id} selecionavel />
           </Cartao>
 
           <Cartao titulo="Capacete">

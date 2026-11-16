@@ -37,7 +37,6 @@ function PilhaRaiz() {
         <Stack.Screen name="(abas)" options={{ headerShown: false }} />
         <Stack.Screen name="ficha-medica" options={{ presentation: 'modal', title: 'Ficha médica' }} />
         <Stack.Screen name="contato" options={{ presentation: 'modal', title: 'Contato de emergência' }} />
-        <Stack.Screen name="configuracoes" options={{ presentation: 'modal', title: 'Configurações' }} />
         <Stack.Screen name="perfis" options={{ presentation: 'modal', title: 'Perfis neste aparelho' }} />
         {/* Alerta de queda: tela cheia, sem cabeçalho e sem gesto de fechar (o voltar do
             Android é bloqueado pela própria tela enquanto o alerta estiver em andamento). */}
@@ -55,7 +54,7 @@ function PilhaRaiz() {
  * Layout raiz: abre o banco local (migrações no `onInit`, antes de qualquer tela),
  * depois o tema, a sessão, o turno do perfil ativo e a pilha de telas.
  * Enquanto o banco abre, o `Suspense` mostra a abertura com o logo (no tema do celular,
- * porque a escolha das Configurações ainda não pode ser lida).
+ * porque a escolha dos Ajustes ainda não pode ser lida).
  */
 export default function LayoutRaiz() {
   return (

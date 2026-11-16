@@ -31,10 +31,10 @@ const TEXTO_PREFERENCIA: Record<PreferenciaTema, string> = {
 };
 
 /**
- * Configurações: endereço da API (automático ou manual, salvo na tabela `preferencia`),
+ * Aba Ajustes: endereço da API (automático ou manual, salvo na tabela `preferencia`),
  * teste de conexão pelo `GET /saude`, aparência (tema) e o atalho para os perfis do aparelho.
  */
-export default function Configuracoes() {
+export default function Ajustes() {
   const { urlApi, definirUrlManual, perfilAtivo } = useSessao();
   const { preferencia, definirPreferencia } = usePreferenciaTema();
   const [urlDigitada, setUrlDigitada] = useState(urlApi.origem === 'manual' ? urlApi.url : '');
@@ -96,7 +96,7 @@ export default function Configuracoes() {
   }
 
   return (
-    <Tela>
+    <Tela dentroDeAbas>
       <Cartao titulo="Conexão com a API">
         <LinhaInfo rotulo="Endereço em uso" valor={urlApi.url} selecionavel />
         <LinhaInfo rotulo="De onde veio" valor={DESCRICAO_ORIGEM_URL[urlApi.origem]} />

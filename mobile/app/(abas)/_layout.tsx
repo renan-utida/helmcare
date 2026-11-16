@@ -1,90 +1,48 @@
-import { router, Tabs } from 'expo-router';
+import { Tabs } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, useWindowDimensions, View, type ColorValue } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icone, type NomeIcone } from '@/componentes/Icone';
 import { SimboloMarca } from '@/componentes/Marca';
+import { MenuConta } from '@/componentes/MenuConta';
 import { Texto } from '@/componentes/Texto';
 import { useSessao } from '@/contextos/SessaoContext';
 import { useTema } from '@/contextos/TemaContext';
-
-/** Botão de engrenagem do cabeçalho, que abre o modal de Configurações. */
-function BotaoConfiguracoes() {
-  const { cores, medidas } = useTema();
-  return (
-    <Pressable
-      onPress={() => router.push('/configuracoes')}
-      accessibilityRole="button"
-      accessibilityLabel="Configurações"
-      accessibilityHint="Abre a conexão com a API, a aparência e os perfis do aparelho"
-      hitSlop={8}
-      style={{
-        minWidth: medidas.toqueMinimo,
-        minHeight: medidas.toqueMinimo,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <Icone nome="settings-outline" cor={cores.texto} tamanho={28} />
-    </Pressable>
-  );
-}
-
-/** Acima desta escala de fonte, o botão do perfil mostra só o ícone, para o título caber. */
-const ESCALA_MAXIMA_COM_APELIDO = 1.3;
+import { useNomeEntregador } from '@/hooks/useNomeEntregador';
 
 /**
- * Botão do perfil ativo, à esquerda da engrenagem: ícone de pessoa e o apelido.
- * Com a fonte do sistema muito grande, mostra só o ícone (o apelido continua no rótulo
- * do leitor de tela) e deixa o espaço do cabeçalho para o nome da aba.
+ * Único botão do lado direito do cabeçalho: o ícone de pessoa, que abre o menu da conta
+ * (painel lateral). O nome vem do `GET /entregadores/{id}`, só em memória; enquanto não
+ * chega (ou sem conexão), o rótulo usa o apelido.
  */
-function BotaoPerfilAtivo() {
-  const { cores, espaco, raio, medidas } = useTema();
+function BotaoConta() {
+  const { cores, medidas } = useTema();
   const { perfilAtivo } = useSessao();
-  const { width, fontScale } = useWindowDimensions();
+  const dadosNome = useNomeEntregador(perfilAtivo?.entregadorId ?? null);
+  const [aberto, setAberto] = useState(false);
   if (!perfilAtivo) {
     return null;
   }
-  const mostrarApelido = fontScale <= ESCALA_MAXIMA_COM_APELIDO;
   return (
-    <Pressable
-      onPress={() => router.push('/perfis')}
-      accessibilityRole="button"
-      accessibilityLabel={`Perfil ativo: ${perfilAtivo.apelido}. Toque para ver os perfis.`}
-      style={({ pressed }) => ({
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: espaco.pequeno / 2,
-        minHeight: medidas.toqueMinimo,
-        minWidth: medidas.toqueMinimo,
-        // Nunca passa de 40% da largura: o nome da aba fica com o resto.
-        maxWidth: width * 0.4,
-        justifyContent: 'center',
-        paddingHorizontal: espaco.pequeno,
-        borderRadius: raio.pequeno,
-        borderWidth: 1,
-        borderColor: cores.borda,
-        opacity: pressed ? 0.85 : 1,
-      })}
-    >
-      <Icone nome="person" cor={cores.texto} />
-      {mostrarApelido ? (
-        <Texto variante="legenda" cor="texto" numberOfLines={1} style={{ flexShrink: 1 }}>
-          {perfilAtivo.apelido}
-        </Texto>
-      ) : null}
-    </Pressable>
-  );
-}
-
-/** Lado direito do cabeçalho: o perfil ativo e a engrenagem das Configurações. */
-function AcoesCabecalho() {
-  const { espaco } = useTema();
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: espaco.pequeno }}>
-      <BotaoPerfilAtivo />
-      <BotaoConfiguracoes />
-    </View>
+    <>
+      <Pressable
+        onPress={() => setAberto(true)}
+        accessibilityRole="button"
+        accessibilityLabel={`Menu da conta: ${dadosNome.nome ?? perfilAtivo.apelido}`}
+        accessibilityHint="Abre seus dados, a troca de conta e os códigos para suporte"
+        hitSlop={8}
+        style={{
+          minWidth: medidas.toqueMinimo,
+          minHeight: medidas.toqueMinimo,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Icone nome="person-circle-outline" cor={cores.texto} tamanho={32} />
+      </Pressable>
+      <MenuConta visivel={aberto} aoFechar={() => setAberto(false)} dadosNome={dadosNome} />
+    </>
   );
 }
 
@@ -114,9 +72,41 @@ function iconeDaAba(nome: NomeIcone, corReserva: string) {
 }
 
 /**
- * Abas do app: Turno, Chamados, Histórico e Perfil, sempre com ícone e texto.
+ * Rótulo de uma aba. Com 5 abas e a fonte no máximo, "Histórico" e "Chamados" não cabem na
+ * largura de uma aba: o texto cresce com a fonte do sistema e, só quando passaria da largura,
+ * encolhe até 60% para caber inteiro (em vez de terminar em reticências).
+ */
+function rotuloDaAba(texto: string, corReserva: string) {
+  function RotuloAba({ color }: { color: ColorValue }) {
+    return (
+      <Texto
+        variante="legenda"
+        corPersonalizada={typeof color === 'string' ? color : corReserva}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.6}
+        style={{ fontWeight: '700' }}
+      >
+        {texto}
+      </Texto>
+    );
+  }
+  return RotuloAba;
+}
+
+/** As 5 abas, na ordem da barra, com o ícone de cada uma. */
+const ABAS: { nome: string; titulo: string; icone: NomeIcone }[] = [
+  { nome: 'turno', titulo: 'Turno', icone: 'speedometer' },
+  { nome: 'chamados', titulo: 'Chamados', icone: 'people' },
+  { nome: 'historico', titulo: 'Histórico', icone: 'time' },
+  { nome: 'perfil', titulo: 'Perfil', icone: 'person-circle' },
+  { nome: 'ajustes', titulo: 'Ajustes', icone: 'settings' },
+];
+
+/**
+ * Abas do app: Turno, Chamados, Histórico, Perfil e Ajustes, sempre com ícone e texto.
  * A altura da barra soma a área segura de baixo e cresce com a fonte do sistema,
- * para o texto das abas nunca ser cortado.
+ * para o texto das abas nunca ser cortado. No cabeçalho, só o botão do menu da conta.
  */
 export default function LayoutAbas() {
   const { cores, tipografia, espaco, medidas } = useTema();
@@ -134,11 +124,10 @@ export default function LayoutAbas() {
         headerTitleStyle: { color: cores.texto },
         headerTitleAlign: 'left',
         headerTitle: ({ children }) => <TituloComSimbolo>{children}</TituloComSimbolo>,
-        headerRight: () => <AcoesCabecalho />,
+        headerRight: () => <BotaoConta />,
         headerRightContainerStyle: { paddingRight: espaco.pequeno },
         tabBarActiveTintColor: cores.abaAtiva,
         tabBarInactiveTintColor: cores.abaInativa,
-        tabBarLabelStyle: { fontSize: tipografia.legenda.fontSize, fontWeight: '700' },
         tabBarStyle: {
           backgroundColor: cores.superficie,
           // Faixa laranja da marca no topo da barra: só enfeite, não carrega informação.
@@ -151,10 +140,19 @@ export default function LayoutAbas() {
         sceneStyle: { backgroundColor: cores.fundo },
       }}
     >
-      <Tabs.Screen name="turno" options={{ title: 'Turno', tabBarIcon: iconeDaAba('speedometer', cores.abaInativa) }} />
-      <Tabs.Screen name="chamados" options={{ title: 'Chamados', tabBarIcon: iconeDaAba('people', cores.abaInativa) }} />
-      <Tabs.Screen name="historico" options={{ title: 'Histórico', tabBarIcon: iconeDaAba('time', cores.abaInativa) }} />
-      <Tabs.Screen name="perfil" options={{ title: 'Perfil', tabBarIcon: iconeDaAba('person-circle', cores.abaInativa) }} />
+      {ABAS.map((aba, indice) => (
+        <Tabs.Screen
+          key={aba.nome}
+          name={aba.nome}
+          options={{
+            title: aba.titulo,
+            tabBarIcon: iconeDaAba(aba.icone, cores.abaInativa),
+            tabBarLabel: rotuloDaAba(aba.titulo, cores.abaInativa),
+            // O padrão da biblioteca vem em inglês ("tab, 1 of 5"): aqui, em português.
+            tabBarAccessibilityLabel: `${aba.titulo}, aba ${indice + 1} de ${ABAS.length}`,
+          }}
+        />
+      ))}
     </Tabs>
   );
 }
