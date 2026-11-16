@@ -1,6 +1,8 @@
+import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 
 import { useTema } from '@/contextos/TemaContext';
+import { marcarInicioAbertura } from '@/hooks/useAberturaMinima';
 
 import { LogoHorizontal } from './Marca';
 import { Texto } from './Texto';
@@ -19,6 +21,12 @@ export interface CarregandoProps {
 /** Indicador de carregamento centralizado, com texto visível e anunciado ao leitor de tela. */
 export function Carregando({ mensagem = 'Carregando...', comLogo = false }: CarregandoProps) {
   const { cores, espaco } = useTema();
+  // A abertura com o logo marca quando apareceu: o tempo mínimo de 2 s conta daqui.
+  useEffect(() => {
+    if (comLogo) {
+      marcarInicioAbertura();
+    }
+  }, [comLogo]);
   return (
     <View
       accessible
