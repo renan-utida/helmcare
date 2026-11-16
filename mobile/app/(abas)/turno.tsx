@@ -31,6 +31,12 @@ type Duracao = (typeof DURACOES)[number];
 /** Mensagem quando o comando não chegou ao capacete (503 nas rotas do turno; nada foi gravado). */
 const MENSAGEM_CAPACETE_NAO_RESPONDEU = 'O capacete não respondeu. Confira se ele está ligado e tente de novo.';
 
+/**
+ * Id da última troca de perfil já avisada nesta aba. Fica fora do componente para valer
+ * mesmo se a aba for recriada; só guarda um número de controle, nenhum dado pessoal.
+ */
+let ultimaTrocaMostrada: string | null = null;
+
 /** Aviso mostrado na tela, com o tipo e o texto. */
 interface AvisoTela {
   tipo: TipoAviso;
@@ -61,19 +67,21 @@ export default function Turno() {
   const { turno, carregando } = useTurno();
   // Aviso que sobrevive à troca de estado (ex.: "Turno encerrado" ao voltar para o início).
   const [avisoFinal, setAvisoFinal] = useState<AvisoTela | null>(null);
-  // Apelido do perfil recém-escolhido na tela Perfis (vem pela rota, só depois da troca).
-  const { perfilTrocado } = useLocalSearchParams<{ perfilTrocado?: string }>();
-  const avisoTroca = perfilTrocado ? `Você está usando o perfil ${perfilTrocado}` : null;
+  // Apelido do perfil recém-escolhido na tela Perfis e o id único daquela troca (pela rota).
+  const { perfilTrocado, troca } = useLocalSearchParams<{ perfilTrocado?: string; troca?: string }>();
+  const [avisoTroca, setAvisoTroca] = useState<string | null>(null);
 
-  // O aviso da troca vale só até a pessoa sair da aba: ao perder o foco, o parâmetro é limpo.
+  // O aviso aparece uma vez por troca: ao ganhar o foco, mostra se aquela troca ainda não foi
+  // mostrada e marca como mostrada; ao sair da aba, some. Ao voltar, o parâmetro antigo continua
+  // na rota, mas a troca já está marcada e o aviso não reaparece.
   useFocusEffect(
     useCallback(() => {
-      return () => {
-        if (perfilTrocado) {
-          router.setParams({ perfilTrocado: undefined });
-        }
-      };
-    }, [perfilTrocado]),
+      if (perfilTrocado && troca && troca !== ultimaTrocaMostrada) {
+        ultimaTrocaMostrada = troca;
+        setAvisoTroca(`Você está usando o perfil ${perfilTrocado}`);
+      }
+      return () => setAvisoTroca(null);
+    }, [perfilTrocado, troca]),
   );
 
   if (!perfilAtivo) {
@@ -153,7 +161,7 @@ function NovoTurno({
       } else if (erro.tipo === 'validacao') {
         setAviso({ tipo: 'erro', mensagem: 'A duração do turno não foi aceita. Escolha 4, 8 ou 12 horas.' });
       } else if (erro.tipo === 'nao-encontrado') {
-        setAviso({ tipo: 'erro', mensagem: 'Cadastro não encontrado na API. Confira o perfil nas Configurações.' });
+        setAviso({ tipo: 'erro', mensagem: 'Cadastro não encontrado na API. Confira o perfil nos Ajustes.' });
       } else {
         setAviso({ tipo: 'erro', mensagem: mensagemComum(erro) });
       }
@@ -258,7 +266,7 @@ function TurnoAtivo({
     // Anuncia só quando o aviso PASSA a valer, não a cada consulta de 5 s.
     if (calorForte && !calorAnterior.current && alerta?.indiceCalorC != null) {
       AccessibilityInfo.announceForAccessibility(
-        `Calor forte agora, índice de calor de ${formatarDecimal(alerta.indiceCalorC)} graus. Pare na sombra e beba água.`,
+        `Calor forte agora, índice de calor de ${formatarDecimal(alerta.indiceCalorC)} graus, medido pelo seu capacete. Pare na sombra e beba água.`,
       );
     }
     calorAnterior.current = calorForte;
@@ -362,7 +370,7 @@ function TurnoAtivo({
       {calorForte && alerta?.indiceCalorC != null ? (
         <Aviso
           tipo="atencao"
-          mensagem={`Calor forte agora (índice de calor de ${formatarDecimal(alerta.indiceCalorC)} °C). Pare na sombra e beba água.`}
+          mensagem={`Calor forte agora (índice de calor de ${formatarDecimal(alerta.indiceCalorC)} °C). Pare na sombra e beba água.\nMedido pelo seu capacete agora.`}
         />
       ) : null}
 
