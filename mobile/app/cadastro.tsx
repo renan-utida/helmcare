@@ -59,12 +59,15 @@ export default function Cadastro() {
   return (
     // A `key` recria a rolagem a cada passo, para o novo passo começar do topo.
     <Tela key={passo}>
-      {/* A marca aparece só na primeira tela do cadastro, a porta de entrada do app. */}
-      {passo === 'dados' ? <LogoHorizontal /> : null}
       {numerado ? (
-        <View style={{ gap: espaco.pequeno }}>
-          <Texto variante="legenda">{`Passo ${numerado.numero} de 3`}</Texto>
-          <Texto variante="titulo">{numerado.titulo}</Texto>
+        // Logo e indicador do passo juntos, com espaço médio entre eles (a Tela usa o grande).
+        <View style={{ gap: espaco.medio }}>
+          {/* A marca aparece só na primeira tela do cadastro, a porta de entrada do app. */}
+          {passo === 'dados' ? <LogoHorizontal /> : null}
+          <View style={{ gap: espaco.pequeno }}>
+            <Texto variante="legenda">{`Passo ${numerado.numero} de 3`}</Texto>
+            <Texto variante="titulo">{numerado.titulo}</Texto>
+          </View>
         </View>
       ) : null}
 

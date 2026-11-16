@@ -38,6 +38,7 @@ Nunca renomeie campos, enums, rotas ou payloads do contrato. O app usa exatament
 | HTTP | `axios`, com uma instância única em `src/servicos/api.ts` |
 | Banco | `expo-sqlite` (`SQLiteProvider` e `useSQLiteContext`) |
 | Ícones | `@expo/vector-icons` |
+| Logo e símbolo (SVG) | `react-native-svg` e, só no desenvolvimento, `react-native-svg-transformer` (configurado no `metro.config.js`) |
 | Node | 22.13 ou mais novo |
 
 - Instale pacotes sempre com `npx expo install <pacote>`, para receber a versão compatível com o SDK.
