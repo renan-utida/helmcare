@@ -1,3 +1,4 @@
+import { router, usePathname, type Href } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import {
   createContext,
@@ -11,10 +12,12 @@ import {
   type ReactNode,
 } from 'react';
 
+import { alertaRepositorio } from '@/banco/alertaRepositorio';
 import { turnoRepositorio, type TurnoLocal } from '@/banco/turnoRepositorio';
+import { usePolling } from '@/hooks/usePolling';
 import { converterErro } from '@/servicos/erros';
 import { turnoServico } from '@/servicos/turnoServico';
-import type { RiscoTurnoResposta } from '@/tipos/contrato';
+import type { AlertaTurnoResposta, EstadoDispositivo, RiscoTurnoResposta } from '@/tipos/contrato';
 import { agoraIso, somarHorasIso } from '@/utils/datas';
 
 import { useSessao } from './SessaoContext';
@@ -37,6 +40,33 @@ export interface ValorTurno {
   atualizarRisco: () => Promise<void>;
   /** Encerra o turno (`POST /turnos/{id}/encerrar`). Lança `ErroApi` no 409, 503 e sem conexão. */
   encerrar: () => Promise<ResultadoEncerrar>;
+  /**
+   * Última leitura do `GET /turnos/{id}/alerta` do turno aberto, ou `null` (sem turno, turno
+   * sem proteção ou ainda sem leitura). Consultado a cada 5 s com a proteção ligada.
+   */
+  alerta: AlertaTurnoResposta | null;
+  /** Verdadeiro quando a última consulta do alerta não chegou à API (sem rede). */
+  alertaSemConexao: boolean;
+  /**
+   * Instante (relógio do app, em ms) da primeira leitura com `estadoCapacete` = CONTAGEM neste
+   * alerta, ou `null` fora da contagem. A contagem regressiva do app parte daqui (seção 7).
+   */
+  contagemVistaEm: number | null;
+  /** Emergência em andamento no turno: alerta de queda ou ocorrência (SOS) da vítima. */
+  emergencia: Emergencia | null;
+  /** Consulta o alerta na hora, fora do ritmo do polling (ex.: logo depois de cancelar). */
+  atualizarAlerta: () => Promise<void>;
+}
+
+/** Emergência do turno, para avisar antes de encerrar o turno ou trocar de perfil. */
+export type Emergencia = { tipo: 'alerta' } | { tipo: 'ocorrencia'; ocorrenciaId: string };
+
+/** Estados do capacete que abrem a tela de alerta (queda em verificação ou contagem). */
+export const ESTADOS_DE_ALERTA: readonly EstadoDispositivo[] = ['IMPACTO_DETECTADO', 'OBSERVACAO', 'CONTAGEM'];
+
+/** Confere se o estado do capacete é de alerta em andamento. */
+export function ehEstadoDeAlerta(estado: EstadoDispositivo | null | undefined): boolean {
+  return estado !== null && estado !== undefined && ESTADOS_DE_ALERTA.includes(estado);
 }
 
 const TurnoContext = createContext<ValorTurno | null>(null);
@@ -61,6 +91,8 @@ function comRisco(base: DadosBaseTurno, risco: RiscoTurnoResposta): TurnoLocal {
 /**
  * Turno do perfil ativo. Junta a API (fonte da verdade) e o SQLite (para mostrar o turno
  * e o último Índice sem conexão e para o histórico). As telas não tocam no SQLite.
+ * Com a proteção ligada, consulta o alerta do capacete a cada 5 s e abre sozinho a tela
+ * de alerta e a da ocorrência, de qualquer aba (por isso fica na raiz do app).
  */
 export function TurnoProvider({ children }: { children: ReactNode }) {
   const db = useSQLiteContext();
@@ -169,9 +201,132 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
     }
   }, [db, turno]);
 
+  // ---------------------------------------------------------------------------
+  // Alerta de queda: polling, histórico local e abertura automática das telas
+  // ---------------------------------------------------------------------------
+
+  const caminho = usePathname();
+  const caminhoAtual = useRef(caminho);
+  useLayoutEffect(() => {
+    caminhoAtual.current = caminho;
+  }, [caminho]);
+
+  // A leitura guarda de qual turno ela é, para nunca mostrar o alerta de um turno anterior.
+  const [leitura, setLeitura] = useState<{ turnoId: string; resposta: AlertaTurnoResposta } | null>(null);
+  const [alertaSemConexao, setAlertaSemConexao] = useState(false);
+  const [contagem, setContagem] = useState<{ turnoId: string; vistaEm: number } | null>(null);
+  const estadoAnterior = useRef<EstadoDispositivo | null>(null);
+  // Ocorrências já abertas nesta sessão do app: o SOS_ENVIADO se repete até o capacete
+  // receber o ENCERRAR, e a tela da ocorrência não pode reabrir a cada consulta.
+  const ocorrenciasAbertas = useRef(new Set<string>());
+
+  /** Reage a uma nova leitura: histórico, contagem e telas. */
+  const tratarLeitura = useCallback(
+    async (turnoId: string, resposta: AlertaTurnoResposta) => {
+      const anterior = estadoAnterior.current;
+      const atual = resposta.estadoCapacete;
+      estadoAnterior.current = atual;
+
+      if (atual) {
+        await alertaRepositorio.registrar(db, turnoId, atual);
+      }
+
+      // A contagem do app parte da PRIMEIRA leitura em CONTAGEM e zera ao sair dela.
+      if (atual === 'CONTAGEM' && anterior !== 'CONTAGEM') {
+        setContagem({ turnoId, vistaEm: Date.now() });
+      } else if (atual !== 'CONTAGEM') {
+        setContagem(null);
+      }
+
+      // Abre o alerta de qualquer aba quando o capacete ENTRA num estado de alerta.
+      if (ehEstadoDeAlerta(atual) && !ehEstadoDeAlerta(anterior) && caminhoAtual.current !== '/alerta') {
+        router.push('/alerta');
+      }
+
+      // SOS enviado: abre a ocorrência da vítima (trocando a tela do alerta, se ela estiver aberta).
+      const ocorrenciaId = resposta.ocorrenciaId;
+      if (atual === 'SOS_ENVIADO' && ocorrenciaId && !ocorrenciasAbertas.current.has(ocorrenciaId)) {
+        ocorrenciasAbertas.current.add(ocorrenciaId);
+        const destino: Href = { pathname: '/ocorrencia/[id]', params: { id: ocorrenciaId, papel: 'VITIMA' } };
+        if (caminhoAtual.current === '/alerta') {
+          router.replace(destino);
+        } else if (!caminhoAtual.current.startsWith('/ocorrencia/')) {
+          router.push(destino);
+        }
+      }
+    },
+    [db],
+  );
+
+  const consultarAlerta = useCallback(async () => {
+    const aberto = turnoAtual.current;
+    if (!aberto || !aberto.protecaoAtiva) {
+      return;
+    }
+    try {
+      const resposta = await turnoServico.obterAlerta(aberto.id);
+      setAlertaSemConexao(false);
+      // O turno pode ter sido encerrado durante a consulta: só vale se ainda for o mesmo.
+      if (turnoAtual.current?.id === aberto.id) {
+        setLeitura({ turnoId: aberto.id, resposta });
+        await tratarLeitura(aberto.id, resposta);
+      }
+    } catch (e) {
+      // Sem rede, a tela mantém a última leitura e avisa; outros erros esperam a próxima consulta.
+      setAlertaSemConexao(converterErro(e).tipo === 'sem-conexao');
+    }
+  }, [tratarLeitura]);
+
+  // Polling do alerta só com turno aberto e proteção ligada (sem capacete, os campos vêm nulos).
+  usePolling(consultarAlerta, turno !== null && turno.protecaoAtiva);
+
+  // Ao trocar de turno (encerrar ou trocar de perfil), esquece o estado anterior.
+  const turnoId = turno?.id ?? null;
+  useEffect(() => {
+    estadoAnterior.current = null;
+  }, [turnoId]);
+
+  const alerta = leitura && turno && leitura.turnoId === turno.id ? leitura.resposta : null;
+  const contagemVistaEm = contagem && turno && contagem.turnoId === turno.id ? contagem.vistaEm : null;
+
+  const emergencia = useMemo<Emergencia | null>(() => {
+    if (!alerta) {
+      return null;
+    }
+    if (ehEstadoDeAlerta(alerta.estadoCapacete)) {
+      return { tipo: 'alerta' };
+    }
+    if (alerta.estadoCapacete === 'SOS_ENVIADO' && alerta.ocorrenciaId) {
+      return { tipo: 'ocorrencia', ocorrenciaId: alerta.ocorrenciaId };
+    }
+    return null;
+  }, [alerta]);
+
   const valor = useMemo<ValorTurno>(
-    () => ({ turno, carregando, iniciar, atualizarRisco, encerrar }),
-    [turno, carregando, iniciar, atualizarRisco, encerrar],
+    () => ({
+      turno,
+      carregando,
+      iniciar,
+      atualizarRisco,
+      encerrar,
+      alerta,
+      alertaSemConexao,
+      contagemVistaEm,
+      emergencia,
+      atualizarAlerta: consultarAlerta,
+    }),
+    [
+      turno,
+      carregando,
+      iniciar,
+      atualizarRisco,
+      encerrar,
+      alerta,
+      alertaSemConexao,
+      contagemVistaEm,
+      emergencia,
+      consultarAlerta,
+    ],
   );
 
   return <TurnoContext.Provider value={valor}>{children}</TurnoContext.Provider>;

@@ -43,12 +43,19 @@ function SeloEmUso() {
  */
 export default function Perfis() {
   const { perfis, perfilAtivo, definirPerfilAtivo, removerPerfil } = useSessao();
-  const { turno } = useTurno();
+  const { turno, emergencia } = useTurno();
 
   /** Avisos sobre o perfil atual que a pessoa precisa saber antes de trocar. */
   function avisoAntesDeTrocar(): string {
+    const atual = perfilAtivo?.apelido ?? 'atual';
+    if (emergencia?.tipo === 'alerta') {
+      return `\n\nAtenção: o perfil ${atual} tem um alerta de queda em andamento. Depois da troca, este celular deixa de mostrar o alerta.`;
+    }
+    if (emergencia?.tipo === 'ocorrencia') {
+      return `\n\nAtenção: o perfil ${atual} tem um SOS em andamento. Depois da troca, este celular deixa de acompanhar o socorro.`;
+    }
     if (turno) {
-      return `\n\nAtenção: o perfil ${perfilAtivo?.apelido ?? 'atual'} tem um turno aberto. Ele continua aberto e volta a aparecer quando você usar esse perfil de novo.`;
+      return `\n\nAtenção: o perfil ${atual} tem um turno aberto. Ele continua aberto e volta a aparecer quando você usar esse perfil de novo.`;
     }
     return '';
   }

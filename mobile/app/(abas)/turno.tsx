@@ -1,23 +1,27 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Alert, Pressable, Switch, View } from 'react-native';
 
 import { Aviso, type TipoAviso } from '@/componentes/Aviso';
 import { Botao } from '@/componentes/Botao';
 import { Carregando } from '@/componentes/Carregando';
 import { Cartao } from '@/componentes/Cartao';
+import { EstadoCapacete } from '@/componentes/EstadoCapacete';
 import { EstadoVazio } from '@/componentes/EstadoVazio';
 import { GrupoOpcoes } from '@/componentes/GrupoOpcoes';
 import { fraseIndiceRisco, IndiceRisco, type DadosIndiceRisco } from '@/componentes/IndiceRisco';
 import { LinhaInfo } from '@/componentes/LinhaInfo';
 import { Tela } from '@/componentes/Tela';
 import { Texto } from '@/componentes/Texto';
+import { TrechosCriticos } from '@/componentes/TrechosCriticos';
+import { ALERTA_CALOR_C } from '@/config/constantes';
 import { useSessao } from '@/contextos/SessaoContext';
 import { useTema } from '@/contextos/TemaContext';
 import { useTurno } from '@/contextos/TurnoContext';
 import type { TurnoLocal } from '@/banco/turnoRepositorio';
+import { useTrechosCriticos } from '@/hooks/useTrechosCriticos';
 import { converterErro, type ErroApi } from '@/servicos/erros';
-import { formatarDiaHora, jaPassou } from '@/utils/datas';
+import { formatarDecimal, formatarDiaHora, jaPassou } from '@/utils/datas';
 import { MENSAGEM_SEM_CONEXAO, mensagemComum } from '@/utils/mensagensErro';
 
 /** Durações oferecidas em botões (em horas). O contrato aceita até 24 h. */
@@ -244,6 +248,21 @@ function TurnoAtivo({
   const [semConexao, setSemConexao] = useState(false);
   const [aviso, setAviso] = useState<AvisoTela | null>(null);
   const [encerrando, setEncerrando] = useState(false);
+  const { alerta, alertaSemConexao, emergencia } = useTurno();
+  const trechos = useTrechosCriticos();
+
+  // Calor: aviso quando o índice de calor é maior ou igual a ALERTA_CALOR_C (seção 5).
+  const calorForte = alerta?.indiceCalorC != null && alerta.indiceCalorC >= ALERTA_CALOR_C;
+  const calorAnterior = useRef(false);
+  useEffect(() => {
+    // Anuncia só quando o aviso PASSA a valer, não a cada consulta de 5 s.
+    if (calorForte && !calorAnterior.current && alerta?.indiceCalorC != null) {
+      AccessibilityInfo.announceForAccessibility(
+        `Calor forte agora, índice de calor de ${formatarDecimal(alerta.indiceCalorC)} graus. Pare na sombra e beba água.`,
+      );
+    }
+    calorAnterior.current = calorForte;
+  }, [calorForte, alerta?.indiceCalorC]);
 
   const atualizar = useCallback(async () => {
     setAtualizando(true);
@@ -288,7 +307,16 @@ function TurnoAtivo({
     } catch (e) {
       const erro = converterErro(e);
       if (erro.tipo === 'conflito') {
-        setAviso({ tipo: 'erro', mensagem: 'Há um alerta ou uma ocorrência em andamento. Resolva antes de encerrar.' });
+        // 409 resolvível: se o app sabe qual é a emergência, oferece abrir a tela dela.
+        setAviso({
+          tipo: 'erro',
+          mensagem:
+            emergencia?.tipo === 'alerta'
+              ? 'Há um alerta de queda em andamento. Resolva o alerta antes de encerrar.'
+              : emergencia?.tipo === 'ocorrencia'
+                ? 'Há uma ocorrência (SOS) em andamento. Resolva a ocorrência antes de encerrar.'
+                : 'Há um alerta ou uma ocorrência em andamento. Resolva antes de encerrar.',
+        });
       } else if (erro.tipo === 'indisponivel') {
         setAviso({ tipo: 'erro', mensagem: MENSAGEM_CAPACETE_NAO_RESPONDEU });
       } else if (erro.tipo === 'sem-conexao') {
@@ -310,10 +338,42 @@ function TurnoAtivo({
   const dados = dadosDoIndice(turno);
   const horarioTerminou = jaPassou(turno.fimPrevisto);
 
+  /** Abre a tela da emergência em andamento (alerta ou ocorrência da vítima). */
+  function abrirEmergencia() {
+    if (emergencia?.tipo === 'alerta') {
+      router.push('/alerta');
+    } else if (emergencia?.tipo === 'ocorrencia') {
+      router.push({ pathname: '/ocorrencia/[id]', params: { id: emergencia.ocorrenciaId, papel: 'VITIMA' } });
+    }
+  }
+
   return (
-    <Tela dentroDeAbas aoAtualizar={() => void atualizar()} atualizando={atualizando}>
+    <Tela
+      dentroDeAbas
+      aoAtualizar={() => {
+        void atualizar();
+        void trechos.atualizar();
+      }}
+      atualizando={atualizando}
+    >
       <Texto variante="titulo">Turno em andamento</Texto>
       {avisoTroca ? <Aviso tipo="informacao" mensagem={avisoTroca} /> : null}
+
+      {calorForte && alerta?.indiceCalorC != null ? (
+        <Aviso
+          tipo="atencao"
+          mensagem={`Calor forte agora (índice de calor de ${formatarDecimal(alerta.indiceCalorC)} °C). Pare na sombra e beba água.`}
+        />
+      ) : null}
+
+      {emergencia ? (
+        <Botao
+          titulo={emergencia.tipo === 'alerta' ? 'Abrir o alerta de queda' : 'Abrir a ocorrência'}
+          variante="perigo"
+          icone="alert-circle"
+          aoPressionar={abrirEmergencia}
+        />
+      ) : null}
 
       {semConexao ? (
         <Aviso
@@ -331,12 +391,26 @@ function TurnoAtivo({
         <LinhaInfo rotulo="Proteção contra quedas" valor={turno.protecaoAtiva ? 'Ligada' : 'Desligada'} />
       </Cartao>
 
+      <EstadoCapacete
+        estado={turno.protecaoAtiva ? (alerta?.estadoCapacete ?? null) : null}
+        semConexao={turno.protecaoAtiva && alertaSemConexao}
+      />
+
       <Cartao>
         <IndiceRisco dados={dados} anunciarMudancas />
         <Texto variante="legenda">Puxe a tela para baixo para atualizar o Índice.</Texto>
       </Cartao>
 
+      <TrechosCriticos estado={trechos} />
+
       {aviso ? <Aviso tipo={aviso.tipo} mensagem={aviso.mensagem} /> : null}
+      {aviso && emergencia ? (
+        <Botao
+          titulo={emergencia.tipo === 'alerta' ? 'Abrir o alerta' : 'Abrir a ocorrência'}
+          variante="secundaria"
+          aoPressionar={abrirEmergencia}
+        />
+      ) : null}
       <Botao
         titulo="Encerrar turno"
         variante="perigo"

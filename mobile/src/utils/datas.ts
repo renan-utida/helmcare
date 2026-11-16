@@ -21,6 +21,24 @@ export function jaPassou(iso: string): boolean {
   return new Date(iso).getTime() <= Date.now();
 }
 
+/** Número com uma casa decimal e vírgula, como "37,1" (índice de calor). */
+export function formatarDecimal(valor: number, casas = 1): string {
+  return valor.toFixed(casas).replace('.', ',');
+}
+
+/** Duração em minutos e segundos, como "01:05" (cronômetro da ocorrência). */
+export function formatarMinutosSegundos(totalSegundos: number): string {
+  const seguro = Math.max(0, Math.floor(totalSegundos));
+  const minutos = Math.floor(seguro / 60);
+  const segundos = seguro % 60;
+  return `${String(minutos).padStart(2, '0')}:${String(segundos).padStart(2, '0')}`;
+}
+
+/** Hora com segundos no horário do aparelho, como "21:16:17". */
+export function formatarHoraComSegundos(iso: string): string {
+  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
 /**
  * Dia e hora curtos no horário do aparelho, como "sáb., 15/11 às 14:30".
  * Usa o `Intl` do Hermes com o português do Brasil.
