@@ -65,7 +65,8 @@ export function Botao({
       accessibilityRole={selecionado === undefined ? 'button' : 'radio'}
       accessibilityLabel={accessibilityLabel ?? titulo}
       accessibilityHint={accessibilityHint}
-      accessibilityState={{ disabled: inativo, busy: carregando, checked: selecionado }}
+      // Nas opções, `checked` dá o estado do papel "radio" e `selected` marca a escolhida.
+      accessibilityState={{ disabled: inativo, busy: carregando, checked: selecionado, selected: selecionado }}
       style={({ pressed }) => [
         styles.base,
         {

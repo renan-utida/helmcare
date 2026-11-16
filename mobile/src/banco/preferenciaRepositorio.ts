@@ -6,6 +6,8 @@ export const CHAVES_PREFERENCIA = {
   perfilAtivo: 'perfil_ativo',
   /** URL da API salva à mão na tela Configurações. */
   urlApiManual: 'url_api_manual',
+  /** Aparência escolhida nas Configurações: "sistema", "claro" ou "escuro". */
+  tema: 'tema',
 } as const;
 
 /** Uma das chaves aceitas pela tabela `preferencia`. */
