@@ -6,6 +6,8 @@ import type { TextStyle } from 'react-native';
  * Também não há `lineHeight` fixo, para a linha crescer junto com a fonte.
  */
 export const tipografia = {
+  /** Número da contagem regressiva do alerta de queda: o maior texto do app. */
+  contagem: { fontSize: 96, fontWeight: '700' },
   /** Número grande do Índice de Risco. */
   destaque: { fontSize: 48, fontWeight: '700' },
   /** Título das telas. */

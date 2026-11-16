@@ -39,6 +39,13 @@ function PilhaRaiz() {
         <Stack.Screen name="contato" options={{ presentation: 'modal', title: 'Contato de emergência' }} />
         <Stack.Screen name="configuracoes" options={{ presentation: 'modal', title: 'Configurações' }} />
         <Stack.Screen name="perfis" options={{ presentation: 'modal', title: 'Perfis neste aparelho' }} />
+        {/* Alerta de queda: tela cheia, sem cabeçalho e sem gesto de fechar (o voltar do
+            Android é bloqueado pela própria tela enquanto o alerta estiver em andamento). */}
+        <Stack.Screen
+          name="alerta"
+          options={{ presentation: 'fullScreenModal', headerShown: false, gestureEnabled: false }}
+        />
+        <Stack.Screen name="ocorrencia/[id]" options={{ title: 'Ocorrência' }} />
       </Stack>
     </>
   );

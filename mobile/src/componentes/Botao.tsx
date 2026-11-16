@@ -26,6 +26,8 @@ export interface BotaoProps {
   selecionado?: boolean;
   accessibilityLabel?: string;
   accessibilityHint?: string;
+  /** Altura mínima maior que a padrão (56 dp), para ações de emergência (ex.: 72 dp). */
+  alturaMinima?: number;
 }
 
 /**
@@ -42,6 +44,7 @@ export function Botao({
   selecionado,
   accessibilityLabel,
   accessibilityHint,
+  alturaMinima,
 }: BotaoProps) {
   const { cores, espaco, raio, medidas } = useTema();
   const inativo = desabilitado || carregando;
@@ -70,7 +73,7 @@ export function Botao({
       style={({ pressed }) => [
         styles.base,
         {
-          minHeight: medidas.alturaBotao,
+          minHeight: Math.max(medidas.alturaBotao, alturaMinima ?? 0),
           minWidth: medidas.toqueMinimo,
           paddingHorizontal: espaco.medio,
           paddingVertical: espaco.pequeno,
