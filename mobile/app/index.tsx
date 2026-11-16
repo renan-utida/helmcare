@@ -7,7 +7,7 @@ import { useSessao } from '@/contextos/SessaoContext';
 export default function Inicio() {
   const { carregando, perfilAtivo } = useSessao();
   if (carregando) {
-    return <Carregando mensagem="Abrindo o HelmCare..." />;
+    return <Carregando comLogo />;
   }
   if (!perfilAtivo) {
     return <Redirect href="/cadastro" />;
