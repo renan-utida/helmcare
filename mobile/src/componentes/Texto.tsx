@@ -3,8 +3,18 @@ import { Text, type TextProps } from 'react-native';
 import { useTema } from '@/contextos/TemaContext';
 import type { VarianteTexto } from '@/tema';
 
-/** Cores do tema que podem ser usadas direto num texto. */
-type CorTexto = 'texto' | 'textoSecundario' | 'primaria' | 'erro' | 'textoSobrePrimaria' | 'textoSobrePerigo';
+/**
+ * Cores do tema que podem ser usadas direto num texto. O laranja da marca (`destaque`)
+ * fica de fora de propósito: texto laranja usa sempre `textoDestaque`, que passa no contraste.
+ */
+type CorTexto =
+  | 'texto'
+  | 'textoSecundario'
+  | 'textoDestaque'
+  | 'primaria'
+  | 'erro'
+  | 'textoSobrePrimaria'
+  | 'textoSobrePerigo';
 
 /** Props do `Texto`: as do `Text` mais a variante e a cor do tema. */
 export interface TextoProps extends TextProps {

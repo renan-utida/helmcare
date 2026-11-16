@@ -41,6 +41,9 @@ export function FaixaRisco({ faixa }: FaixaRiscoProps) {
         alignSelf: 'flex-start',
         gap: espaco.pequeno,
         backgroundColor: cor.fundo,
+        // No tema escuro, borda clara de 2 dp: o verde e o vinho somem no azul-marinho.
+        borderWidth: cor.borda ? 2 : 0,
+        borderColor: cor.borda ?? cor.fundo,
         borderRadius: raio.pilula,
         paddingHorizontal: espaco.medio,
         paddingVertical: espaco.pequeno,
