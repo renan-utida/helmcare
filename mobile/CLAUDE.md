@@ -39,6 +39,7 @@ Nunca renomeie campos, enums, rotas ou payloads do contrato. O app usa exatament
 | Banco | `expo-sqlite` (`SQLiteProvider` e `useSQLiteContext`) |
 | Ícones | `@expo/vector-icons` |
 | Logo e símbolo (SVG) | `react-native-svg` e, só no desenvolvimento, `react-native-svg-transformer` (configurado no `metro.config.js`) |
+| Token do login da API | `expo-secure-store` (`src/servicos/armazenamentoSeguro.ts`) |
 | Node | 22.13 ou mais novo |
 
 - Instale pacotes sempre com `npx expo install <pacote>`, para receber a versão compatível com o SDK.
@@ -122,6 +123,7 @@ npx expo start           # o Renan escaneia o QR Code no Expo Go
 - Todos os dados de cadastro são simulados (`src/utils/dadosSimulados.ts` gera nome, CPF, CNH e telefones fictícios).
 - Nunca use `console.log` com dados pessoais, ficha médica, coordenadas ou corpos de requisição e resposta. Logs, quando existirem, levam só ids e status HTTP.
 - As telas mostram os dados mascarados que a API devolve, sem desmascarar.
+- O token de acesso do login da API fica só no `expo-secure-store` (`src/servicos/armazenamentoSeguro.ts`). Nunca no SQLite, em log, em URL, em parâmetro de rota ou na tela. Ele só sai do armazenamento seguro para o cabeçalho `Authorization` da instância do Axios.
 
 ## Acessibilidade (critério da nota)
 

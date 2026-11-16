@@ -2,7 +2,13 @@ import type { ErroApi } from '@/servicos/erros';
 
 /** Mensagem para quando o celular não alcança a API (sem rede, IP errado ou tempo esgotado). */
 export const MENSAGEM_SEM_CONEXAO =
-  'Sem conexão com a API. Confira se o celular e o computador estão na mesma rede, ou ajuste o endereço em Configurações.';
+  'Sem conexão com a API. Confira se o celular e o computador estão na mesma rede, ou ajuste o endereço na aba Ajustes.';
+
+/** Mensagem do 401: o login acabou ou não vale mais (preparação para o login da API). */
+export const MENSAGEM_NAO_AUTORIZADO = 'Sua sessão terminou. Entre de novo na sua conta.';
+
+/** Mensagem do 403: a conta não tem permissão para esta ação. */
+export const MENSAGEM_PROIBIDO = 'Sua conta não tem permissão para fazer isso.';
 
 /** Mensagem para erros sem tratamento próprio na tela. */
 export const MENSAGEM_ERRO_GENERICO = 'Algo deu errado. Tente de novo em alguns segundos.';
@@ -11,11 +17,20 @@ export const MENSAGEM_ERRO_GENERICO = 'Algo deu errado. Tente de novo em alguns 
 export const MENSAGEM_CONFIRA_CAMPOS = 'Confira os campos marcados.';
 
 /**
- * Mensagem dos erros que todas as telas tratam igual (sem conexão e desconhecido).
+ * Mensagem dos erros que todas as telas tratam igual (sem conexão, 401, 403 e desconhecido).
  * Os demais tipos (400, 404, 409, 503) cada tela decide, pelo status, com o próprio texto.
  */
 export function mensagemComum(erro: ErroApi): string {
-  return erro.tipo === 'sem-conexao' ? MENSAGEM_SEM_CONEXAO : MENSAGEM_ERRO_GENERICO;
+  switch (erro.tipo) {
+    case 'sem-conexao':
+      return MENSAGEM_SEM_CONEXAO;
+    case 'nao-autorizado':
+      return MENSAGEM_NAO_AUTORIZADO;
+    case 'proibido':
+      return MENSAGEM_PROIBIDO;
+    default:
+      return MENSAGEM_ERRO_GENERICO;
+  }
 }
 
 /**
