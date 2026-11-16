@@ -14,11 +14,21 @@ export interface DadosIndiceRisco {
   explicacao: string;
 }
 
-/** Nome de cada componente do Índice, em português simples. */
-const NOMES_COMPONENTES: { chave: keyof ComponentesRisco; nome: string }[] = [
-  { chave: 'sinistro', nome: 'Histórico de sinistros no horário' },
-  { chave: 'chuva', nome: 'Chuva prevista' },
-  { chave: 'calor', nome: 'Calor' },
+/** Frase que explica a escala das barras. */
+const FRASE_ESCALA = 'Cada fator recebe uma nota de 0 a 100.';
+
+/**
+ * Nome de cada componente do Índice, em português simples, e a legenda da escala
+ * (as normalizações da seção 8 do contrato: chuva de 0 a 10 mm/h; calor de 27 a 41 °C).
+ */
+const NOMES_COMPONENTES: { chave: keyof ComponentesRisco; nome: string; legenda: string | null }[] = [
+  { chave: 'sinistro', nome: 'Histórico de sinistros no horário', legenda: null },
+  { chave: 'chuva', nome: 'Chuva prevista no turno', legenda: '0 sem chuva, 100 a partir de 10 mm por hora' },
+  {
+    chave: 'calor',
+    nome: 'Calor previsto no turno',
+    legenda: '0 abaixo de 27 °C de índice de calor, 100 a partir de 41 °C',
+  },
 ];
 
 /** Limita o valor a 0 a 100, para a barra nunca passar do tamanho. */
@@ -28,10 +38,14 @@ function limitar(valor: number): number {
 
 /** Monta a frase única que o leitor de tela lê para o Índice inteiro. */
 export function fraseIndiceRisco(dados: DadosIndiceRisco): string {
-  const partes = NOMES_COMPONENTES.map(({ chave, nome }) => `${nome}: ${dados.componentes[chave]} de 100`);
+  // Na leitura, "°C" vira "graus" e a legenda vai entre parênteses depois da nota.
+  const partes = NOMES_COMPONENTES.map(({ chave, nome, legenda }) => {
+    const nota = `${nome}: ${dados.componentes[chave]} de 100`;
+    return legenda ? `${nota} (${legenda.replace(/ °C/g, ' graus')})` : nota;
+  });
   return (
     `Índice de risco do turno: ${dados.indiceRisco} de 100, ${TEXTO_FAIXA[dados.faixaRisco].toLowerCase()}. ` +
-    `${dados.explicacao} ${partes.join('. ')}.`
+    `${dados.explicacao} ${FRASE_ESCALA} ${partes.join('. ')}.`
   );
 }
 
@@ -66,13 +80,13 @@ export function IndiceRisco({ dados, anunciarMudancas = false }: IndiceRiscoProp
       <FaixaRisco faixa={dados.faixaRisco} />
       <Texto>{dados.explicacao}</Texto>
       <View style={{ gap: espaco.medio }}>
-        {NOMES_COMPONENTES.map(({ chave, nome }) => {
+        <Texto variante="legenda">{FRASE_ESCALA}</Texto>
+        {NOMES_COMPONENTES.map(({ chave, nome, legenda }) => {
           const valor = dados.componentes[chave];
           return (
             <View key={chave} style={{ gap: espaco.pequeno / 2 }}>
-              <Texto variante="legenda" cor="texto">
-                {`${nome}: ${valor} de 100`}
-              </Texto>
+              <Texto variante="rotulo">{`${nome}: ${valor} de 100`}</Texto>
+              {legenda ? <Texto variante="legenda">{legenda}</Texto> : null}
               {/* A barra é só visual: o valor já está no texto acima. */}
               <View
                 style={{

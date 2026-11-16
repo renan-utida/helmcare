@@ -231,7 +231,8 @@ export default function Alerta() {
                     variante="contagem"
                     corPersonalizada={corTexto}
                     centralizado
-                    accessibilityLiveRegion="assertive"
+                    // Sem região viva: ela fazia o TalkBack ler todos os segundos e cortar os
+                    // anúncios. O número é lido quando a pessoa toca nele.
                     accessibilityLabel={`${restante} segundos para cancelar`}
                   >
                     {restante}

@@ -20,13 +20,16 @@ export interface TrechosCriticosProps {
   estado: EstadoTrechos;
 }
 
-/** Cartão "Trechos críticos perto de você": os 5 trechos com mais sinistros graves. */
+/**
+ * Cartão com os 5 trechos com mais sinistros graves de São Paulo. A lista é da cidade
+ * inteira (não depende de onde o entregador está), por isso o título diz isso.
+ */
 export function TrechosCriticos({ estado }: TrechosCriticosProps) {
   const { espaco, cores } = useTema();
   const { lista, origem, carregando } = estado;
 
   return (
-    <Cartao titulo="Trechos críticos perto de você">
+    <Cartao titulo="Trechos com mais sinistros graves em São Paulo">
       {origem === 'cache' && lista ? (
         <Aviso tipo="atencao" mensagem={`Lista salva em ${formatarDiaHora(lista.atualizadoEm)}.`} />
       ) : null}

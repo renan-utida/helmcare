@@ -115,7 +115,19 @@ function OcorrenciaDaVitima({ id }: { id: string }) {
   const ativa = !ESTADOS_FINAIS.includes(ocorrencia.estado);
   const status = STATUS[ocorrencia.estado];
   const meta = ocorrencia.cronometro.metaSegundos;
-  const dentroDaMeta = segundos !== null && segundos <= meta;
+  // Situação da meta: ativa compara o cronômetro; terminada usa o tempo até o aceite
+  // (o indicador do contrato) ou, sem aceite, não compara com a meta.
+  const aceiteFinal = ocorrencia.tempoAteAceiteSegundos;
+  const situacaoMeta: 'dentro' | 'acima' | 'sem-aceite' = ativa
+    ? segundos !== null && segundos <= meta
+      ? 'dentro'
+      : 'acima'
+    : aceiteFinal === null
+      ? 'sem-aceite'
+      : aceiteFinal <= meta
+        ? 'dentro'
+        : 'acima';
+  const TEXTO_META = { dentro: 'Dentro da meta', acima: 'Acima da meta', 'sem-aceite': 'Sem aceite de voluntário' };
 
   function ligar192() {
     // Abre o discador com o número; a ligação só começa se a pessoa tocar em ligar.
@@ -177,7 +189,7 @@ function OcorrenciaDaVitima({ id }: { id: string }) {
           accessibilityLabel={
             segundos === null
               ? 'Cronômetro indisponível'
-              : `${duracaoFalada(segundos)} desde a queda. Meta: socorro em até ${meta / 60} minutos. ${dentroDaMeta ? 'Dentro da meta' : 'Acima da meta'}.`
+              : `${duracaoFalada(segundos)} desde a queda. Meta: socorro em até ${meta / 60} minutos. ${TEXTO_META[situacaoMeta]}.`
           }
           style={{ gap: espaco.pequeno }}
         >
@@ -186,10 +198,10 @@ function OcorrenciaDaVitima({ id }: { id: string }) {
           <Texto>{`Meta: socorro em até ${meta / 60} minutos`}</Texto>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: espaco.pequeno }}>
             <Icone
-              nome={dentroDaMeta ? 'checkmark-circle' : 'time'}
-              cor={dentroDaMeta ? cores.aviso.sucesso.icone : cores.aviso.atencao.icone}
+              nome={situacaoMeta === 'dentro' ? 'checkmark-circle' : situacaoMeta === 'acima' ? 'time' : 'remove-circle'}
+              cor={situacaoMeta === 'dentro' ? cores.aviso.sucesso.icone : cores.aviso.atencao.icone}
             />
-            <Texto variante="rotulo">{dentroDaMeta ? 'Dentro da meta' : 'Acima da meta'}</Texto>
+            <Texto variante="rotulo">{TEXTO_META[situacaoMeta]}</Texto>
           </View>
           {ocorrencia.cronometro.parado ? <Texto variante="legenda">O cronômetro parou.</Texto> : null}
         </View>
