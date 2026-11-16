@@ -100,4 +100,20 @@ export const perfilRepositorio = {
   async remover(db: SQLiteDatabase, entregadorId: string): Promise<void> {
     await db.runAsync('DELETE FROM perfil WHERE entregador_id = ?', entregadorId);
   },
+
+  /**
+   * Remove o perfil e os dados locais dele (alertas e turnos do entregador e as ocorrências
+   * que esse perfil viu), numa transação só: ou sai tudo, ou nada. Não apaga nada na API.
+   */
+  async removerComDadosLocais(db: SQLiteDatabase, entregadorId: string): Promise<void> {
+    await db.withTransactionAsync(async () => {
+      await db.runAsync(
+        'DELETE FROM alerta WHERE turno_id IN (SELECT id FROM turno WHERE entregador_id = ?)',
+        entregadorId,
+      );
+      await db.runAsync('DELETE FROM turno WHERE entregador_id = ?', entregadorId);
+      await db.runAsync('DELETE FROM ocorrencia WHERE entregador_id = ?', entregadorId);
+      await db.runAsync('DELETE FROM perfil WHERE entregador_id = ?', entregadorId);
+    });
+  },
 };

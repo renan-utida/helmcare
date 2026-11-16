@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icone, type NomeIcone } from '@/componentes/Icone';
 import { SimboloMarca } from '@/componentes/Marca';
 import { Texto } from '@/componentes/Texto';
+import { useSessao } from '@/contextos/SessaoContext';
 import { useTema } from '@/contextos/TemaContext';
 
 /** Botão de engrenagem do cabeçalho, que abre o modal de Configurações. */
@@ -15,7 +16,7 @@ function BotaoConfiguracoes() {
       onPress={() => router.push('/configuracoes')}
       accessibilityRole="button"
       accessibilityLabel="Configurações"
-      accessibilityHint="Abre a conexão com a API e os perfis do aparelho"
+      accessibilityHint="Abre a conexão com a API, a aparência e os perfis do aparelho"
       hitSlop={8}
       style={{
         minWidth: medidas.toqueMinimo,
@@ -26,6 +27,64 @@ function BotaoConfiguracoes() {
     >
       <Icone nome="settings-outline" cor={cores.texto} tamanho={28} />
     </Pressable>
+  );
+}
+
+/** Acima desta escala de fonte, o botão do perfil mostra só o ícone, para o título caber. */
+const ESCALA_MAXIMA_COM_APELIDO = 1.3;
+
+/**
+ * Botão do perfil ativo, à esquerda da engrenagem: ícone de pessoa e o apelido.
+ * Com a fonte do sistema muito grande, mostra só o ícone (o apelido continua no rótulo
+ * do leitor de tela) e deixa o espaço do cabeçalho para o nome da aba.
+ */
+function BotaoPerfilAtivo() {
+  const { cores, espaco, raio, medidas } = useTema();
+  const { perfilAtivo } = useSessao();
+  const { width, fontScale } = useWindowDimensions();
+  if (!perfilAtivo) {
+    return null;
+  }
+  const mostrarApelido = fontScale <= ESCALA_MAXIMA_COM_APELIDO;
+  return (
+    <Pressable
+      onPress={() => router.push('/perfis')}
+      accessibilityRole="button"
+      accessibilityLabel={`Perfil ativo: ${perfilAtivo.apelido}. Toque para ver os perfis.`}
+      style={({ pressed }) => ({
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: espaco.pequeno / 2,
+        minHeight: medidas.toqueMinimo,
+        minWidth: medidas.toqueMinimo,
+        // Nunca passa de 40% da largura: o nome da aba fica com o resto.
+        maxWidth: width * 0.4,
+        justifyContent: 'center',
+        paddingHorizontal: espaco.pequeno,
+        borderRadius: raio.pequeno,
+        borderWidth: 1,
+        borderColor: cores.borda,
+        opacity: pressed ? 0.85 : 1,
+      })}
+    >
+      <Icone nome="person" cor={cores.texto} />
+      {mostrarApelido ? (
+        <Texto variante="legenda" cor="texto" numberOfLines={1} style={{ flexShrink: 1 }}>
+          {perfilAtivo.apelido}
+        </Texto>
+      ) : null}
+    </Pressable>
+  );
+}
+
+/** Lado direito do cabeçalho: o perfil ativo e a engrenagem das Configurações. */
+function AcoesCabecalho() {
+  const { espaco } = useTema();
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: espaco.pequeno }}>
+      <BotaoPerfilAtivo />
+      <BotaoConfiguracoes />
+    </View>
   );
 }
 
@@ -75,7 +134,7 @@ export default function LayoutAbas() {
         headerTitleStyle: { color: cores.texto },
         headerTitleAlign: 'left',
         headerTitle: ({ children }) => <TituloComSimbolo>{children}</TituloComSimbolo>,
-        headerRight: () => <BotaoConfiguracoes />,
+        headerRight: () => <AcoesCabecalho />,
         headerRightContainerStyle: { paddingRight: espaco.pequeno },
         tabBarActiveTintColor: cores.abaAtiva,
         tabBarInactiveTintColor: cores.abaInativa,

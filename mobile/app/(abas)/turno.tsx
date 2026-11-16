@@ -1,4 +1,4 @@
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { AccessibilityInfo, Alert, Pressable, Switch, View } from 'react-native';
 
@@ -57,6 +57,20 @@ export default function Turno() {
   const { turno, carregando } = useTurno();
   // Aviso que sobrevive à troca de estado (ex.: "Turno encerrado" ao voltar para o início).
   const [avisoFinal, setAvisoFinal] = useState<AvisoTela | null>(null);
+  // Apelido do perfil recém-escolhido na tela Perfis (vem pela rota, só depois da troca).
+  const { perfilTrocado } = useLocalSearchParams<{ perfilTrocado?: string }>();
+  const avisoTroca = perfilTrocado ? `Você está usando o perfil ${perfilTrocado}` : null;
+
+  // O aviso da troca vale só até a pessoa sair da aba: ao perder o foco, o parâmetro é limpo.
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        if (perfilTrocado) {
+          router.setParams({ perfilTrocado: undefined });
+        }
+      };
+    }, [perfilTrocado]),
+  );
 
   if (!perfilAtivo) {
     return (
@@ -70,7 +84,7 @@ export default function Turno() {
     return <Carregando mensagem="Abrindo o turno..." />;
   }
   if (turno) {
-    return <TurnoAtivo turno={turno} aoEncerrar={setAvisoFinal} />;
+    return <TurnoAtivo turno={turno} aoEncerrar={setAvisoFinal} avisoTroca={avisoTroca} />;
   }
   const temCapacete = perfilAtivo.codigoCapacete !== null;
   return (
@@ -81,6 +95,7 @@ export default function Turno() {
       temCapacete={temCapacete}
       avisoFinal={avisoFinal}
       limparAvisoFinal={() => setAvisoFinal(null)}
+      avisoTroca={avisoTroca}
     />
   );
 }
@@ -90,9 +105,11 @@ function NovoTurno({
   temCapacete,
   avisoFinal,
   limparAvisoFinal,
+  avisoTroca,
 }: {
   temCapacete: boolean;
   avisoFinal: AvisoTela | null;
+  avisoTroca: string | null;
   limparAvisoFinal: () => void;
 }) {
   const { cores, espaco, medidas } = useTema();
@@ -144,6 +161,7 @@ function NovoTurno({
   return (
     <Tela dentroDeAbas>
       <Texto variante="titulo">Começar o turno</Texto>
+      {avisoTroca ? <Aviso tipo="informacao" mensagem={avisoTroca} /> : null}
       {avisoFinal ? <Aviso tipo={avisoFinal.tipo} mensagem={avisoFinal.mensagem} /> : null}
 
       <GrupoOpcoes
@@ -212,7 +230,15 @@ function NovoTurno({
 }
 
 /** Estado com turno aberto: horários, Índice de Risco e encerramento. */
-function TurnoAtivo({ turno, aoEncerrar }: { turno: TurnoLocal; aoEncerrar: (aviso: AvisoTela) => void }) {
+function TurnoAtivo({
+  turno,
+  aoEncerrar,
+  avisoTroca,
+}: {
+  turno: TurnoLocal;
+  aoEncerrar: (aviso: AvisoTela) => void;
+  avisoTroca: string | null;
+}) {
   const { atualizarRisco, encerrar } = useTurno();
   const [atualizando, setAtualizando] = useState(false);
   const [semConexao, setSemConexao] = useState(false);
@@ -287,6 +313,7 @@ function TurnoAtivo({ turno, aoEncerrar }: { turno: TurnoLocal; aoEncerrar: (avi
   return (
     <Tela dentroDeAbas aoAtualizar={() => void atualizar()} atualizando={atualizando}>
       <Texto variante="titulo">Turno em andamento</Texto>
+      {avisoTroca ? <Aviso tipo="informacao" mensagem={avisoTroca} /> : null}
 
       {semConexao ? (
         <Aviso
