@@ -1,36 +1,56 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Alert, Linking, View } from 'react-native';
+import { AccessibilityInfo, Alert, Linking, Vibration, View } from 'react-native';
 
 import type { PapelOcorrencia } from '@/banco/ocorrenciaRepositorio';
 import { Aviso, type TipoAviso } from '@/componentes/Aviso';
 import { Botao } from '@/componentes/Botao';
+import { BotaoLigar192 } from '@/componentes/BotaoLigar192';
 import { Carregando } from '@/componentes/Carregando';
 import { Cartao } from '@/componentes/Cartao';
+import { CartaoCronometro, situacaoDaMeta, TEXTO_META } from '@/componentes/CartaoCronometro';
 import { EstadoErro } from '@/componentes/EstadoErro';
-import { EstadoVazio } from '@/componentes/EstadoVazio';
 import { Icone, type NomeIcone } from '@/componentes/Icone';
 import { Tela } from '@/componentes/Tela';
 import { Texto } from '@/componentes/Texto';
 import { RAIO_CAMADA_1_KM } from '@/config/constantes';
+import { useChamados } from '@/contextos/ChamadosContext';
 import { useTema } from '@/contextos/TemaContext';
 import { useCronometro } from '@/hooks/useCronometro';
 import { ESTADOS_FINAIS, useOcorrencia } from '@/hooks/useOcorrencia';
-import { converterErro } from '@/servicos/erros';
+import { converterErro, type ErroApi } from '@/servicos/erros';
 import { ocorrenciaServico } from '@/servicos/ocorrenciaServico';
-import type { EstadoOcorrencia } from '@/tipos/contrato';
-import { formatarMinutosSegundos } from '@/utils/datas';
+import type { EstadoOcorrencia, OcorrenciaResposta } from '@/tipos/contrato';
+import { duracaoFalada, formatarDecimal, formatarMinutosSegundos } from '@/utils/datas';
 import { MENSAGEM_SEM_CONEXAO, mensagemComum } from '@/utils/mensagensErro';
 import { repetirEmConflito } from '@/utils/repetirEmConflito';
 
-/** Status de cada estado da ocorrência em linguagem simples, com ícone. */
-const STATUS: Record<EstadoOcorrencia, { texto: string; icone: NomeIcone }> = {
+/** Texto e ícone de um estado da ocorrência. */
+interface StatusTela {
+  texto: string;
+  icone: NomeIcone;
+}
+
+/** Status de cada estado em linguagem simples, como a vítima vê. */
+const STATUS_VITIMA: Record<EstadoOcorrencia, StatusTela> = {
   SOS_CAMADA_1: { texto: `Avisando voluntários a até ${RAIO_CAMADA_1_KM} km`, icone: 'radio' },
   SOS_CAMADA_2: { texto: 'Avisando toda a rede de voluntários', icone: 'megaphone' },
   SOCORRO_A_CAMINHO: { texto: 'Um voluntário aceitou e está a caminho', icone: 'walk' },
   ENCERRADA: { texto: 'Ocorrência encerrada', icone: 'checkmark-circle' },
   CANCELADA: { texto: 'SOS cancelado', icone: 'close-circle' },
 };
+
+/** Status de cada estado em linguagem simples, como o voluntário vê. */
+const STATUS_VOLUNTARIO: Record<EstadoOcorrencia, StatusTela> = {
+  SOS_CAMADA_1: { texto: 'Chamado aguardando um voluntário', icone: 'radio' },
+  SOS_CAMADA_2: { texto: 'Chamado aguardando um voluntário', icone: 'megaphone' },
+  SOCORRO_A_CAMINHO: { texto: 'Você aceitou. Vá até o entregador.', icone: 'walk' },
+  ENCERRADA: { texto: 'Atendimento encerrado', icone: 'checkmark-circle' },
+  CANCELADA: { texto: 'O entregador cancelou o SOS: ele está bem', icone: 'close-circle' },
+};
+
+/** Vibração curta para a vítima quando um voluntário aceita (quem caiu pode não estar olhando a tela). */
+const VIBRACAO_SOCORRO_A_CAMINHO = [0, 300, 150, 300];
 
 /** Estados em que a vítima ainda pode dizer que está bem (antes do aceite). */
 const ESTADOS_CANCELAVEIS: readonly EstadoOcorrencia[] = ['SOS_CAMADA_1', 'SOS_CAMADA_2'];
@@ -40,99 +60,121 @@ function papelDaRota(valor: string | string[] | undefined): PapelOcorrencia {
   return valor === 'VOLUNTARIO' ? 'VOLUNTARIO' : 'VITIMA';
 }
 
-/** Duração falada, como "1 minuto e 5 segundos". */
-function duracaoFalada(totalSegundos: number): string {
-  const minutos = Math.floor(totalSegundos / 60);
-  const segundos = totalSegundos % 60;
-  const partes = [];
-  if (minutos > 0) partes.push(`${minutos} ${minutos === 1 ? 'minuto' : 'minutos'}`);
-  partes.push(`${segundos} ${segundos === 1 ? 'segundo' : 'segundos'}`);
-  return partes.join(' e ');
-}
-
-/**
- * Ocorrência (o SOS), aberta pelo alerta ou pela aba Turno. Parâmetro `papel`: VITIMA nesta
- * entrega; a próxima acrescenta VOLUNTARIO nesta mesma tela. Mostra o status do socorro,
- * o cronômetro com a meta de 2 minutos, o "Ligar 192" e o cancelamento pela vítima.
- */
-export default function Ocorrencia() {
-  const parametros = useLocalSearchParams<{ id: string; papel?: string }>();
-  const papel = papelDaRota(parametros.papel);
-  const id = parametros.id;
-
-  if (papel === 'VOLUNTARIO') {
-    return (
-      <Tela>
-        <EstadoVazio titulo="Disponível em breve" mensagem="A visão do voluntário chega na próxima versão." />
-      </Tela>
-    );
-  }
-  return <OcorrenciaDaVitima id={id} />;
-}
-
-/** Mensagem mostrada depois de uma ação (cancelar) ou de um erro. */
+/** Mensagem mostrada depois de uma ação (cancelar, encerrar, abrir o mapa) ou de um erro. */
 interface MensagemTela {
   tipo: TipoAviso;
   texto: string;
 }
 
+/**
+ * Ocorrência (o SOS). Parâmetro `papel`: VITIMA (aberta pelo alerta ou pela aba Turno) ou
+ * VOLUNTARIO (aberta pelo aceite na aba Chamados). As duas mostram o status do socorro, o
+ * cronômetro com a meta de 2 minutos e o "Ligar 192"; a vítima pode cancelar o SOS e o
+ * voluntário vê a localização exata e encerra o atendimento.
+ */
+export default function Ocorrencia() {
+  const parametros = useLocalSearchParams<{ id: string; papel?: string }>();
+  const papel = papelDaRota(parametros.papel);
+  const id = parametros.id;
+  return papel === 'VOLUNTARIO' ? <OcorrenciaDoVoluntario id={id} /> : <OcorrenciaDaVitima id={id} />;
+}
+
+/**
+ * Anuncia cada mudança de estado com o texto do papel (por exemplo, "Um voluntário aceitou e
+ * está a caminho" para a vítima e "Atendimento encerrado" para o voluntário). Com
+ * `vibrarNoAceite`, também vibra quando o estado passa a SOCORRO_A_CAMINHO.
+ */
+function useAnunciarEstado(
+  estado: EstadoOcorrencia | undefined,
+  status: Record<EstadoOcorrencia, StatusTela>,
+  vibrarNoAceite = false,
+) {
+  const anunciado = useRef<EstadoOcorrencia | null>(null);
+  useEffect(() => {
+    if (estado && estado !== anunciado.current) {
+      anunciado.current = estado;
+      AccessibilityInfo.announceForAccessibility(status[estado].texto);
+      if (vibrarNoAceite && estado === 'SOCORRO_A_CAMINHO') {
+        Vibration.vibrate(VIBRACAO_SOCORRO_A_CAMINHO);
+      }
+    }
+  }, [estado, status, vibrarNoAceite]);
+}
+
+/** Tela de erro ou de carregamento enquanto a primeira leitura não chega. */
+function SemOcorrencia({
+  erro,
+  aoTentarDeNovo,
+  voltar,
+}: {
+  erro: ErroApi | null;
+  aoTentarDeNovo: () => void;
+  voltar: { titulo: string; destino: '/turno' | '/chamados' };
+}) {
+  if (!erro) {
+    return <Carregando mensagem="Abrindo a ocorrência..." />;
+  }
+  const texto =
+    erro.tipo === 'nao-encontrado'
+      ? 'Ocorrência não encontrada.'
+      : erro.tipo === 'sem-conexao'
+        ? MENSAGEM_SEM_CONEXAO
+        : mensagemComum(erro);
+  return (
+    <Tela>
+      <EstadoErro mensagem={texto} aoTentarDeNovo={aoTentarDeNovo} />
+      <Botao titulo={voltar.titulo} variante="secundaria" aoPressionar={() => router.dismissTo(voltar.destino)} />
+    </Tela>
+  );
+}
+
+/** Cabeçalho com o status do socorro: ícone e frase, lidos juntos. */
+function CabecalhoStatus({ status, ativa }: { status: StatusTela; ativa: boolean }) {
+  const { cores, espaco } = useTema();
+  return (
+    <View
+      accessible
+      accessibilityRole="header"
+      accessibilityLabel={`Status do socorro: ${status.texto}`}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: espaco.medio }}
+    >
+      <Icone nome={status.icone} cor={ativa ? cores.aviso.erro.icone : cores.aviso.sucesso.icone} tamanho={40} />
+      <Texto variante="titulo" style={{ flex: 1 }}>
+        {status.texto}
+      </Texto>
+    </View>
+  );
+}
+
+/** Frase do resumo com o tempo até o aceite e a situação da meta. */
+function fraseResumo(ocorrencia: OcorrenciaResposta): string {
+  const tempo = ocorrencia.tempoAteAceiteSegundos;
+  if (tempo === null) {
+    return 'Tempo até o aceite: sem aceite.';
+  }
+  const meta = TEXTO_META[situacaoDaMeta(tempo, ocorrencia.cronometro.metaSegundos)].toLowerCase();
+  return `Tempo até o aceite: ${formatarMinutosSegundos(tempo)} (${duracaoFalada(tempo)}), ${meta}.`;
+}
+
 /** Tela da vítima: status, cronômetro, Ligar 192 e "Estou bem, cancelar o SOS". */
 function OcorrenciaDaVitima({ id }: { id: string }) {
-  const { cores, espaco } = useTema();
   const { ocorrencia, lidoEm, erro, recarregar, aplicar } = useOcorrencia(id, 'VITIMA');
   const segundos = useCronometro(ocorrencia?.cronometro ?? null, lidoEm);
   const [cancelando, setCancelando] = useState(false);
   const [mensagem, setMensagem] = useState<MensagemTela | null>(null);
-
-  // Anuncia cada mudança de estado (por exemplo, "Um voluntário aceitou e está a caminho").
-  const estadoAnunciado = useRef<EstadoOcorrencia | null>(null);
-  useEffect(() => {
-    const estado = ocorrencia?.estado;
-    if (estado && estado !== estadoAnunciado.current) {
-      estadoAnunciado.current = estado;
-      AccessibilityInfo.announceForAccessibility(STATUS[estado].texto);
-    }
-  }, [ocorrencia?.estado]);
+  useAnunciarEstado(ocorrencia?.estado, STATUS_VITIMA, true);
 
   if (!ocorrencia) {
-    if (erro) {
-      const texto =
-        erro.tipo === 'nao-encontrado'
-          ? 'Ocorrência não encontrada.'
-          : erro.tipo === 'sem-conexao'
-            ? MENSAGEM_SEM_CONEXAO
-            : mensagemComum(erro);
-      return (
-        <Tela>
-          <EstadoErro mensagem={texto} aoTentarDeNovo={() => void recarregar()} />
-          <Botao titulo="Voltar ao turno" variante="secundaria" aoPressionar={() => router.dismissTo('/turno')} />
-        </Tela>
-      );
-    }
-    return <Carregando mensagem="Abrindo a ocorrência..." />;
+    return (
+      <SemOcorrencia
+        erro={erro}
+        aoTentarDeNovo={() => void recarregar()}
+        voltar={{ titulo: 'Voltar ao turno', destino: '/turno' }}
+      />
+    );
   }
 
   const ativa = !ESTADOS_FINAIS.includes(ocorrencia.estado);
-  const status = STATUS[ocorrencia.estado];
-  const meta = ocorrencia.cronometro.metaSegundos;
-  // Situação da meta: ativa compara o cronômetro; terminada usa o tempo até o aceite
-  // (o indicador do contrato) ou, sem aceite, não compara com a meta.
-  const aceiteFinal = ocorrencia.tempoAteAceiteSegundos;
-  const situacaoMeta: 'dentro' | 'acima' | 'sem-aceite' = ativa
-    ? segundos !== null && segundos <= meta
-      ? 'dentro'
-      : 'acima'
-    : aceiteFinal === null
-      ? 'sem-aceite'
-      : aceiteFinal <= meta
-        ? 'dentro'
-        : 'acima';
-  const TEXTO_META = { dentro: 'Dentro da meta', acima: 'Acima da meta', 'sem-aceite': 'Sem aceite de voluntário' };
-
-  function ligar192() {
-    // Abre o discador com o número; a ligação só começa se a pessoa tocar em ligar.
-    void Linking.openURL('tel:192');
-  }
 
   async function cancelarSos() {
     setCancelando(true);
@@ -167,56 +209,16 @@ function OcorrenciaDaVitima({ id }: { id: string }) {
 
   return (
     <Tela aoAtualizar={() => void recarregar()} atualizando={false}>
-      <View
-        accessible
-        accessibilityLabel={`Status do socorro: ${status.texto}`}
-        style={{ flexDirection: 'row', alignItems: 'center', gap: espaco.medio }}
-      >
-        <Icone nome={status.icone} cor={ativa ? cores.aviso.erro.icone : cores.aviso.sucesso.icone} tamanho={40} />
-        <Texto variante="titulo" style={{ flex: 1 }}>
-          {status.texto}
-        </Texto>
-      </View>
+      <CabecalhoStatus status={STATUS_VITIMA[ocorrencia.estado]} ativa={ativa} />
 
       <Aviso tipo="informacao" mensagem="Seu contato de emergência foi avisado." />
       {erro?.tipo === 'sem-conexao' ? (
         <Aviso tipo="atencao" mensagem="Sem conexão: o status pode estar desatualizado." />
       ) : null}
 
-      <Cartao>
-        <View
-          accessible
-          accessibilityLabel={
-            segundos === null
-              ? 'Cronômetro indisponível'
-              : `${duracaoFalada(segundos)} desde a queda. Meta: socorro em até ${meta / 60} minutos. ${TEXTO_META[situacaoMeta]}.`
-          }
-          style={{ gap: espaco.pequeno }}
-        >
-          <Texto variante="destaque">{segundos === null ? '--:--' : formatarMinutosSegundos(segundos)}</Texto>
-          <Texto variante="rotulo">desde a queda</Texto>
-          <Texto>{`Meta: socorro em até ${meta / 60} minutos`}</Texto>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: espaco.pequeno }}>
-            <Icone
-              nome={situacaoMeta === 'dentro' ? 'checkmark-circle' : situacaoMeta === 'acima' ? 'time' : 'remove-circle'}
-              cor={situacaoMeta === 'dentro' ? cores.aviso.sucesso.icone : cores.aviso.atencao.icone}
-            />
-            <Texto variante="rotulo">{TEXTO_META[situacaoMeta]}</Texto>
-          </View>
-          {ocorrencia.cronometro.parado ? <Texto variante="legenda">O cronômetro parou.</Texto> : null}
-        </View>
-      </Cartao>
+      <CartaoCronometro ocorrencia={ocorrencia} segundos={segundos} papel="VITIMA" />
 
-      {ativa ? (
-        <Botao
-          titulo="Ligar 192 (SAMU)"
-          variante="perigo"
-          icone="call"
-          alturaMinima={72}
-          aoPressionar={ligar192}
-          accessibilityHint="Abre o discador com o número 192. A ligação só começa se você tocar em ligar."
-        />
-      ) : null}
+      {ativa ? <BotaoLigar192 /> : null}
 
       {mensagem ? <Aviso tipo={mensagem.tipo} mensagem={mensagem.texto} /> : null}
 
@@ -233,14 +235,158 @@ function OcorrenciaDaVitima({ id }: { id: string }) {
 
       {!ativa ? (
         <Cartao titulo="Resumo">
-          <Texto>
-            {ocorrencia.tempoAteAceiteSegundos === null
-              ? 'Tempo até o aceite: sem aceite.'
-              : `Tempo até o aceite: ${formatarMinutosSegundos(ocorrencia.tempoAteAceiteSegundos)} (${duracaoFalada(ocorrencia.tempoAteAceiteSegundos)}).`}
-          </Texto>
+          <Texto>{fraseResumo(ocorrencia)}</Texto>
           <Botao titulo="Voltar ao turno" icone="arrow-back" aoPressionar={() => router.dismissTo('/turno')} />
         </Cartao>
       ) : null}
+    </Tela>
+  );
+}
+
+/**
+ * Tela do voluntário: `GET /ocorrencias/{id}?voluntarioId=` a cada 5 s. Com `localizacaoExata`
+ * verdadeiro, "Localização exata liberada" e o botão "Abrir no mapa"; sem ela, só a distância.
+ * As coordenadas ficam só na memória da tela (nunca no SQLite nem em log) e só saem para o app
+ * de mapas. O cronômetro para no aceite; "Encerrar atendimento" pede confirmação.
+ */
+function OcorrenciaDoVoluntario({ id }: { id: string }) {
+  const { cores, espaco } = useTema();
+  const { ocorrencia, lidoEm, erro, recarregar, aplicar } = useOcorrencia(id, 'VOLUNTARIO');
+  const { distanciaDe, atualizarOcorrenciaAceita } = useChamados();
+  const segundos = useCronometro(ocorrencia?.cronometro ?? null, lidoEm);
+  const [encerrando, setEncerrando] = useState(false);
+  const [mensagem, setMensagem] = useState<MensagemTela | null>(null);
+  useAnunciarEstado(ocorrencia?.estado, STATUS_VOLUNTARIO);
+
+  // Quando a ocorrência termina (encerrada aqui, ou cancelada pela vítima), a aba Chamados
+  // deixa de mostrar o "Atendimento em andamento": relê o SQLite, que o useOcorrencia já atualizou.
+  const terminou = ocorrencia !== null && ESTADOS_FINAIS.includes(ocorrencia.estado);
+  useEffect(() => {
+    if (terminou) {
+      void atualizarOcorrenciaAceita();
+    }
+  }, [terminou, atualizarOcorrenciaAceita]);
+
+  if (!ocorrencia) {
+    return (
+      <SemOcorrencia
+        erro={erro}
+        aoTentarDeNovo={() => void recarregar()}
+        voltar={{ titulo: 'Voltar aos chamados', destino: '/chamados' }}
+      />
+    );
+  }
+
+  const ativa = !terminou;
+  const distancia = distanciaDe(id);
+
+  async function abrirMapa(atual: OcorrenciaResposta) {
+    // Formato geo do Android: abre o app de mapas com um alfinete e o nome do ponto.
+    const ponto = `${atual.latitude},${atual.longitude}`;
+    const url = `geo:${ponto}?q=${ponto}(${encodeURIComponent('Entregador caído')})`;
+    try {
+      await Linking.openURL(url);
+    } catch {
+      // Sem app de mapas no celular. Nada vai para log: a URL tem a localização exata.
+      setMensagem({ tipo: 'erro', texto: 'Não deu para abrir o mapa neste celular.' });
+    }
+  }
+
+  async function encerrar() {
+    setEncerrando(true);
+    setMensagem(null);
+    try {
+      // 409 pode ser conflito com o escalonamento: repete até 3 vezes.
+      const resposta = await repetirEmConflito(() => ocorrenciaServico.encerrar(id));
+      await aplicar(resposta);
+      setMensagem({ tipo: 'sucesso', texto: 'Atendimento encerrado. Obrigado por ajudar.' });
+    } catch (e) {
+      const erroApi = converterErro(e);
+      if (erroApi.tipo === 'conflito') {
+        await recarregar();
+        setMensagem({ tipo: 'atencao', texto: 'Não deu para encerrar: a ocorrência mudou. Veja o estado atual acima.' });
+      } else if (erroApi.tipo === 'sem-conexao') {
+        setMensagem({ tipo: 'erro', texto: `O atendimento continua aberto. ${MENSAGEM_SEM_CONEXAO}` });
+      } else if (erroApi.tipo === 'nao-encontrado') {
+        setMensagem({ tipo: 'erro', texto: 'Ocorrência não encontrada.' });
+      } else {
+        setMensagem({ tipo: 'erro', texto: mensagemComum(erroApi) });
+      }
+    } finally {
+      setEncerrando(false);
+    }
+  }
+
+  function confirmarEncerrar() {
+    Alert.alert(
+      'Encerrar o atendimento?',
+      'Encerre quando o entregador estiver com o SAMU ou não precisar mais de ajuda.',
+      [
+        { text: 'Continuar atendendo', style: 'cancel' },
+        { text: 'Encerrar', style: 'destructive', onPress: () => void encerrar() },
+      ],
+    );
+  }
+
+  return (
+    <Tela aoAtualizar={() => void recarregar()} atualizando={false}>
+      <CabecalhoStatus status={STATUS_VOLUNTARIO[ocorrencia.estado]} ativa={ativa} />
+
+      {erro?.tipo === 'sem-conexao' ? (
+        <Aviso tipo="atencao" mensagem="Sem conexão: o status pode estar desatualizado." />
+      ) : null}
+
+      {ativa ? (
+        <Cartao titulo="Onde está o entregador">
+          {ocorrencia.localizacaoExata ? (
+            <>
+              <View
+                accessible
+                accessibilityLabel="Localização exata liberada"
+                style={{ flexDirection: 'row', alignItems: 'center', gap: espaco.pequeno }}
+              >
+                <Icone nome="location" cor={cores.aviso.sucesso.icone} />
+                <Texto variante="rotulo" style={{ flex: 1 }}>
+                  Localização exata liberada
+                </Texto>
+              </View>
+              <Botao
+                titulo="Abrir no mapa"
+                icone="map"
+                aoPressionar={() => void abrirMapa(ocorrencia)}
+                accessibilityHint="Abre o app de mapas com o ponto onde o entregador caiu"
+              />
+            </>
+          ) : (
+            <Texto>A localização exata aparece aqui depois do seu aceite.</Texto>
+          )}
+          {distancia !== null ? (
+            <Texto cor="textoSecundario">{`Cerca de ${formatarDecimal(distancia)} km de você (distância aproximada).`}</Texto>
+          ) : null}
+        </Cartao>
+      ) : null}
+
+      <CartaoCronometro ocorrencia={ocorrencia} segundos={segundos} papel="VOLUNTARIO" />
+
+      {ativa ? <BotaoLigar192 /> : null}
+
+      {mensagem ? <Aviso tipo={mensagem.tipo} mensagem={mensagem.texto} /> : null}
+
+      {ativa ? (
+        <Botao
+          titulo="Encerrar atendimento"
+          variante="secundaria"
+          icone="checkmark-done"
+          aoPressionar={confirmarEncerrar}
+          carregando={encerrando}
+          accessibilityHint="Pede confirmação antes de encerrar"
+        />
+      ) : (
+        <Cartao titulo="Resumo">
+          <Texto>{fraseResumo(ocorrencia)}</Texto>
+          <Botao titulo="Voltar aos chamados" icone="arrow-back" aoPressionar={() => router.dismissTo('/chamados')} />
+        </Cartao>
+      )}
     </Tela>
   );
 }

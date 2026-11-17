@@ -27,13 +27,16 @@ export interface EstadoOcorrenciaTela {
 
 /**
  * Ocorrência vista pelo perfil local: `GET /ocorrencias/{id}` a cada 5 s (usePolling) até ela
- * terminar, e cada leitura atualiza a tabela `ocorrencia` (sem localização). A vítima consulta
- * sem `voluntarioId`, então a localização vem aproximada (a tela nem a mostra).
+ * terminar, e cada leitura atualiza a tabela `ocorrencia` (sem latitude e longitude). A vítima
+ * consulta sem `voluntarioId` (localização aproximada, que a tela nem mostra). O voluntário manda
+ * o próprio `voluntarioId`, e a localização vem exata se foi ele quem aceitou (seção 7): ela fica
+ * só no estado da tela, nunca no SQLite nem em log.
  */
 export function useOcorrencia(id: string, papel: PapelOcorrencia): EstadoOcorrenciaTela {
   const db = useSQLiteContext();
   const { perfilAtivo } = useSessao();
   const entregadorId = perfilAtivo?.entregadorId ?? null;
+  const voluntarioId = papel === 'VOLUNTARIO' ? (perfilAtivo?.voluntarioId ?? undefined) : undefined;
   const [ocorrencia, setOcorrencia] = useState<OcorrenciaResposta | null>(null);
   const [lidoEm, setLidoEm] = useState<number | null>(null);
   const [erro, setErro] = useState<ErroApi | null>(null);
@@ -63,14 +66,14 @@ export function useOcorrencia(id: string, papel: PapelOcorrencia): EstadoOcorren
 
   const recarregar = useCallback(async () => {
     try {
-      await aplicar(await ocorrenciaServico.obter(id));
+      await aplicar(await ocorrenciaServico.obter(id, voluntarioId));
     } catch (e) {
       setErro(converterErro(e));
     }
-  }, [aplicar, id]);
+  }, [aplicar, id, voluntarioId]);
 
   const terminou = ocorrencia !== null && ESTADOS_FINAIS.includes(ocorrencia.estado);
-  usePolling(recarregar, !terminou);
+  usePolling(recarregar, !terminou, `${id}:${voluntarioId ?? 'vitima'}`);
 
   return { ocorrencia, lidoEm, erro, recarregar, aplicar };
 }
