@@ -16,7 +16,7 @@ Este arquivo orienta o Claude Code quando ele trabalha na pasta `api/` do monore
 
 ## Fonte da verdade
 
-1. `docs/contrato-integracao.md` (versão 1.13).
+1. `docs/contrato-integracao.md` (versão 1.15).
 2. Este arquivo.
 
 Nunca renomeie entidades, campos, enums, rotas, payloads ou tópicos MQTT do contrato. Se algo do contrato parecer impossível ou contraditório, pare e me avise, explicando o motivo, sem improvisar.
@@ -39,7 +39,7 @@ api/
 │   └── HelmCare.Api/          Controllers/ - Contratos/ - Servicos/ - Persistencia/ - Mensageria/
 │                              Integracoes/ - Seguranca/ - Configuracao/ - wwwroot/cofre/
 └── tests/
-    └── HelmCare.Testes/       Dominio/ - Servicos/ - Mensageria/ - Fakes/
+    └── HelmCare.Testes/       Dominio/ - Servicos/ - Mensageria/ - Seguranca/ - Configuracao/ - Fakes/
 ```
 
 - `HelmCare.Dominio` não tem pacote NuGet além do próprio .NET.
@@ -91,7 +91,7 @@ Use estas versões (as mesmas dos templates do professor). Se uma versão não r
 - Toda entidade herda de `Entidade` (abstrata, `Id` do tipo `Guid`). Setters privados, construtor sem parâmetros privado (para o EF) e criação por construtor público ou fábrica estática que valida. Coleções expostas como `IReadOnlyCollection<T>` com lista privada.
 - Exceções: `DominioException` (abstrata) e as derivadas `ValidacaoDominioException` (vira 400), `TransicaoInvalidaException` (vira 409) e `RegraNegocioException` (vira 409).
 - Enums: membros em PascalCase em C#. O nome do contrato (UPPER_SNAKE_CASE) vem de `[JsonStringEnumMemberName("SOS_CAMADA_1")]` em cada membro, e o tipo leva `[JsonConverter(typeof(JsonStringEnumConverter<T>))]`. O helper `NomeContrato` converte nos dois sentidos a partir desse atributo e é usado pelo conversor do EF e pela leitura do MQTT. Não use `JsonNamingPolicy` para isso (ela geraria `SOS_CAMADA1`).
-- Migrations novas só quando o pedido disser; a próxima prevista é a do Cofre (campos concedido e motivo do AcessoCofre).
+- Migrations novas só quando o pedido disser. A `Identidade` (1.15) cria as tabelas do Identity, `Entregador.UsuarioId`, `Ocorrencia.EncerradaAutomaticamente` e os índices únicos de CNH e telefone; a próxima prevista é a do Cofre (campos concedido e motivo do AcessoCofre).
 
 ### Máquina de estados da `Ocorrencia`
 
@@ -103,6 +103,7 @@ Use estas versões (as mesmas dos templates do professor). Se uma versão não r
 | `SOS_CAMADA_1` ou `SOS_CAMADA_2` | `Cancelar` | `CANCELADA` | `EncerradaEm` |
 | `SOS_CAMADA_1` ou `SOS_CAMADA_2` | `Encerrar` (SAMU chegou antes) | `ENCERRADA` | `EncerradaEm`, `TempoAteAceiteSegundos` nulo |
 | `SOCORRO_A_CAMINHO` | `Encerrar` | `ENCERRADA` | `EncerradaEm` |
+| `SOS_CAMADA_1`, `SOS_CAMADA_2` ou `SOCORRO_A_CAMINHO` | `EncerrarAutomaticamente` (`TEMPO_ENCERRAMENTO_AUTOMATICO_MIN` ou mais desde `CriadaEm`, inclusivo) | `ENCERRADA` | `EncerradaEm`, `EncerradaAutomaticamente = true`; o indicador fica como está (nulo sem aceite) |
 | qualquer outra combinação | | não muda | `TransicaoInvalidaException`, nenhum campo alterado |
 
 `ENCERRADA` e `CANCELADA` são finais. Os comandos MQTT de cada transição (`SOCORRO_A_CAMINHO`, `ENCERRAR`) são enviados pela camada de serviço, não pelo domínio.
@@ -130,10 +131,37 @@ Use estas versões (as mesmas dos templates do professor). Se uma versão não r
 - Os comandos da ocorrência (`SOCORRO_A_CAMINHO` e `ENCERRAR`) são publicados depois de gravar e não bloqueiam a rota: se o broker falhar, aviso no log e a rota responde normalmente.
 - O aviso ao contato de emergência é simulado: só uma linha de log com o `ocorrenciaId` e a quantidade de contatos, depois que a ocorrência é gravada; nunca nome, telefone ou localização.
 
+## Identidade e autorização (1.15)
+
+- Login com o ASP.NET Core Identity (`AddIdentityApiEndpoints`, esquema bearer do próprio Identity, token opaco protegido pelo Data Protection; sem JWT e sem `MapIdentityApi`: as rotas são nossas). `accessToken` de 60 min e `refreshToken` de 14 dias, configuráveis em `OpcoesHelmCare`.
+- Papéis `ENTREGADOR` e `SOCORRISTA` (criados pela migration). O token leva o papel e o id do perfil (claim `entregadorId` ou `socorristaId`).
+- Senha de 8 a 64 caracteres, com maiúscula, minúscula e dígito (símbolo não é exigido). E-mail único sem diferenciar maiúsculas, até 254 caracteres. Cinco tentativas erradas bloqueiam a conta por 15 min, também nas contas novas.
+- Login: e-mail ou senha errados, conta bloqueada e conta de socorrista dão o mesmo `401`, com o mesmo texto.
+- **Ordem dos códigos:** primeiro `401` (sem token, inválido ou vencido), depois `404` (recurso inexistente) e por último `403` (recurso de outro usuário ou papel errado). Nunca há redirecionamento (302): só `401` ou `403` em ProblemDetails.
+- A conferência do dono fica no `AutorizacaoRecursos` (a partir do `IUsuarioAtual`), chamada pelos serviços depois de carregar o recurso; nunca nos controllers. O padrão é exigir login; as rotas públicas são marcadas uma a uma. O roteador MQTT e o laço em segundo plano não passam pela autorização.
+
+| Rotas | Quem pode |
+|---|---|
+| `GET /entregadores/{id}`, `GET` e `PUT /entregadores/{id}/ficha-medica`, `PUT /entregadores/{id}/telefone`, `POST`, `PUT` e `DELETE` dos contatos, `GET /cofre/auditoria/{entregadorId}` | Só o próprio entregador |
+| `POST /dispositivos`, `POST /voluntarios` e `POST /turnos` | Só o próprio entregador: o `entregadorId` do corpo precisa ser o do token |
+| `/turnos/{id}/...` (risco, alerta, cancelar alerta e encerrar) | Só o dono do turno |
+| `PUT /voluntarios/{id}/disponibilidade`, `GET /ocorrencias/proximas?voluntarioId=` e `POST /ocorrencias/{id}/aceites` | Só o voluntário do próprio entregador (o `voluntarioId` precisa ser o do token) |
+| `GET /ocorrencias/{id}?voluntarioId=` | A vítima ou qualquer entregador que seja voluntário; o `voluntarioId`, se vier, precisa ser o do token |
+| `POST /ocorrencias/{id}/cancelar` | Só a vítima |
+| `POST /ocorrencias/{id}/encerrar` | A vítima ou o voluntário que aceitou |
+| `POST /entregadores`, `POST /entregadores/login`, `POST /entregadores/renovar-token`, `POST /socorristas/login`, `GET /trechos-criticos`, `GET /saude` e a página `GET /cofre/{qrToken}` | Públicas |
+
+- Token de `SOCORRISTA` em qualquer rota do entregador: `403`.
+- **Log:** e-mail, senha, `accessToken` e `refreshToken` nunca vão para o log. No login, só o id do perfil e o resultado (sucesso, falha ou bloqueio); e-mail desconhecido não registra nada do e-mail.
+- Limite de 10 requisições por minuto por IP do cliente no `POST /entregadores/login`, no `POST /entregadores/renovar-token` e no `POST /socorristas/login` (`429` em ProblemDetails).
+- **Data Protection:** as chaves ficam no diretório de `HelmCare:DiretorioChavesDataProtection` (variável `HelmCare__DiretorioChavesDataProtection`), fora da pasta publicada; sem isso, um reinício invalida todos os tokens. Em Development, o padrão é `LocalApplicationData/HelmCare/chaves-data-protection`; nos outros ambientes, o caminho é obrigatório e a API não sobe sem ele. Nada desse diretório entra no git.
+- **Cabeçalhos encaminhados:** `X-Forwarded-For` e `X-Forwarded-Proto`, aceitos só dos proxies de `HelmCare:ProxiesConfiaveis` (padrão `127.0.0.1` e `::1`, o nginx na mesma VM), antes do limite de logins e de qualquer uso do IP.
+- A rota `POST /api/v1/dev/entregadores/{id}/conta` só existe em Development (fora dele não é mapeada nem aparece no Scalar).
+
 ## Dados pessoais (seção 9 do contrato)
 
-- Nunca registre em log: `cpf`, `cnh`, `telefone`, `nome`, contatos de emergência, ficha médica, coordenadas exatas, senhas ou tokens. Logs usam ids (GUID) e o código do capacete.
-- Respostas mascaradas: CPF `***.***.***-12`, CNH `*******8900`, celular `(11) *****-1234` e telefone fixo `(11) ****-4567`. A ficha médica completa só volta no `PUT /api/v1/entregadores/{id}/ficha-medica`, para quem acabou de enviá-la; no Cofre saem só `tipoSanguineo`, `alergias` e `condicoesCriticas` (seção 7 do contrato).
+- Nunca registre em log: `cpf`, `cnh`, `telefone`, `nome`, `email`, contatos de emergência, ficha médica, coordenadas exatas (nem a posição do voluntário), senhas ou tokens. Logs usam ids (GUID) e o código do capacete.
+- Respostas mascaradas: CPF `***.***.***-12`, CNH `*******8900`, celular `(11) *****-1234`, telefone fixo `(11) ****-4567` e e-mail `r***@exemplo.com`. A ficha médica completa só volta no `GET` e no `PUT /api/v1/entregadores/{id}/ficha-medica`, para o próprio entregador e com `Cache-Control: no-store`; no Cofre saem só `tipoSanguineo`, `alergias` e `condicoesCriticas` (seção 7 do contrato).
 - Dados de seed são sempre simulados.
 
 ## Testes (`HelmCare.Testes`)
