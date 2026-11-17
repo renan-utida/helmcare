@@ -7,6 +7,7 @@ import { Icone, type NomeIcone } from '@/componentes/Icone';
 import { SimboloMarca } from '@/componentes/Marca';
 import { MenuConta } from '@/componentes/MenuConta';
 import { Texto } from '@/componentes/Texto';
+import { useChamados } from '@/contextos/ChamadosContext';
 import { useSessao } from '@/contextos/SessaoContext';
 import { useTema } from '@/contextos/TemaContext';
 import { useNomeEntregador } from '@/hooks/useNomeEntregador';
@@ -107,9 +108,13 @@ const ABAS: { nome: string; titulo: string; icone: NomeIcone }[] = [
  * Abas do app: Turno, Chamados, Histórico, Perfil e Ajustes, sempre com ícone e texto.
  * A altura da barra soma a área segura de baixo e cresce com a fonte do sistema,
  * para o texto das abas nunca ser cortado. No cabeçalho, só o botão do menu da conta.
+ * A aba Chamados mostra no ícone o número de chamados próximos (com o voluntário disponível),
+ * e o leitor de tela diz esse número junto com o nome da aba.
  */
 export default function LayoutAbas() {
   const { cores, tipografia, espaco, medidas } = useTema();
+  const { chamados } = useChamados();
+  const quantidadeChamados = chamados?.length ?? 0;
   const insets = useSafeAreaInsets();
   const { fontScale } = useWindowDimensions();
   // Ícone + texto da legenda escalado (com folga de 1,4 por linha) + respiro em cima e embaixo.
@@ -140,19 +145,35 @@ export default function LayoutAbas() {
         sceneStyle: { backgroundColor: cores.fundo },
       }}
     >
-      {ABAS.map((aba, indice) => (
-        <Tabs.Screen
-          key={aba.nome}
-          name={aba.nome}
-          options={{
-            title: aba.titulo,
-            tabBarIcon: iconeDaAba(aba.icone, cores.abaInativa),
-            tabBarLabel: rotuloDaAba(aba.titulo, cores.abaInativa),
-            // O padrão da biblioteca vem em inglês ("tab, 1 of 5"): aqui, em português.
-            tabBarAccessibilityLabel: `${aba.titulo}, aba ${indice + 1} de ${ABAS.length}`,
-          }}
-        />
-      ))}
+      {ABAS.map((aba, indice) => {
+        const selo = aba.nome === 'chamados' && quantidadeChamados > 0 ? quantidadeChamados : undefined;
+        const leituraSelo =
+          selo === undefined ? '' : `, ${selo} ${selo === 1 ? 'chamado de socorro' : 'chamados de socorro'}`;
+        return (
+          <Tabs.Screen
+            key={aba.nome}
+            name={aba.nome}
+            options={{
+              title: aba.titulo,
+              tabBarIcon: iconeDaAba(aba.icone, cores.abaInativa),
+              tabBarLabel: rotuloDaAba(aba.titulo, cores.abaInativa),
+              // Número de chamados no ícone; o número também vai em palavras no rótulo abaixo.
+              tabBarBadge: selo,
+              // O selo da biblioteca tem altura fixa de 18 dp: com `height: 'auto'`, ele cresce
+              // junto com a fonte do sistema e o número não é cortado.
+              tabBarBadgeStyle: {
+                backgroundColor: cores.perigo,
+                color: cores.textoSobrePerigo,
+                height: 'auto',
+                minHeight: 18,
+                paddingHorizontal: espaco.pequeno / 2,
+              },
+              // O padrão da biblioteca vem em inglês ("tab, 1 of 5"): aqui, em português.
+              tabBarAccessibilityLabel: `${aba.titulo}${leituraSelo}, aba ${indice + 1} de ${ABAS.length}`,
+            }}
+          />
+        );
+      })}
     </Tabs>
   );
 }

@@ -9,10 +9,15 @@ import { INTERVALO_POLLING_APP_S } from '@/config/constantes';
  * anterior termina, então nunca há duas consultas ao mesmo tempo). Para com o app em segundo
  * plano (AppState) e volta ao reabrir; para quando `ativo` fica falso e ao desmontar.
  * Erros da tarefa não param o polling: quem chama trata o erro dentro da tarefa.
+ *
+ * `chave` identifica de quem é o polling (por exemplo, o `voluntarioId` do perfil ativo). Quando
+ * ela muda, o polling anterior é cancelado (inclusive a próxima consulta agendada) e um novo
+ * começa na hora: assim, na troca de perfil, nenhuma consulta do perfil antigo continua rodando.
  */
 export function usePolling(
   tarefa: () => Promise<void>,
   ativo: boolean,
+  chave: string | null = null,
   intervaloMs: number = INTERVALO_POLLING_APP_S * 1000,
 ): void {
   // A tarefa mais recente fica numa ref: trocar a função não reinicia o polling.
@@ -76,5 +81,6 @@ export function usePolling(
       }
       assinatura.remove();
     };
-  }, [ativo, intervaloMs]);
+    // `chave` entra nas dependências só para reiniciar o polling quando o dono dele muda.
+  }, [ativo, chave, intervaloMs]);
 }

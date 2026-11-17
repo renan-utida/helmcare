@@ -1,11 +1,12 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Alert, Pressable, Switch, View } from 'react-native';
+import { AccessibilityInfo, Alert, View } from 'react-native';
 
 import { Aviso, type TipoAviso } from '@/componentes/Aviso';
 import { Botao } from '@/componentes/Botao';
 import { Carregando } from '@/componentes/Carregando';
 import { Cartao } from '@/componentes/Cartao';
+import { Chave } from '@/componentes/Chave';
 import { EstadoCapacete } from '@/componentes/EstadoCapacete';
 import { EstadoVazio } from '@/componentes/EstadoVazio';
 import { GrupoOpcoes } from '@/componentes/GrupoOpcoes';
@@ -124,7 +125,7 @@ function NovoTurno({
   avisoTroca: string | null;
   limparAvisoFinal: () => void;
 }) {
-  const { cores, espaco, medidas } = useTema();
+  const { espaco } = useTema();
   const { iniciar } = useTurno();
   const [duracao, setDuracao] = useState<Duracao>('4');
   // A proteção começa ligada quando há capacete; sem capacete, não pode ligar.
@@ -187,40 +188,17 @@ function NovoTurno({
       />
 
       <View style={{ gap: espaco.pequeno }}>
-        {/* A linha inteira é a chave: área de toque grande e uma leitura só. */}
-        <Pressable
-          onPress={alternarProtecao}
-          disabled={!temCapacete}
-          accessibilityRole="switch"
-          accessibilityLabel="Proteção contra quedas"
-          accessibilityState={{ checked: protecao && temCapacete, disabled: !temCapacete }}
+        <Chave
+          rotulo="Proteção contra quedas"
+          ligada={protecao && temCapacete}
+          aoAlternar={alternarProtecao}
+          desabilitada={!temCapacete}
           accessibilityHint={
             temCapacete
               ? 'Liga o capacete para perceber quedas durante o turno'
               : 'Vincule um capacete no Perfil para ligar a proteção'
           }
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: espaco.medio,
-            minHeight: medidas.alturaBotao,
-          }}
-        >
-          <View style={{ flex: 1 }}>
-            <Texto variante="rotulo">Proteção contra quedas</Texto>
-            <Texto variante="legenda">{protecao && temCapacete ? 'Ligada' : 'Desligada'}</Texto>
-          </View>
-          <Switch
-            value={protecao && temCapacete}
-            onValueChange={alternarProtecao}
-            disabled={!temCapacete}
-            trackColor={{ false: cores.borda, true: cores.primaria }}
-            thumbColor={cores.superficie}
-            // A linha já anuncia a chave; o Switch não entra no leitor de novo.
-            accessible={false}
-            importantForAccessibility="no-hide-descendants"
-          />
-        </Pressable>
+        />
         {temCapacete ? null : (
           <>
             <Texto cor="textoSecundario">Vincule um capacete no Perfil para ligar a proteção.</Texto>

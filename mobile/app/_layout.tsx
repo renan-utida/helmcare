@@ -5,6 +5,7 @@ import { Suspense } from 'react';
 
 import { migrarBanco } from '@/banco/migracoes';
 import { Carregando } from '@/componentes/Carregando';
+import { ChamadosProvider } from '@/contextos/ChamadosContext';
 import { SessaoProvider } from '@/contextos/SessaoContext';
 import { TemaDoSistema, TemaProvider, useTema } from '@/contextos/TemaContext';
 import { TurnoProvider } from '@/contextos/TurnoContext';
@@ -52,7 +53,7 @@ function PilhaRaiz() {
 
 /**
  * Layout raiz: abre o banco local (migrações no `onInit`, antes de qualquer tela),
- * depois o tema, a sessão, o turno do perfil ativo e a pilha de telas.
+ * depois o tema, a sessão, o turno e a rede de voluntários do perfil ativo e a pilha de telas.
  * Enquanto o banco abre, o `Suspense` mostra a abertura com o logo (no tema do celular,
  * porque a escolha dos Ajustes ainda não pode ser lida).
  */
@@ -69,7 +70,9 @@ export default function LayoutRaiz() {
         <TemaProvider>
           <SessaoProvider>
             <TurnoProvider>
-              <PilhaRaiz />
+              <ChamadosProvider>
+                <PilhaRaiz />
+              </ChamadosProvider>
             </TurnoProvider>
           </SessaoProvider>
         </TemaProvider>
