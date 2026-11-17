@@ -1,6 +1,6 @@
 # HelmCare - Contrato de Integração
 
-**Versão 1.15 - 16/11/2026**
+**Versão 1.16 - 17/11/2026**
 
 Este documento define como as partes do HelmCare conversam entre si: nomes, tópicos MQTT, endpoints, payloads, estados e regras. **Todas as disciplinas seguem este contrato.** Mudanças só entram por meio da conversa central de coordenação, que gera uma nova versão.
 
@@ -91,6 +91,7 @@ Este documento define como as partes do HelmCare conversam entre si: nomes, tóp
 | `FaixaRisco` | `BAIXO`, `MODERADO`, `ALTO`, `MUITO_ALTO` |
 | `TipoVoluntario` | `ENTREGADOR`, `VIGIA_MOTO` |
 | `OrigemAcessoCofre` | `SOS_ATIVO`, `EMERGENCIA_MANUAL` |
+| `MotivoNegacaoCofre` | `SOCORRISTA_NAO_VERIFICADO`, `ACESSO_EXPIRADO` (valor do `motivo` do `AcessoCofre` numa negação; `null` quando o acesso é concedido) |
 | `TipoEventoMqtt` | `IMPACTO_DETECTADO`, `CONTAGEM_INICIADA`, `CANCELADO`, `FALSO_POSITIVO`, `SOS` |
 | `TipoComandoMqtt` | `ARMAR`, `DESARMAR`, `CANCELAR`, `SOCORRO_A_CAMINHO`, `ENCERRAR` |
 
@@ -247,7 +248,7 @@ Tópico `helmcare-rdu/v1/HC-0001/comando`:
 | GET | `/indicadores` | *(Opcional)* Tempo médio até o aceite, percentual dentro da meta de `META_TEMPO_ACEITE_S` e taxa de falsos positivos |
 | GET | `/saude` | Verificação de saúde (usada pelo monitoramento do OS) |
 
-A página web do Cofre fica **fora** do `/api/v1`, em `GET /cofre/{qrToken}` (HTML, sem dados se não houver emergência). As rotas JSON do Cofre ficam dentro: `/api/v1/cofre/{qrToken}/acesso` e `/api/v1/cofre/auditoria/{entregadorId}`.
+A página web do Cofre fica **fora** do `/api/v1`, em `GET /cofre/{qrToken}` (HTML estático, sem nenhum dado no HTML). As rotas JSON do Cofre ficam dentro: `/api/v1/cofre/{qrToken}/acesso` e `/api/v1/cofre/auditoria/{entregadorId}`.
 
 **Códigos padrão:**
 
@@ -389,13 +390,31 @@ Resposta, durante a contagem:
 
 **Cofre médico (`POST /api/v1/cofre/{qrToken}/acesso`):**
 
-- **Login do socorrista:** o `POST /socorristas/login` tem o mesmo corpo de requisição e o mesmo formato de resposta do login do entregador, mas, no lugar dos campos do entregador, traz `socorristaId`, `nome`, `organizacao` e `verificado`. O socorrista não verificado também recebe token: é o Cofre que responde `403` e registra a tentativa.
+- **Login do socorrista:** o `POST /socorristas/login` tem o mesmo corpo de requisição e o mesmo formato de resposta do login do entregador, mas, no lugar dos campos do entregador, traz `socorristaId`, `nome`, `organizacao` e `verificado`. Senha errada, conta bloqueada e conta de entregador dão o mesmo `401`, e o limite de logins da seção 7 também vale aqui. O socorrista não verificado também recebe token: é o Cofre que responde `403` e registra a tentativa. No protótipo, o socorrista não tem renovação de token: a página faz o login de novo quando recebe `401`, e o `POST /entregadores/renovar-token` com um refresh de socorrista dá `401`.
+- **Códigos:** sem login, `401`; socorrista autenticado, mas não verificado, `403`; acesso com a janela fechada, `403`; token de entregador, `403`; `qrToken` inexistente, `404`.
+- **Janela de acesso:** cada par de socorrista e entregador tem uma janela de acesso, que abre na primeira concessão e vale até o `expiraEm` (a concessão mais `TTL_ACESSO_COFRE_MIN`). Na origem `SOS_ATIVO`, ela também fecha quando a ocorrência que a abriu vai para `ENCERRADA` ou `CANCELADA`; na `EMERGENCIA_MANUAL`, só o TTL vale. A janela de um socorrista não afeta a de outro.
+  - **Pedido dentro da janela:** `200`, com o mesmo `expiraEm` e a mesma origem, e uma linha nova de auditoria. Repetir o pedido não estica o prazo.
+  - **Janela fechada:** `403` (acesso expirado). Depois do fechamento, esse socorrista fica bloqueado para esse entregador por mais `TTL_ACESSO_COFRE_MIN`. Sem esse bloqueio, o fim do SOS levaria direto a uma emergência manual, e o acesso nunca expiraria de fato. A exceção é uma ocorrência nova do entregador (outro SOS), que abre uma janela nova na hora.
+- **Origem do acesso:** com ocorrência ativa do entregador (`SOS_CAMADA_1`, `SOS_CAMADA_2` ou `SOCORRO_A_CAMINHO`), a origem é `SOS_ATIVO`. Sem ocorrência ativa, e sem janela aberta ou fechada recentemente (dentro do bloqueio acima) para esse socorrista e esse entregador, o pedido de um socorrista verificado abre a emergência manual automaticamente: origem `EMERGENCIA_MANUAL` e `ocorrenciaId` vazio, sem nenhum campo extra na requisição.
+- **Resposta `200`** (com `Cache-Control: no-store`):
 
-- **Códigos:** sem login, `401`; socorrista autenticado, mas não verificado, `403`; acesso depois de expirar, `403`; `qrToken` inexistente, `404`. Toda tentativa de um socorrista autenticado, concedida ou negada, gera um `AcessoCofre` (seção 3).
-- **Origem do acesso:** com ocorrência ativa do entregador (`SOS_CAMADA_1`, `SOS_CAMADA_2` ou `SOCORRO_A_CAMINHO`), a origem é `SOS_ATIVO`. Sem ocorrência ativa, o mesmo pedido de um socorrista verificado abre a emergência manual automaticamente: origem `EMERGENCIA_MANUAL` e `ocorrenciaId` vazio, sem nenhum campo extra na requisição.
-- **Expiração:** o acesso expira quando passam `TTL_ACESSO_COFRE_MIN` desde que foi concedido ou quando a ocorrência vai para `ENCERRADA` ou `CANCELADA`. Na emergência manual, só o TTL vale.
-- **O que a resposta mostra (o mínimo da Ficha):** `tipoSanguineo`, `alergias`, `condicoesCriticas` e os contatos de emergência (`nome`, `telefone` e `parentesco`). Os `medicamentos` **não** saem no Cofre: ficam só nas telas do próprio entregador.
-- **Entregador sem ficha médica:** `200`, com os campos de saúde vazios e os contatos de emergência, se houver. A auditoria é gravada normalmente.
+```json
+{
+  "origem": "SOS_ATIVO",
+  "ocorrenciaId": "...",
+  "acessadoEm": "2026-11-18T22:10:00Z",
+  "expiraEm": "2026-11-18T23:10:00Z",
+  "tipoSanguineo": "O+",
+  "alergias": "...",
+  "condicoesCriticas": "...",
+  "contatos": [ { "nome": "...", "telefone": "11912345678", "parentesco": "..." } ]
+}
+```
+
+  É o mínimo da Ficha. O telefone dos contatos vem completo, só com os dígitos, porque o socorrista precisa ligar. Não vêm o nome, o CPF, a CNH nem os `medicamentos` do entregador. Na emergência manual, o `ocorrenciaId` vem `null`. Entregador sem ficha médica: `200`, com os três campos de saúde `null` e os contatos, se houver.
+- **Auditoria de cada tentativa:** toda tentativa de um socorrista autenticado, concedida ou negada, gera um `AcessoCofre` (seção 3), com o `ip` do cliente depois dos cabeçalhos encaminhados (seção 1), guardado só no banco. Numa concessão, `concedido` é verdadeiro e `motivo` é `null`. Numa negação, `concedido` é falso, `motivo` usa o `MotivoNegacaoCofre`, a `origem` é a que valeria naquele momento, o `ocorrenciaId` é o da ocorrência ativa (se houver) e o `expiraEm` é o da janela que fechou (no `ACESSO_EXPIRADO`) ou igual ao `acessadoEm` (no `SOCORRISTA_NAO_VERIFICADO`). Um `qrToken` inexistente e um token de entregador não geram `AcessoCofre`: ficam só no log, com o id do usuário e o resultado. O `qrToken` nunca vai para o log.
+- **Página web `GET /cofre/{qrToken}`:** é sempre o mesmo HTML estático, exista o `qrToken` ou não, para não revelar quais são válidos, e nunca traz dados no HTML. O socorrista entra com e-mail e senha, e a página chama o `POST /api/v1/cofre/{qrToken}/acesso`. Ela mostra a ficha mínima com os contatos para ligar e a contagem regressiva até o `expiraEm` (depois dela, os dados somem da tela), ou a mensagem de cada código (`401`, login de novo; `403`, não verificado ou expirado; `404`, QR inválido). O botão "Ligar para o SAMU 192" fica sempre visível. O token fica só na memória da página, sem `localStorage` nem `sessionStorage`: recarregar pede o login de novo. Cabeçalhos: `Content-Security-Policy` com `default-src 'self'` e sem script inline, `Referrer-Policy: no-referrer` (o `qrToken` está no endereço), `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` e `Cache-Control: no-store`. O JavaScript e o CSS ficam em `/cofre/assets/`, servidos pela própria API, sem CDN.
+- **Rota de desenvolvimento dos socorristas:** `POST /api/v1/dev/socorristas` (só em `Development`) recebe `{ "nome": "...", "registroProfissional": "...", "organizacao": "...", "verificado": true, "email": "...", "senha": "..." }`, cria o socorrista e a conta (papel `SOCORRISTA`) numa transação só e responde `201` com `{ socorristaId, nome, organizacao, verificado, email }`, com o e-mail mascarado. E-mail repetido dá `409`, e as regras de e-mail e senha são as do cadastro do entregador. Na demonstração, ela cria um socorrista verificado e um não verificado.
 
 **Auditoria (`GET /api/v1/cofre/auditoria/{entregadorId}`):** só para o próprio entregador, com o token (desde a 1.15). Devolve, para cada tentativa, `acessadoEm`, `expiraEm`, `origem`, `concedido`, `motivo` e o socorrista (`nome` e `organizacao`). Nunca devolve dados de saúde, e o `ip` fica só no banco.
 
@@ -521,9 +540,9 @@ Gerados pelo notebook de ML na pasta `ml/modelo/` e carregados pelo Serviço de 
 | Classificação | Campos | Onde **pode** aparecer | Onde **nunca** aparece |
 |---|---|---|---|
 | PII sensível (saúde) | Todos os campos de `FichaMedica` | Telas do próprio entregador. Na resposta de `POST /cofre/{qrToken}/acesso`, só `tipoSanguineo`, `alergias` e `condicoesCriticas`, para socorrista verificado e dentro do TTL (seção 7) | Logs, MQTT, notificações, respostas para voluntários, auditoria, telas de outros usuários |
-| PII | `cpf`, `cnh`, `telefone`, `nome`, `email`, contatos de emergência | Telas do próprio entregador (o `email` sempre mascarado nas respostas). Os contatos de emergência também saem na resposta do Cofre para o socorrista verificado | Logs, MQTT, respostas para voluntários |
+| PII | `cpf`, `cnh`, `telefone`, `nome`, `email`, contatos de emergência | Telas do próprio entregador (o `email` sempre mascarado nas respostas). Os contatos de emergência também saem na resposta do Cofre para o socorrista verificado, com o telefone completo para a ligação. O nome, o CPF e a CNH do entregador nunca saem no Cofre | Logs, MQTT, respostas para voluntários |
 | Localização | `latitude`, `longitude` | Exata: contato de emergência e voluntário que **aceitou**. Aproximada (arredondada para 2 casas decimais, cerca de 1 km): voluntários antes do aceite. A posição do voluntário nunca sai da API; a vítima recebe só a `distanciaVoluntarioKm` | Logs em texto aberto, MQTT com identificação pessoal |
-| Credenciais | Senhas, `accessToken` e `refreshToken` | A senha só como hash no Identity; os tokens só na resposta do login e da renovação e, no app, só no `expo-secure-store` | Logs, SQLite do app, URLs, MQTT e qualquer outra saída |
+| Credenciais | Senhas, `accessToken`, `refreshToken` e o `qrToken` do capacete | A senha só como hash no Identity; os tokens só na resposta do login e da renovação e, no app, só no `expo-secure-store` (na página do Cofre, só na memória); o `qrToken` só no QR Code, no endereço da página e na resposta do `POST /dispositivos` | Logs, SQLite do app, MQTT, outras URLs e qualquer outra saída |
 
 Máscaras padrão: CPF `***.***.***-12`, CNH `*******8900`, celular `(11) *****-1234` e telefone fixo `(11) ****-4567`.
 
@@ -569,3 +588,4 @@ Máscaras padrão: CPF `***.***.***-12`, CNH `*******8900`, celular `(11) *****-
 | 1.13 | 15/11/2026 | Rede de voluntários: `POST /voluntarios` (cadastro, começa indisponível), corpo e validações do `PUT /voluntarios/{id}/disponibilidade`, campos e ordem dos chamados próximos, distância até a localização aproximada; respostas do aceite, do cancelar e do encerrar da ocorrência; `Location` do voluntário e do aceite; escalonamento em segundo plano a cada 1 s; aviso simulado ao contato de emergência |
 | 1.14 | 15/11/2026 | SOS escalonado na API: o SOS repetido olha a ocorrência mais recente do entregador; `Location` sempre absoluto; o app decide pelo status HTTP, não pelo texto do erro; sem capacete vinculado, o comando da ocorrência não é publicado; nova tentativa só no aceite e `409` no cancelar e no encerrar em conflito de concorrência; erro por rodada no escalonamento com o banco fora |
 | 1.15 | 16/11/2026 | Identidade com o ASP.NET Core Identity para entregador e socorrista: cadastro com e-mail e senha, login, renovação do token e sessão; papéis e quem pode o quê em cada rota; `GET` da ficha médica, edição e exclusão de contatos e troca de telefone; CNH, telefone e e-mail únicos; `distanciaVoluntarioKm` para a vítima; encerramento automático em `TEMPO_ENCERRAMENTO_AUTOMATICO_MIN`; rota de desenvolvimento para contas de dados antigos; bloqueio, limite de logins (`429`), `204` no `DELETE` e `email` na seção 9; chaves do Data Protection persistentes e cabeçalhos encaminhados na Infra |
+| 1.16 | 17/11/2026 | Cofre médico: janela de acesso por socorrista e entregador (expira pelo TTL ou pelo fim da ocorrência, com bloqueio da emergência manual depois do fechamento); enum `MotivoNegacaoCofre` e auditoria das negações; o que não gera auditoria; corpo da resposta do acesso; login do socorrista sem renovação; corpo da rota de desenvolvimento dos socorristas; página web igual para qualquer `qrToken`, token só na memória e cabeçalhos de segurança; `qrToken` como credencial na seção 9 |
