@@ -189,7 +189,9 @@ export default function Alerta() {
       }}
     >
       {alerta === null ? (
-        <Texto centralizado>Carregando o alerta...</Texto>
+        <Texto centralizado accessibilityRole="progressbar" accessibilityLiveRegion="polite">
+          Carregando o alerta...
+        </Texto>
       ) : terminou ? (
         <View style={{ alignItems: 'center', gap: espaco.medio }}>
           <Icone nome="checkmark-circle" cor={cores.aviso.sucesso.icone} tamanho={72} />
