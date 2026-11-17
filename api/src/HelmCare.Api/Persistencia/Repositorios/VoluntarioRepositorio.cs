@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using HelmCare.Dominio.Entidades;
@@ -30,6 +31,15 @@ public sealed class VoluntarioRepositorio : RepositorioBase<Voluntario>, IVolunt
     public Task<bool> ExisteDoEntregadorAsync(Guid entregadorId, CancellationToken cancellationToken)
     {
         return Conjunto.AnyAsync(v => v.EntregadorId == entregadorId, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public Task<Guid?> ObterIdDoEntregadorAsync(Guid entregadorId, CancellationToken cancellationToken)
+    {
+        return Conjunto
+            .Where(v => v.EntregadorId == entregadorId)
+            .Select(v => (Guid?)v.Id)
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     /// <inheritdoc/>

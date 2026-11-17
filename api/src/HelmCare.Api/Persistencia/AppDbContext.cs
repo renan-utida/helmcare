@@ -5,7 +5,10 @@ using HelmCare.Api.Persistencia.Conversores;
 using HelmCare.Api.Persistencia.Modelos;
 using HelmCare.Api.Persistencia.Repositorios;
 using HelmCare.Dominio.Entidades;
+using HelmCare.Api.Seguranca;
 using HelmCare.Dominio.Enums;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace HelmCare.Api.Persistencia;
@@ -15,8 +18,10 @@ namespace HelmCare.Api.Persistencia;
 /// classe fica em <c>Persistencia/Configuracoes</c>, uma classe por entidade.
 /// Também é a <see cref="IUnidadeDeTrabalho"/>: o mesmo contexto da requisição, compartilhado
 /// pelos repositórios, grava tudo de uma vez no <see cref="SalvarAsync"/>.
+/// Desde a 1.15, também guarda as tabelas do ASP.NET Core Identity (usuários, papéis e claims),
+/// para a conta e o entregador serem gravados na mesma transação.
 /// </summary>
-public sealed class AppDbContext : DbContext, IUnidadeDeTrabalho
+public sealed class AppDbContext : IdentityDbContext<IdentityUser, IdentityRole, string>, IUnidadeDeTrabalho
 {
     /// <summary>
     /// Cria o contexto com as opções registradas na injeção de dependência.
@@ -100,6 +105,12 @@ public sealed class AppDbContext : DbContext, IUnidadeDeTrabalho
     }
 
     /// <inheritdoc/>
+    public async Task<ITransacao> IniciarTransacaoAsync(CancellationToken cancellationToken)
+    {
+        return new TransacaoEf(await Database.BeginTransactionAsync(cancellationToken));
+    }
+
+    /// <inheritdoc/>
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
         ArgumentNullException.ThrowIfNull(configurationBuilder);
@@ -117,10 +128,31 @@ public sealed class AppDbContext : DbContext, IUnidadeDeTrabalho
     }
 
     /// <inheritdoc/>
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    protected override void OnModelCreating(ModelBuilder builder)
     {
-        ArgumentNullException.ThrowIfNull(modelBuilder);
-        modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+        ArgumentNullException.ThrowIfNull(builder);
+
+        // Primeiro as tabelas do Identity; depois as do domínio, uma configuração por classe.
+        base.OnModelCreating(builder);
+        builder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+
+        // Os dois papéis do contrato nascem com a migration, com ids e carimbos fixos, para o banco
+        // de desenvolvimento e o da VM terem os mesmos registros.
+        builder.Entity<IdentityRole>().HasData(
+            new IdentityRole
+            {
+                Id = Papeis.IdEntregador,
+                Name = Papeis.Entregador,
+                NormalizedName = Papeis.Entregador,
+                ConcurrencyStamp = Papeis.IdEntregador,
+            },
+            new IdentityRole
+            {
+                Id = Papeis.IdSocorrista,
+                Name = Papeis.Socorrista,
+                NormalizedName = Papeis.Socorrista,
+                ConcurrencyStamp = Papeis.IdSocorrista,
+            });
     }
 
     private static void UsarNomeContrato<TEnum>(ModelConfigurationBuilder configurationBuilder)

@@ -37,6 +37,15 @@ public sealed class TurnoRepositorio : RepositorioBase<Turno>, ITurnoRepositorio
     }
 
     /// <inheritdoc/>
+    public Task<Guid?> ObterIdAtivoDoEntregadorAsync(Guid entregadorId, CancellationToken cancellationToken)
+    {
+        return Conjunto
+            .Where(t => t.EntregadorId == entregadorId && t.Fim == null)
+            .Select(t => (Guid?)t.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public Task<DadosAlertaTurno?> ObterDadosAlertaAsync(Guid entregadorId, CancellationToken cancellationToken)
     {
         // Um SELECT com duas subconsultas: só as quatro colunas, sem carregar nenhuma entidade.

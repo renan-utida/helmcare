@@ -31,7 +31,7 @@ public sealed class OcorrenciaServicoTests
     /// </summary>
     public OcorrenciaServicoTests()
     {
-        _servico = new OcorrenciaServico(_ocorrencias, _voluntarios, _relogio, Options.Create(new OpcoesHelmCare()));
+        _servico = new OcorrenciaServico(_ocorrencias, _voluntarios, new FakeAutorizacaoLivre(), _relogio, Options.Create(new OpcoesHelmCare()));
     }
 
     /// <summary>

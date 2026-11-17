@@ -24,6 +24,7 @@ public sealed class EntregadorServicoTests
 
     private readonly FakeEntregadorRepositorio _repositorio = new();
     private readonly FakeUnidadeDeTrabalho _unidade = new();
+    private readonly FakeContasIdentity _contas = new();
     private readonly EntregadorServico _servico;
 
     /// <summary>
@@ -31,7 +32,7 @@ public sealed class EntregadorServicoTests
     /// </summary>
     public EntregadorServicoTests()
     {
-        _servico = new EntregadorServico(_repositorio, _unidade, new FakeTimeProvider(_agora));
+        _servico = new EntregadorServico(_repositorio, _unidade, _contas, new FakeAutorizacaoLivre(), new FakeTimeProvider(_agora));
     }
 
     /// <summary>
@@ -239,6 +240,8 @@ public sealed class EntregadorServicoTests
             Cpf = cpf,
             Cnh = "12345678900",
             Telefone = "(11) 91234-5678",
+            Email = "entregador@exemplo.com",
+            Senha = "Senha123",
         };
     }
 

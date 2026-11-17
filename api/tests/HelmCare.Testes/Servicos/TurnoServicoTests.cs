@@ -56,6 +56,7 @@ public sealed class TurnoServicoTests
             new ServicoRiscoSimulado(),
             _publicador,
             _unidade,
+            new FakeAutorizacaoLivre(),
             new FakeTimeProvider(new DateTimeOffset(Agora)));
     }
 

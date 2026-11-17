@@ -66,13 +66,15 @@ public sealed class ModeloEfTests
     }
 
     /// <summary>
-    /// Garante que o modelo tem exatamente as 12 classes mapeadas (11 entidades e a idempotência).
+    /// Garante que o modelo tem exatamente as 12 classes do HelmCare mapeadas (11 entidades e a
+    /// idempotência), além das tabelas do ASP.NET Core Identity (1.15).
     /// </summary>
     [TestMethod]
     public void Modelo_Classes_TemDozeTabelas()
     {
         // Arrange e Act
-        int quantidade = _modelo.Value.GetEntityTypes().Count();
+        int quantidade = _modelo.Value.GetEntityTypes()
+            .Count(t => t.ClrType.Namespace?.StartsWith("HelmCare.", StringComparison.Ordinal) == true);
 
         // Assert
         Assert.AreEqual(12, quantidade);

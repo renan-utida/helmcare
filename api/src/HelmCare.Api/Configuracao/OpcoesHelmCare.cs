@@ -75,8 +75,53 @@ public sealed class OpcoesHelmCare
     public int IntervaloEscalonamentoS { get; set; } = 1;
 
     /// <summary>
+    /// <c>TEMPO_ENCERRAMENTO_AUTOMATICO_MIN</c>: minutos desde o <c>criadaEm</c> (inclusivo) depois dos
+    /// quais a API encerra sozinha a ocorrência ainda ativa, no mesmo laço do escalonamento.
+    /// </summary>
+    [Range(10, 1440)]
+    public int TempoEncerramentoAutomaticoMin { get; set; } = 120;
+
+    /// <summary>
+    /// Validade do <c>accessToken</c>, em minutos. Configuração interna da API (seção 7 do contrato,
+    /// "Validade"), fora das constantes da seção 5.
+    /// </summary>
+    [Range(5, 1440)]
+    public int ValidadeAccessTokenMin { get; set; } = 60;
+
+    /// <summary>
+    /// Validade do <c>refreshToken</c>, em dias. Configuração interna da API, fora da seção 5.
+    /// </summary>
+    [Range(1, 90)]
+    public int ValidadeRefreshTokenDias { get; set; } = 14;
+
+    /// <summary>
+    /// Logins e renovações de token aceitos por minuto para cada IP do cliente (acima disso, <c>429</c>).
+    /// </summary>
+    [Range(1, 1000)]
+    public int LimiteLoginsPorMinuto { get; set; } = 10;
+
+    /// <summary>
+    /// Diretório persistente das chaves do Data Protection (seção 1 do contrato), fora da pasta
+    /// publicada. Sem ele, cada reinício da API invalida todos os tokens. Obrigatório fora de
+    /// Development; em Development, o padrão fica no perfil do usuário.
+    /// </summary>
+    public string? DiretorioChavesDataProtection { get; set; }
+
+    /// <summary>
+    /// IPs dos proxies confiáveis, separados por vírgula, dos quais a API aceita os cabeçalhos
+    /// <c>X-Forwarded-For</c> e <c>X-Forwarded-Proto</c>. O padrão é só o loopback, o nginx na mesma VM.
+    /// </summary>
+    [Required]
+    public string ProxiesConfiaveis { get; set; } = "127.0.0.1,::1";
+
+    /// <summary>
     /// <c>JANELA_OBSERVACAO_S + CONTAGEM_CANCELAMENTO_S</c>: trecho do capacete no indicador de impacto
     /// quando ele não pode ser medido (impacto estimado ou <c>CONTAGEM_INICIADA</c> perdido, seção 7).
     /// </summary>
     public TimeSpan TrechoCapacetePadrao => TimeSpan.FromSeconds(JanelaObservacaoS + ContagemCancelamentoS);
+
+    /// <summary>
+    /// <see cref="TempoEncerramentoAutomaticoMin"/> como intervalo de tempo.
+    /// </summary>
+    public TimeSpan TempoEncerramentoAutomatico => TimeSpan.FromMinutes(TempoEncerramentoAutomaticoMin);
 }

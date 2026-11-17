@@ -67,6 +67,12 @@ public sealed class FakeTurnoRepositorio : ITurnoRepositorio
     }
 
     /// <inheritdoc/>
+    public Task<Guid?> ObterIdAtivoDoEntregadorAsync(Guid entregadorId, CancellationToken cancellationToken)
+    {
+        return Task.FromResult(_turnos.Where(t => t.EntregadorId == entregadorId && t.EstaAtivo).Select(t => (Guid?)t.Id).FirstOrDefault());
+    }
+
+    /// <inheritdoc/>
     public Task<DadosAlertaTurno?> ObterDadosAlertaAsync(Guid entregadorId, CancellationToken cancellationToken)
     {
         return Task.FromResult(_dadosAlerta.GetValueOrDefault(entregadorId));

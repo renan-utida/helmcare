@@ -36,6 +36,24 @@ public sealed class EntregadorRepositorio : RepositorioBase<Entregador>, IEntreg
     }
 
     /// <inheritdoc/>
+    public Task<bool> CnhJaCadastradaAsync(string cnh, CancellationToken cancellationToken)
+    {
+        return Conjunto.AnyAsync(e => e.Cnh == cnh, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public Task<bool> TelefoneEmUsoAsync(string telefone, Guid? excetoEntregadorId, CancellationToken cancellationToken)
+    {
+        return Conjunto.AnyAsync(e => e.Telefone == telefone && e.Id != excetoEntregadorId, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public Task<Entregador?> ObterPorUsuarioAsync(string usuarioId, CancellationToken cancellationToken)
+    {
+        return Conjunto.AsNoTracking().FirstOrDefaultAsync(e => e.UsuarioId == usuarioId, cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public Task<int> ContarContatosAsync(Guid entregadorId, CancellationToken cancellationToken)
     {
         return Contexto.Set<ContatoEmergencia>().CountAsync(c => c.EntregadorId == entregadorId, cancellationToken);

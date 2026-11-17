@@ -220,7 +220,7 @@ public sealed class ChamadosProximosTests
     private OcorrenciaServico Servico(double raioKm = CenarioSos.RaioCamada1Km)
     {
         var opcoes = new OpcoesHelmCare { RaioCamada1Km = raioKm };
-        return new OcorrenciaServico(_ocorrencias, _voluntarios, _relogio, Options.Create(opcoes));
+        return new OcorrenciaServico(_ocorrencias, _voluntarios, new FakeAutorizacaoLivre(), _relogio, Options.Create(opcoes));
     }
 
     private Ocorrencia Semear(Ocorrencia ocorrencia)

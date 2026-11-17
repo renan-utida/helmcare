@@ -1,6 +1,6 @@
 # HelmCare - Contrato de Integração
 
-**Versão 1.14 - 15/11/2026**
+**Versão 1.15 - 16/11/2026**
 
 Este documento define como as partes do HelmCare conversam entre si: nomes, tópicos MQTT, endpoints, payloads, estados e regras. **Todas as disciplinas seguem este contrato.** Mudanças só entram por meio da conversa central de coordenação, que gera uma nova versão.
 
@@ -26,6 +26,10 @@ Este documento define como as partes do HelmCare conversam entre si: nomes, tóp
 
 **Chamada ao Serviço de Risco:** a API usa a URL base da configuração `ServicoRisco:UrlBase` (variável de ambiente `ServicoRisco__UrlBase`, absoluta e terminada em barra) e o tempo limite `ServicoRisco:TempoLimiteS` (padrão 3 s, de 1 a 30, sem novas tentativas). No desenvolvimento, o padrão é `http://127.0.0.1:8000/risco/v1/`, e não `localhost`, porque o uvicorn sobe em `127.0.0.1` e, no Windows, o `localhost` tenta primeiro o IPv6 (`::1`), o que gasta cerca de 2 s numa conexão recusada. Na VM, a URL vem da variável de ambiente.
 
+**Identidade (1.15):** o login usa o ASP.NET Core Identity da API, com o token bearer do próprio Identity (`AddIdentityApiEndpoints`). O token é opaco, protegido pelo Data Protection da API, e não existe chave de JWT em arquivo. Duas regras de implantação valem para a Infra:
+- as chaves do Data Protection ficam num diretório persistente configurado, fora da pasta publicada da aplicação. Sem isso, cada reinício da API (inclusive o teste de falha do systemd) invalida todos os tokens, e os usuários são jogados para o login;
+- atrás do nginx, a API lê o IP do cliente pelos cabeçalhos encaminhados (`X-Forwarded-For`), senão o limite de logins por IP (seção 7) passa a valer para todos os usuários juntos.
+
 ---
 
 ## 2. Convenções gerais
@@ -50,13 +54,13 @@ Este documento define como as partes do HelmCare conversam entre si: nomes, tóp
 
 | Entidade | Campos principais | Observações |
 |---|---|---|
-| `Entregador` | `id`, `nome`, `cpf`, `cnh`, `telefone`, `criadoEm` | `cpf`, `cnh` e `telefone` são PII |
+| `Entregador` | `id`, `nome`, `cpf`, `cnh`, `telefone`, `usuarioId`, `criadoEm` | `cpf`, `cnh` e `telefone` são PII. `usuarioId` liga o entregador ao usuário do Identity, que guarda o `email` (também PII) e o hash da senha |
 | `ContatoEmergencia` | `id`, `entregadorId`, `nome`, `telefone`, `parentesco` | PII |
 | `FichaMedica` | `id`, `entregadorId`, `tipoSanguineo`, `alergias`, `condicoesCriticas`, `medicamentos` | **PII sensível (saúde)** |
 | `Dispositivo` | `id`, `codigo` (ex.: `HC-0001`), `entregadorId`, `qrToken`, `estadoAtual`, `estadoAtualizadoEm`, `ultimoIndiceCalorC`, `ultimoIndiceCalorEm` | O `qrToken` é o que vai no QR Code do capacete. Os quatro últimos campos guardam o último estado e o último índice de calor recebidos do capacete |
 | `Turno` | `id`, `entregadorId`, `inicio`, `fimPrevisto`, `fim`, `indiceRisco`, `faixaRisco`, `componenteSinistro`, `componenteChuva`, `componenteCalor`, `explicacao`, `protecaoAtiva` | Guarda o Índice calculado no início, para o `GET /turnos/{id}/risco` não precisar de nova chamada |
 | `EventoImpacto` | `id`, `dispositivoId`, `ocorridoEm`, `ocorridoEmEstimado`, `picoG`, `orientacaoAnormal`, `pilotandoAntes`, `presencaAntes`, `contagemTerminaEm`, `resultado` | Registro de cada impacto, inclusive falsos positivos e ignorados. `resultado` fica vazio enquanto o desfecho não chega. `ocorridoEmEstimado` é verdadeiro quando o impacto foi criado a partir de um SOS (seção 6.2) |
-| `Ocorrencia` | `id`, `entregadorId`, `eventoImpactoId`, `estado`, `camada`, `latitude`, `longitude`, `criadaEm`, `aceitaEm`, `encerradaEm`, `tempoAteAceiteSegundos` | É o SOS. `tempoAteAceiteSegundos` é o indicador de impacto. |
+| `Ocorrencia` | `id`, `entregadorId`, `eventoImpactoId`, `estado`, `camada`, `latitude`, `longitude`, `criadaEm`, `aceitaEm`, `encerradaEm`, `tempoAteAceiteSegundos`, `encerradaAutomaticamente` | É o SOS. `tempoAteAceiteSegundos` é o indicador de impacto. `encerradaAutomaticamente` é verdadeiro quando a API encerrou a ocorrência por tempo (seção 7, "Encerramento automático") |
 | `Voluntario` | `id`, `entregadorId`, `tipo`, `disponivel`, `latitude`, `longitude` | Todo voluntário também é um entregador cadastrado |
 | `AceiteSocorro` | `id`, `ocorrenciaId`, `voluntarioId`, `aceitoEm` | |
 | `Socorrista` | `id`, `nome`, `registroProfissional`, `organizacao`, `verificado`, `usuarioId` | Perfil com acesso ao Cofre. `usuarioId` liga o socorrista ao usuário do Identity, usado no login |
@@ -71,6 +75,9 @@ Este documento define como as partes do HelmCare conversam entre si: nomes, tóp
 | `cpf` e `cnh` | 11 dígitos. A API aceita com ou sem máscara e guarda só os dígitos |
 | `telefone` | 10 ou 11 dígitos, com DDD. Aceito com ou sem máscara, guardado só com os dígitos |
 | `tipoSanguineo` | Somente `A+`, `A-`, `B+`, `B-`, `AB+`, `AB-`, `O+` ou `O-` (maiúsculas) |
+| `email` | Obrigatório no cadastro, formato de e-mail, até 254 caracteres |
+| `senha` | De 8 a 64 caracteres, com pelo menos uma letra maiúscula, uma minúscula e um dígito (símbolo não é exigido) |
+| Unicidade | CPF, CNH, telefone do entregador e e-mail não podem se repetir entre entregadores. Repetido dá `409` (o e-mail é comparado sem diferenciar maiúsculas) |
 
 ---
 
@@ -101,6 +108,7 @@ Todas configuráveis (arquivo de configuração ou variável de ambiente), com e
 | `VELOCIDADE_PILOTAGEM_KMH` | 15. `pilotandoAntes` é verdadeiro quando a velocidade foi **maior ou igual** a 15 km/h antes do impacto | ESP32 (velocidade simulada) |
 | `RAIO_CAMADA_1_KM` | 2 | API |
 | `TEMPO_ACEITE_CAMADA_1_S` | 60 | API |
+| `TEMPO_ENCERRAMENTO_AUTOMATICO_MIN` | 120 | API e app |
 | Camada 2 | Toda a rede de voluntários disponíveis | API |
 | `TTL_ACESSO_COFRE_MIN` | 60 | API |
 | `META_TEMPO_ACEITE_S` | 120 | API, app e pitch |
@@ -208,10 +216,17 @@ Tópico `helmcare-rdu/v1/HC-0001/comando`:
 
 | Método | Rota | O que faz |
 |---|---|---|
-| POST | `/entregadores` | Cadastra um entregador |
-| GET | `/entregadores/{id}` | Dados do entregador (PII mascarada). Da ficha médica, só `possuiFichaMedica` |
-| PUT | `/entregadores/{id}/ficha-medica` | Cria ou substitui a ficha médica e devolve a ficha completa (única rota que devolve a ficha ao próprio entregador) |
+| POST | `/entregadores` | Cadastra um entregador e cria a conta dele (e-mail e senha). Pública |
+| POST | `/entregadores/login` | Login do entregador com e-mail e senha. Devolve o token e a sessão. Pública |
+| POST | `/entregadores/renovar-token` | Troca o `refreshToken` por um token novo. Pública |
+| GET | `/entregadores/sessao` | Sessão do entregador do token (o corpo do login, sem os campos do token) |
+| GET | `/entregadores/{id}` | Dados do entregador (PII mascarada, inclusive o `email`). Da ficha médica, só `possuiFichaMedica` |
+| GET | `/entregadores/{id}/ficha-medica` | A ficha médica completa, só para o próprio entregador |
+| PUT | `/entregadores/{id}/ficha-medica` | Cria ou substitui a ficha médica e devolve a ficha completa |
+| PUT | `/entregadores/{id}/telefone` | Troca o telefone do entregador |
 | POST | `/entregadores/{id}/contatos` | Adiciona um contato de emergência |
+| PUT | `/entregadores/{id}/contatos/{contatoId}` | Edita um contato de emergência |
+| DELETE | `/entregadores/{id}/contatos/{contatoId}` | Exclui um contato de emergência |
 | POST | `/dispositivos` | Vincula um capacete a um entregador |
 | POST | `/turnos` | Inicia um turno e devolve o Índice de Risco. Com `protecaoAtiva` verdadeiro, a API publica `ARMAR` para o capacete do entregador |
 | POST | `/turnos/{id}/encerrar` | Encerra o turno. Com a proteção ativa, a API envia `DESARMAR` (o capacete só obedece em `ARMADO`). Com alerta em andamento (`IMPACTO_DETECTADO`, `OBSERVACAO`, `CONTAGEM` ou `SOS_ENVIADO`) ou ocorrência ativa, responde `409` |
@@ -228,7 +243,7 @@ Tópico `helmcare-rdu/v1/HC-0001/comando`:
 | POST | `/ocorrencias/{id}/encerrar` | Encerra a ocorrência, com ou sem aceite (por exemplo, o SAMU chegou antes de qualquer voluntário) |
 | POST | `/socorristas/login` | Autentica um socorrista. Credenciais inválidas: `401` em ProblemDetails, sem token |
 | POST | `/cofre/{qrToken}/acesso` | Socorrista autenticado acessa a ficha (ou abre emergência manual) |
-| GET | `/cofre/auditoria/{entregadorId}` | Histórico de acessos ao Cofre |
+| GET | `/cofre/auditoria/{entregadorId}` | Histórico de acessos ao Cofre, só para o próprio entregador |
 | GET | `/indicadores` | *(Opcional)* Tempo médio até o aceite, percentual dentro da meta de `META_TEMPO_ACEITE_S` e taxa de falsos positivos |
 | GET | `/saude` | Verificação de saúde (usada pelo monitoramento do OS) |
 
@@ -240,20 +255,64 @@ A página web do Cofre fica **fora** do `/api/v1`, em `GET /cofre/{qrToken}` (HT
 |---|---|
 | Criação de recurso (`POST /entregadores`, `/entregadores/{id}/contatos`, `/dispositivos`, `/turnos`, `/voluntarios` e `/ocorrencias/{id}/aceites`) | `201 Created`, com o cabeçalho `Location`. Quando o recurso não tem `GET` próprio, o `Location` aponta para o recurso de leitura mais próximo: contatos, dispositivo e voluntário para `/entregadores/{entregadorId}`, turno para `/turnos/{id}/risco` e aceite para `/ocorrencias/{id}?voluntarioId={voluntarioId}`. O `Location` é sempre uma URL absoluta |
 | Leitura, `PUT` e ações sobre um recurso existente (encerrar, cancelar) | `200 OK`, com o recurso atualizado |
+| Exclusão (`DELETE` de contato) | `204 No Content` |
 | Comando enviado ao capacete sem esperar resposta (`POST /turnos/{id}/alerta/cancelar`) | `202 Accepted` |
 | Dados inválidos (validações da seção 3, parâmetros fora da faixa) | `400 Bad Request` |
-| Sem login onde ele é exigido (Cofre) | `401 Unauthorized` |
-| Autenticado, mas sem permissão (socorrista não verificado, acesso ao Cofre expirado) | `403 Forbidden` |
+| Sem token, token inválido ou vencido em qualquer rota que não é pública, e login inválido | `401 Unauthorized` |
+| Autenticado, mas sem permissão: recurso de outro usuário, papel errado (token de socorrista nas rotas do entregador e o contrário), socorrista não verificado, acesso ao Cofre expirado | `403 Forbidden` |
 | Id ou `qrToken` inexistente (entregador, turno, ocorrência, voluntário, dispositivo, Cofre) | `404 Not Found` |
-| Regra de negócio ou transição de estado inválida (segundo turno ativo, ocorrência já encerrada, alerta fora da contagem, aceite simultâneo) | `409 Conflict` |
+| Regra de negócio ou transição de estado inválida (segundo turno ativo, ocorrência já encerrada, alerta fora da contagem, aceite simultâneo) e dado repetido (CPF, CNH, telefone ou e-mail) | `409 Conflict` |
+| Logins e renovações de token acima do limite | `429 Too Many Requests` |
 | Comando ao capacete que não chegou ao broker, nas rotas do turno (`POST /turnos` com `protecaoAtiva`, `POST /turnos/{id}/encerrar` e `POST /turnos/{id}/alerta/cancelar`) | `503 Service Unavailable`, e nada é gravado. O app pede para tentar de novo |
 | Serviço de Risco fora no `GET /trechos-criticos` (qualquer falha da seção 8, "Na API principal") | `503 Service Unavailable`, com o título "Serviço de Risco indisponível". Não há lista simulada. O `POST /turnos` nunca responde esse `503`: usa a versão simulada |
 
 Todos os erros saem em ProblemDetails. O app decide pelo status HTTP, nunca pelo texto do `title` ou do `detail`, que pode variar para o mesmo código (por exemplo, o `409` de um aceite atrasado e o de um aceite simultâneo).
 
+**Identidade e autorização (1.15):**
+
+- **Papéis:** o Identity tem dois papéis, `ENTREGADOR` e `SOCORRISTA`. O token carrega o papel e o id do perfil (`entregadorId` ou `socorristaId`). O voluntário é um entregador, com o mesmo token.
+- **Validade:** o `accessToken` vale 60 min, e o `refreshToken`, 14 dias (configuração interna da API, fora da seção 5). No primeiro `401` de uma rota, o app tenta renovar uma vez pelo `POST /entregadores/renovar-token` e repete a chamada, para nunca perder a sessão no meio de um alerta ou de um SOS. Renovação com o `refreshToken` inválido ou vencido dá `401`, e o app volta para a tela de login.
+- **Cadastro:** o `POST /entregadores` recebe o corpo de antes mais `email` e `senha` (validações da seção 3). A API cria o usuário do Identity (papel `ENTREGADOR`) e o `Entregador` na mesma transação: se uma das gravações falhar, nada fica gravado. O cadastro não devolve token; o app chama o login logo depois, antes de cadastrar o contato e o capacete.
+- **Login:** o `POST /entregadores/login` recebe `{ "email": "...", "senha": "..." }`. E-mail ou senha errados, conta bloqueada e conta de socorrista dão o mesmo `401`, com o mesmo texto e sem token, para não revelar se o e-mail existe. Resposta `200`:
+
+```json
+{
+  "tokenType": "Bearer",
+  "accessToken": "...",
+  "expiresIn": 3600,
+  "refreshToken": "...",
+  "entregadorId": "3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90",
+  "nome": "Nome Simulado",
+  "voluntarioId": null,
+  "codigoDispositivo": "HC-0001",
+  "turnoAtivoId": null,
+  "ocorrenciaAtivaId": null
+}
+```
+
+  `voluntarioId`, `codigoDispositivo`, `turnoAtivoId` e `ocorrenciaAtivaId` vêm `null` quando não existem. `ocorrenciaAtivaId` é a ocorrência do entregador como vítima ainda aberta (`SOS_CAMADA_1`, `SOS_CAMADA_2` ou `SOCORRO_A_CAMINHO`). Com esses campos, o app monta a sessão em qualquer aparelho, mesmo sem o SQLite. O `POST /entregadores/renovar-token` (`{ "refreshToken": "..." }`) responde com o mesmo corpo, e o `GET /entregadores/sessao` com o mesmo corpo sem `tokenType`, `accessToken`, `expiresIn` e `refreshToken`.
+- **Ordem dos códigos:** primeiro `401` (sem token, inválido ou vencido), depois `404` (recurso inexistente) e por último `403` (recurso de outro usuário ou papel errado).
+
+| Rotas | Quem pode |
+|---|---|
+| `GET /entregadores/{id}`, `GET` e `PUT /entregadores/{id}/ficha-medica`, `PUT /entregadores/{id}/telefone`, `POST`, `PUT` e `DELETE` dos contatos, `GET /cofre/auditoria/{entregadorId}` | Só o próprio entregador |
+| `POST /dispositivos`, `POST /voluntarios` e `POST /turnos` | Só o próprio entregador: o `entregadorId` do corpo precisa ser o do token |
+| `/turnos/{id}/...` (risco, alerta, cancelar alerta e encerrar) | Só o dono do turno |
+| `PUT /voluntarios/{id}/disponibilidade`, `GET /ocorrencias/proximas?voluntarioId=` e `POST /ocorrencias/{id}/aceites` | Só o voluntário do próprio entregador: o `voluntarioId` continua na rota, no parâmetro e no corpo, com o mesmo nome, e precisa ser o do token |
+| `GET /ocorrencias/{id}?voluntarioId=` | A vítima ou qualquer entregador que seja voluntário. O `voluntarioId`, se vier, precisa ser o do token. A localização exata continua só para o voluntário que aceitou |
+| `POST /ocorrencias/{id}/cancelar` | Só a vítima |
+| `POST /ocorrencias/{id}/encerrar` | A vítima ou o voluntário que aceitou |
+| `POST /entregadores`, `POST /entregadores/login`, `POST /entregadores/renovar-token`, `POST /socorristas/login`, `GET /trechos-criticos`, `GET /saude` e a página `GET /cofre/{qrToken}` | Públicas |
+
+- **Segurança:** a senha fica só no hash do Identity (PBKDF2). Cinco tentativas erradas bloqueiam a conta por 15 min. No máximo 10 requisições por minuto por IP no `POST /entregadores/login`, no `POST /socorristas/login` e no `POST /entregadores/renovar-token` (acima disso, `429`). E-mail, senha, `accessToken` e `refreshToken` nunca vão para o log; no login, o log leva só o id do perfil e o resultado (sucesso, falha ou bloqueio). O Scalar tem o esquema bearer. Limitação documentada: o protótipo usa HTTP sem TLS; em produção, o TLS fica no nginx.
+- **Rota de desenvolvimento:** `POST /api/v1/dev/entregadores/{id}/conta` recebe `{ "email": "...", "senha": "..." }` e cria a conta de um entregador que já existia antes da 1.15, com as regras do cadastro (`201`; entregador inexistente, `404`; entregador que já tem conta ou e-mail repetido, `409`). Na rodada do Cofre, `POST /api/v1/dev/socorristas` cria os socorristas da demonstração. As duas só existem quando o ambiente é `Development`: fora dele não são mapeadas (`404`) nem aparecem no Scalar.
+
 **Regras do cadastro:**
 
-- **Ficha médica:** o `GET /entregadores/{id}` nunca traz dados de saúde, só `possuiFichaMedica`. A ficha completa só volta na resposta do `PUT /entregadores/{id}/ficha-medica`, que substitui a ficha inteira. O app mostra se a ficha existe e, para editar, envia a ficha completa de novo. O app não guarda a ficha no SQLite local.
+- **Ficha médica:** o `GET /entregadores/{id}` nunca traz dados de saúde, só `possuiFichaMedica`. A ficha completa volta no `GET /entregadores/{id}/ficha-medica` (sem ficha cadastrada, `404`) e na resposta do `PUT`, que substitui a ficha inteira. As duas rotas da ficha respondem com `Cache-Control: no-store`, e o app nunca guarda a ficha no SQLite local.
+- **E-mail:** o `201` do cadastro e o `GET /entregadores/{id}` trazem o `email` mascarado: a primeira letra, `***` e o domínio (`r***@exemplo.com`).
+- **Contatos:** o `PUT /entregadores/{id}/contatos/{contatoId}` recebe o mesmo corpo do `POST` (`nome`, `telefone` e `parentesco`) e responde `200` com o contato. O `DELETE` responde `204`. Contato inexistente ou de outro entregador dá `404`. Excluir o último contato é permitido.
+- **Telefone:** o `PUT /entregadores/{id}/telefone` recebe `{ "telefone": "(11) 98765-4321" }`, com a regra da seção 3, e responde `200` com o corpo do `GET /entregadores/{id}`. Telefone já usado por outro entregador dá `409`.
 - **Capacete:** o `qrToken` e a `urlCofre` (endereço da página do Cofre) só saem na resposta do `POST /dispositivos`, para imprimir o QR Code. Nenhuma outra rota devolve o `qrToken`.
 
 **Regras do turno:**
@@ -267,13 +326,14 @@ Todos os erros saem em ProblemDetails. O app decide pelo status HTTP, nunca pelo
 
 **Regras da rede de voluntários:**
 
-- **Quem é o voluntário:** como o protótipo não tem login para voluntários, as rotas da rede identificam o voluntário pelo `voluntarioId`. A disponibilidade e a posição usadas em todas as regras (raio da camada 1, quem pode ver e quem pode aceitar) são as do último `PUT /voluntarios/{id}/disponibilidade`.
+- **Quem é o voluntário:** desde a 1.15, o voluntário é identificado pelo token do entregador. O `voluntarioId` continua nas rotas como conferência e precisa ser o do token. A disponibilidade e a posição usadas em todas as regras (raio da camada 1, quem pode ver e quem pode aceitar) são as do último `PUT /voluntarios/{id}/disponibilidade`.
 - **Cadastro:** `POST /voluntarios` recebe `{ "entregadorId": "...", "tipo": "ENTREGADOR" }` (`TipoVoluntario`). Responde `201` com `{ voluntarioId, entregadorId, tipo, disponivel, latitude, longitude }`, com `disponivel` falso e a posição `null`. Campo ausente ou `tipo` inválido, `400`; entregador inexistente, `404`; entregador que já é voluntário, `409` (um entregador tem no máximo um `Voluntario`).
 - **Disponibilidade:** `PUT /voluntarios/{id}/disponibilidade` recebe `{ disponivel, latitude, longitude }`. `disponivel` é obrigatório, a latitude vai de -90 a 90 e a longitude de -180 a 180. Disponível sem as duas coordenadas, `400`; indisponível apaga a posição, mesmo que ela venha na requisição; voluntário inexistente, `404`. Responde `200` no mesmo formato do cadastro. A posição só volta nessa resposta, para o próprio voluntário, e nunca vai para o log.
 - **Chamados próximos:** `GET /ocorrencias/proximas?voluntarioId=` devolve só os chamados que o voluntário pode atender: na camada 1, a até `RAIO_CAMADA_1_KM`; na camada 2, todos. Voluntário indisponível recebe a lista vazia, e o entregador nunca vê o próprio SOS. `voluntarioId` ausente, `400`; inexistente, `404`. Cada item traz `ocorrenciaId`, `estado`, `camada`, `criadaEm`, `latitude` e `longitude` (aproximadas, seção 9), `distanciaKm` (1 casa decimal) e `cronometro` (mesmo formato do `GET /ocorrencias/{id}`), em ordem crescente de distância e, no empate, de `criadaEm`.
 - **Distância mostrada:** o filtro do raio usa a posição exata da ocorrência, mas a `distanciaKm` é calculada da posição do voluntário até a localização aproximada, para a distância não revelar a posição exata. Por isso ela pode diferir da distância real em até cerca de 0,7 km.
 - **Aceite:** o `POST /ocorrencias/{id}/aceites` recebe `{ "voluntarioId": "..." }` e, no `201`, devolve o mesmo corpo do `GET /ocorrencias/{id}` com a localização exata para esse voluntário. `voluntarioId` ausente, `400`; ocorrência ou voluntário inexistente, `404`.
 - **Cancelar e encerrar:** o `200` do `POST /ocorrencias/{id}/cancelar` e do `POST /ocorrencias/{id}/encerrar` traz o mesmo corpo do `GET /ocorrencias/{id}`, com a localização aproximada.
+- **Distância até o voluntário:** depois do aceite, o corpo da ocorrência traz `distanciaVoluntarioKm` (1 casa decimal) só para a vítima: a distância da posição do último `PUT /voluntarios/{id}/disponibilidade` do voluntário que aceitou até a localização exata da ocorrência. Para qualquer outro usuário, antes do aceite ou se o voluntário ficou indisponível depois (a posição é apagada), vem `null`. Nunca vem a posição do voluntário. Todo corpo da ocorrência também traz `encerradaAutomaticamente`.
 - **Localização:** em `GET /ocorrencias/{id}`, a localização só vem exata quando o `voluntarioId` é o do voluntário que aceitou. Sem `voluntarioId`, ou com outro voluntário, vem aproximada (seção 9).
 
 **Regras do SOS na API:**
@@ -283,6 +343,7 @@ Todos os erros saem em ProblemDetails. O app decide pelo status HTTP, nunca pelo
 - **Raio da camada 1:** inclusivo (um voluntário a exatamente 2 km entra).
 - **Comandos da ocorrência:** o `SOCORRO_A_CAMINHO` (no aceite) e o `ENCERRAR` (no cancelamento e no encerramento) são publicados depois de gravar, sem bloquear a rota: se o broker falhar, a rota responde normalmente, porque o socorro não pode depender do capacete. O comando é refeito no próximo reenvio do `SOS` (seção 6.2). Se a vítima não tem capacete vinculado, nenhum comando é publicado: fica um aviso no log, e a rota responde normalmente.
 - **Concorrência:** o escalonamento e as rotas da ocorrência mudam a mesma linha. O aceite faz uma nova tentativa automática num conflito de concorrência e, se a ocorrência relida já não aguarda aceite, responde `409`. O cancelar e o encerrar respondem `409` num conflito, e o app repete a chamada.
+- **Encerramento automático:** o mesmo laço do escalonamento encerra toda ocorrência em `SOS_CAMADA_1`, `SOS_CAMADA_2` ou `SOCORRO_A_CAMINHO` com `TEMPO_ENCERRAMENTO_AUTOMATICO_MIN` ou mais desde o `criadaEm` (inclusivo). Ela vai para `ENCERRADA`, com `encerradaEm` e `encerradaAutomaticamente` verdadeiro, e a API publica `ENCERRAR` pelo mesmo ponto do encerramento comum, sem bloquear. Sem aceite, o indicador fica vazio, como no encerramento comum. Num conflito de concorrência com uma rota, a ocorrência fica para a rodada seguinte.
 - **Escalonamento com o banco fora:** o laço registra um erro a cada rodada (1 s) e continua; volta a escalar sozinho quando o banco volta.
 - **Cronômetro:** `GET /ocorrencias/{id}` traz `cronometro` com `segundosDesdeQueda`, `metaSegundos` (`META_TEMPO_ACEITE_S`) e `parado`. O `segundosDesdeQueda` segue a regra dos dois trechos do indicador, com o trecho do servidor indo até o aceite, até o encerramento ou até agora. `parado` é verdadeiro depois do aceite ou do fim da ocorrência. Entre uma consulta e outra, o app pode somar os segundos no próprio relógio.
 - **Indicador de impacto:** `tempoAteAceiteSegundos` é o tempo da queda até o aceite, medido em dois trechos, cada um no próprio relógio, para nunca misturar o relógio do capacete com o do servidor:
@@ -328,13 +389,15 @@ Resposta, durante a contagem:
 
 **Cofre médico (`POST /api/v1/cofre/{qrToken}/acesso`):**
 
+- **Login do socorrista:** o `POST /socorristas/login` tem o mesmo corpo de requisição e o mesmo formato de resposta do login do entregador, mas, no lugar dos campos do entregador, traz `socorristaId`, `nome`, `organizacao` e `verificado`. O socorrista não verificado também recebe token: é o Cofre que responde `403` e registra a tentativa.
+
 - **Códigos:** sem login, `401`; socorrista autenticado, mas não verificado, `403`; acesso depois de expirar, `403`; `qrToken` inexistente, `404`. Toda tentativa de um socorrista autenticado, concedida ou negada, gera um `AcessoCofre` (seção 3).
 - **Origem do acesso:** com ocorrência ativa do entregador (`SOS_CAMADA_1`, `SOS_CAMADA_2` ou `SOCORRO_A_CAMINHO`), a origem é `SOS_ATIVO`. Sem ocorrência ativa, o mesmo pedido de um socorrista verificado abre a emergência manual automaticamente: origem `EMERGENCIA_MANUAL` e `ocorrenciaId` vazio, sem nenhum campo extra na requisição.
 - **Expiração:** o acesso expira quando passam `TTL_ACESSO_COFRE_MIN` desde que foi concedido ou quando a ocorrência vai para `ENCERRADA` ou `CANCELADA`. Na emergência manual, só o TTL vale.
 - **O que a resposta mostra (o mínimo da Ficha):** `tipoSanguineo`, `alergias`, `condicoesCriticas` e os contatos de emergência (`nome`, `telefone` e `parentesco`). Os `medicamentos` **não** saem no Cofre: ficam só nas telas do próprio entregador.
 - **Entregador sem ficha médica:** `200`, com os campos de saúde vazios e os contatos de emergência, se houver. A auditoria é gravada normalmente.
 
-**Auditoria (`GET /api/v1/cofre/auditoria/{entregadorId}`):** sem login no protótipo, como as demais rotas do entregador (limitação documentada). Devolve, para cada tentativa, `acessadoEm`, `expiraEm`, `origem`, `concedido`, `motivo` e o socorrista (`nome` e `organizacao`). Nunca devolve dados de saúde, e o `ip` fica só no banco.
+**Auditoria (`GET /api/v1/cofre/auditoria/{entregadorId}`):** só para o próprio entregador, com o token (desde a 1.15). Devolve, para cada tentativa, `acessadoEm`, `expiraEm`, `origem`, `concedido`, `motivo` e o socorrista (`nome` e `organizacao`). Nunca devolve dados de saúde, e o `ip` fica só no banco.
 
 **`POST /turnos/{id}/alerta/cancelar`:** responde `202 Accepted` quando o capacete está em `CONTAGEM` (o comando `CANCELAR` foi publicado) e `409 Conflict`, em ProblemDetails, em qualquer outro estado. Depois do SOS, o cancelamento é pela rota `POST /ocorrencias/{id}/cancelar`, e a API envia `ENCERRAR` ao capacete.
 
@@ -458,9 +521,9 @@ Gerados pelo notebook de ML na pasta `ml/modelo/` e carregados pelo Serviço de 
 | Classificação | Campos | Onde **pode** aparecer | Onde **nunca** aparece |
 |---|---|---|---|
 | PII sensível (saúde) | Todos os campos de `FichaMedica` | Telas do próprio entregador. Na resposta de `POST /cofre/{qrToken}/acesso`, só `tipoSanguineo`, `alergias` e `condicoesCriticas`, para socorrista verificado e dentro do TTL (seção 7) | Logs, MQTT, notificações, respostas para voluntários, auditoria, telas de outros usuários |
-| PII | `cpf`, `cnh`, `telefone`, `nome`, contatos de emergência | Telas do próprio entregador. Os contatos de emergência também saem na resposta do Cofre para o socorrista verificado | Logs, MQTT, respostas para voluntários |
-| Localização | `latitude`, `longitude` | Exata: contato de emergência e voluntário que **aceitou**. Aproximada (arredondada para 2 casas decimais, cerca de 1 km): voluntários antes do aceite. | Logs em texto aberto, MQTT com identificação pessoal |
-| Credenciais | Senhas e tokens | Nunca em texto | Qualquer saída |
+| PII | `cpf`, `cnh`, `telefone`, `nome`, `email`, contatos de emergência | Telas do próprio entregador (o `email` sempre mascarado nas respostas). Os contatos de emergência também saem na resposta do Cofre para o socorrista verificado | Logs, MQTT, respostas para voluntários |
+| Localização | `latitude`, `longitude` | Exata: contato de emergência e voluntário que **aceitou**. Aproximada (arredondada para 2 casas decimais, cerca de 1 km): voluntários antes do aceite. A posição do voluntário nunca sai da API; a vítima recebe só a `distanciaVoluntarioKm` | Logs em texto aberto, MQTT com identificação pessoal |
+| Credenciais | Senhas, `accessToken` e `refreshToken` | A senha só como hash no Identity; os tokens só na resposta do login e da renovação e, no app, só no `expo-secure-store` | Logs, SQLite do app, URLs, MQTT e qualquer outra saída |
 
 Máscaras padrão: CPF `***.***.***-12`, CNH `*******8900`, celular `(11) *****-1234` e telefone fixo `(11) ****-4567`.
 
@@ -505,3 +568,4 @@ Máscaras padrão: CPF `***.***.***-12`, CNH `*******8900`, celular `(11) *****-
 | 1.12 | 14/11/2026 | Integração da API com o Serviço de Risco: URL base com `127.0.0.1` e tempo limite de 3 s sem novas tentativas; falhas que levam à versão simulada, com aviso ou erro no log; cancelamento do cliente fora da reserva; `503` do `GET /trechos-criticos` com o serviço fora; tabela de novembro sem feriado na versão simulada; as três frases do histórico do horário e a hora do pico na explicação |
 | 1.13 | 15/11/2026 | Rede de voluntários: `POST /voluntarios` (cadastro, começa indisponível), corpo e validações do `PUT /voluntarios/{id}/disponibilidade`, campos e ordem dos chamados próximos, distância até a localização aproximada; respostas do aceite, do cancelar e do encerrar da ocorrência; `Location` do voluntário e do aceite; escalonamento em segundo plano a cada 1 s; aviso simulado ao contato de emergência |
 | 1.14 | 15/11/2026 | SOS escalonado na API: o SOS repetido olha a ocorrência mais recente do entregador; `Location` sempre absoluto; o app decide pelo status HTTP, não pelo texto do erro; sem capacete vinculado, o comando da ocorrência não é publicado; nova tentativa só no aceite e `409` no cancelar e no encerrar em conflito de concorrência; erro por rodada no escalonamento com o banco fora |
+| 1.15 | 16/11/2026 | Identidade com o ASP.NET Core Identity para entregador e socorrista: cadastro com e-mail e senha, login, renovação do token e sessão; papéis e quem pode o quê em cada rota; `GET` da ficha médica, edição e exclusão de contatos e troca de telefone; CNH, telefone e e-mail únicos; `distanciaVoluntarioKm` para a vítima; encerramento automático em `TEMPO_ENCERRAMENTO_AUTOMATICO_MIN`; rota de desenvolvimento para contas de dados antigos; bloqueio, limite de logins (`429`), `204` no `DELETE` e `email` na seção 9; chaves do Data Protection persistentes e cabeçalhos encaminhados na Infra |

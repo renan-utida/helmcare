@@ -34,6 +34,16 @@ public sealed class FakeUnidadeDeTrabalho : IUnidadeDeTrabalho
     /// </summary>
     public int VezesDescartado { get; private set; }
 
+    /// <summary>
+    /// Quantas transações foram confirmadas.
+    /// </summary>
+    public int TransacoesConfirmadas { get; private set; }
+
+    /// <summary>
+    /// Quantas transações foram descartadas sem confirmar (o rollback do banco).
+    /// </summary>
+    public int TransacoesDesfeitas { get; private set; }
+
     /// <inheritdoc/>
     public Task SalvarAsync(CancellationToken cancellationToken)
     {
@@ -57,5 +67,40 @@ public sealed class FakeUnidadeDeTrabalho : IUnidadeDeTrabalho
     public void DescartarAlteracoes()
     {
         VezesDescartado++;
+    }
+
+    /// <inheritdoc/>
+    public Task<ITransacao> IniciarTransacaoAsync(CancellationToken cancellationToken)
+    {
+        return Task.FromResult<ITransacao>(new TransacaoFake(this));
+    }
+
+    // Transação que só anota, na unidade, se foi confirmada ou desfeita.
+    private sealed class TransacaoFake : ITransacao
+    {
+        private readonly FakeUnidadeDeTrabalho _unidade;
+        private bool _confirmada;
+
+        public TransacaoFake(FakeUnidadeDeTrabalho unidade)
+        {
+            _unidade = unidade;
+        }
+
+        public Task ConfirmarAsync(CancellationToken cancellationToken)
+        {
+            _confirmada = true;
+            _unidade.TransacoesConfirmadas++;
+            return Task.CompletedTask;
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            if (!_confirmada)
+            {
+                _unidade.TransacoesDesfeitas++;
+            }
+
+            return ValueTask.CompletedTask;
+        }
     }
 }

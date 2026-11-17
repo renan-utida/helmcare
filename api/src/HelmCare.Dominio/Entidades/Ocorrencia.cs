@@ -88,6 +88,12 @@ public sealed class Ocorrencia : Entidade
     public int? TempoAteAceiteSegundos { get; private set; }
 
     /// <summary>
+    /// Verdadeiro quando a API encerrou a ocorrência por tempo (<c>TEMPO_ENCERRAMENTO_AUTOMATICO_MIN</c>),
+    /// e não por uma rota.
+    /// </summary>
+    public bool EncerradaAutomaticamente { get; private set; }
+
+    /// <summary>
     /// Aceites registrados (no máximo um, porque o aceite tira a ocorrência da espera).
     /// </summary>
     public IReadOnlyCollection<AceiteSocorro> Aceites => _aceites.AsReadOnly();
@@ -244,6 +250,48 @@ public sealed class Ocorrencia : Entidade
 
         Estado = EstadoOcorrencia.Encerrada;
         EncerradaEm = agora;
+    }
+
+    /// <summary>
+    /// Diz se a ocorrência ainda ativa já passou do tempo de encerramento automático (inclusivo).
+    /// </summary>
+    /// <param name="agora">Instante atual, em UTC.</param>
+    /// <param name="tempoEncerramento">Tempo de encerramento automático, desde <see cref="CriadaEm"/>.</param>
+    /// <returns><see langword="true"/> se a ocorrência deve ser encerrada por tempo.</returns>
+    public bool DeveEncerrarAutomaticamente(DateTime agora, TimeSpan tempoEncerramento)
+    {
+        Garantir.Utc(agora, "agora");
+        ExigirPositivo(tempoEncerramento, "O tempo de encerramento automático");
+        return EstaAtiva && agora - CriadaEm >= tempoEncerramento;
+    }
+
+    /// <summary>
+    /// Encerra a ocorrência por tempo: vai para <c>ENCERRADA</c>, com <see cref="EncerradaEm"/> e
+    /// <see cref="EncerradaAutomaticamente"/> verdadeiro. O indicador fica como está: vazio sem aceite
+    /// e mantido depois do aceite, como no encerramento comum.
+    /// </summary>
+    /// <param name="agora">Instante atual, em UTC.</param>
+    /// <param name="tempoEncerramento">Tempo de encerramento automático, desde <see cref="CriadaEm"/>.</param>
+    /// <exception cref="TransicaoInvalidaException">Quando a ocorrência já terminou.</exception>
+    /// <exception cref="RegraNegocioException">Quando o tempo ainda não passou.</exception>
+    public void EncerrarAutomaticamente(DateTime agora, TimeSpan tempoEncerramento)
+    {
+        ExigirTransicao(
+            agora,
+            "encerrar automaticamente",
+            EstadoOcorrencia.SosCamada1,
+            EstadoOcorrencia.SosCamada2,
+            EstadoOcorrencia.SocorroACaminho);
+        ExigirPositivo(tempoEncerramento, "O tempo de encerramento automático");
+
+        if (agora - CriadaEm < tempoEncerramento)
+        {
+            throw new RegraNegocioException("A ocorrência ainda está dentro do tempo de encerramento automático.");
+        }
+
+        Estado = EstadoOcorrencia.Encerrada;
+        EncerradaEm = agora;
+        EncerradaAutomaticamente = true;
     }
 
     /// <summary>

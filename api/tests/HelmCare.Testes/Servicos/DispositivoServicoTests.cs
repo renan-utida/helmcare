@@ -35,7 +35,7 @@ public sealed class DispositivoServicoTests
     public DispositivoServicoTests()
     {
         _entregadores.Semear(_entregador);
-        _servico = new DispositivoServico(_dispositivos, _entregadores, _unidade);
+        _servico = new DispositivoServico(_dispositivos, _entregadores, _unidade, new FakeAutorizacaoLivre());
     }
 
     /// <summary>

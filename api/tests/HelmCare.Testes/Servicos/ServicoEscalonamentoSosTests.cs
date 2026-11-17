@@ -1,7 +1,9 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using HelmCare.Api.Configuracao;
+using HelmCare.Api.Mensageria;
 using HelmCare.Api.Servicos.Ocorrencias;
 using HelmCare.Dominio.Entidades;
 using HelmCare.Dominio.Enums;
@@ -46,6 +48,7 @@ public sealed class ServicoEscalonamentoSosTests
         var servicos = new ServiceCollection();
         servicos.AddScoped(_ => new EscalonadorOcorrencias(
             ocorrencias, unidade, relogio, opcoes, NullLogger<EscalonadorOcorrencias>.Instance));
+        servicos.AddScoped(_ => Encerrador(ocorrencias, unidade, new FakePublicadorComandos(), relogio, opcoes));
         await using ServiceProvider provedor = servicos.BuildServiceProvider();
 
         using var servico = new ServicoEscalonamentoSos(
@@ -68,5 +71,65 @@ public sealed class ServicoEscalonamentoSosTests
         await servico.StopAsync(CancellationToken.None);
         Assert.AreEqual(EstadoOcorrencia.SosCamada2, b.Estado);
         Assert.AreEqual(2, unidade.VezesSalvo);
+    }
+
+    /// <summary>
+    /// Garante o encerramento automático no mesmo laço: na rodada da subida, a ocorrência com 120 min
+    /// vai para ENCERRADA, com o ENCERRAR publicado, sem nenhuma falha registrada.
+    /// </summary>
+    /// <returns>A tarefa do teste.</returns>
+    [TestMethod]
+    public async Task ExecuteAsync_OcorrenciaCom120Minutos_EncerraNaRodada()
+    {
+        // Arrange
+        var ocorrencias = new FakeOcorrenciaRepositorio();
+        var unidade = new FakeUnidadeDeTrabalho();
+        var publicador = new FakePublicadorComandos();
+        var relogio = new FakeTimeProvider(new DateTimeOffset(CenarioSos.Sos.AddMinutes(120)));
+        IOptions<OpcoesHelmCare> opcoes = Options.Create(new OpcoesHelmCare());
+        var logger = new FakeLogger<ServicoEscalonamentoSos>();
+
+        Guid vitima = Guid.NewGuid();
+        Ocorrencia antiga = Ocorrencia.Abrir(vitima, CenarioSos.NovoEventoEmAberto(), CenarioSos.Local, CenarioSos.Sos);
+        antiga.EscalarParaCamada2(CenarioSos.Sos.AddSeconds(60), CenarioSos.TempoAceiteCamada1);
+        ocorrencias.Semear(antiga);
+        var dispositivos = new FakeDispositivoRepositorio();
+        dispositivos.Semear(new Dispositivo("HC-0001", vitima));
+
+        var servicos = new ServiceCollection();
+        servicos.AddScoped(_ => new EscalonadorOcorrencias(
+            ocorrencias, unidade, relogio, opcoes, NullLogger<EscalonadorOcorrencias>.Instance));
+        servicos.AddScoped(_ => Encerrador(ocorrencias, unidade, publicador, relogio, opcoes, dispositivos));
+        await using ServiceProvider provedor = servicos.BuildServiceProvider();
+
+        using var servico = new ServicoEscalonamentoSos(provedor.GetRequiredService<IServiceScopeFactory>(), relogio, opcoes, logger);
+        using var limite = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+        // Act: a rodada da subida; o StopAsync espera ela terminar.
+        await servico.StartAsync(CancellationToken.None);
+        await ocorrencias.ConsultasDeVencidas.ReadAsync(limite.Token);
+        await servico.StopAsync(CancellationToken.None);
+
+        // Assert
+        Assert.AreEqual(EstadoOcorrencia.Encerrada, antiga.Estado);
+        Assert.IsTrue(antiga.EncerradaAutomaticamente);
+        Assert.AreEqual(TipoComandoMqtt.Encerrar, publicador.Comandos.Single().Tipo);
+        Assert.IsEmpty(logger.Registros);
+    }
+
+    private static EncerradorAutomaticoOcorrencias Encerrador(
+        FakeOcorrenciaRepositorio ocorrencias,
+        FakeUnidadeDeTrabalho unidade,
+        FakePublicadorComandos publicador,
+        FakeTimeProvider relogio,
+        IOptions<OpcoesHelmCare> opcoes,
+        FakeDispositivoRepositorio? dispositivos = null)
+    {
+        var comandos = new PublicadorComandosOcorrencia(
+            publicador,
+            dispositivos ?? new FakeDispositivoRepositorio(),
+            NullLogger<PublicadorComandosOcorrencia>.Instance);
+        return new EncerradorAutomaticoOcorrencias(
+            ocorrencias, unidade, comandos, relogio, opcoes, NullLogger<EncerradorAutomaticoOcorrencias>.Instance);
     }
 }

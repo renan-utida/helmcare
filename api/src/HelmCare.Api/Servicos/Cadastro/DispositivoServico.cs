@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using HelmCare.Api.Contratos.Dispositivos;
 using HelmCare.Api.Persistencia.Repositorios;
+using HelmCare.Api.Seguranca;
 using HelmCare.Api.Servicos.Comum;
 using HelmCare.Dominio.Comum;
 using HelmCare.Dominio.Entidades;
@@ -19,6 +20,7 @@ public sealed class DispositivoServico
     private readonly IDispositivoRepositorio _dispositivos;
     private readonly IEntregadorRepositorio _entregadores;
     private readonly IUnidadeDeTrabalho _unidadeDeTrabalho;
+    private readonly IAutorizacaoRecursos _autorizacao;
 
     /// <summary>
     /// Cria o serviço.
@@ -26,14 +28,17 @@ public sealed class DispositivoServico
     /// <param name="dispositivos">Repositório de capacetes.</param>
     /// <param name="entregadores">Repositório de entregadores (para conferir se o dono existe).</param>
     /// <param name="unidadeDeTrabalho">Confirma a gravação.</param>
+    /// <param name="autorizacao">Conferência do dono (o entregadorId do corpo precisa ser o do token).</param>
     public DispositivoServico(
         IDispositivoRepositorio dispositivos,
         IEntregadorRepositorio entregadores,
-        IUnidadeDeTrabalho unidadeDeTrabalho)
+        IUnidadeDeTrabalho unidadeDeTrabalho,
+        IAutorizacaoRecursos autorizacao)
     {
         _dispositivos = dispositivos;
         _entregadores = entregadores;
         _unidadeDeTrabalho = unidadeDeTrabalho;
+        _autorizacao = autorizacao;
     }
 
     /// <summary>
@@ -59,6 +64,9 @@ public sealed class DispositivoServico
         {
             throw new RecursoNaoEncontradoException("Entregador não encontrado.");
         }
+
+        // O entregadorId do corpo precisa ser o do token (403 depois do 404).
+        _autorizacao.ExigirDono(dispositivo.EntregadorId);
 
         if (await _dispositivos.CodigoJaCadastradoAsync(dispositivo.Codigo, cancellationToken))
         {

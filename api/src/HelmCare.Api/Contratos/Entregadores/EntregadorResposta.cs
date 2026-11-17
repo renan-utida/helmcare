@@ -10,9 +10,8 @@ namespace HelmCare.Api.Contratos.Entregadores;
 /// <c>GET /api/v1/entregadores/{id}</c>, com a PII mascarada (seção 9 do contrato).
 /// </summary>
 /// <remarks>
-/// Esta resposta NUNCA leva o conteúdo da ficha médica, só <see cref="PossuiFichaMedica"/>.
-/// As rotas do entregador não têm login no protótipo: qualquer pessoa com o id leria dados de
-/// saúde, que pela seção 9 só podem sair para o socorrista verificado no Cofre.
+/// Esta resposta NUNCA leva o conteúdo da ficha médica, só <see cref="PossuiFichaMedica"/>: a
+/// ficha completa tem rota própria (<c>GET /entregadores/{id}/ficha-medica</c>, sem cache).
 /// </remarks>
 public sealed class EntregadorResposta
 {
@@ -42,6 +41,12 @@ public sealed class EntregadorResposta
     public required string Telefone { get; init; }
 
     /// <summary>
+    /// E-mail mascarado: a primeira letra, <c>***</c> e o domínio (<c>r***@exemplo.com</c>). Nulo só
+    /// para um entregador anterior à 1.15 ainda sem conta.
+    /// </summary>
+    public required string? Email { get; init; }
+
+    /// <summary>
     /// Instante do cadastro, em UTC.
     /// </summary>
     public required DateTime CriadoEm { get; init; }
@@ -60,8 +65,9 @@ public sealed class EntregadorResposta
     /// Monta a resposta a partir da entidade, aplicando as máscaras.
     /// </summary>
     /// <param name="entregador">Entregador, com os contatos e a ficha carregados.</param>
+    /// <param name="email">E-mail da conta (sem máscara), ou nulo se ele ainda não tem conta.</param>
     /// <returns>A resposta mascarada.</returns>
-    public static EntregadorResposta De(Entregador entregador)
+    public static EntregadorResposta De(Entregador entregador, string? email)
     {
         ArgumentNullException.ThrowIfNull(entregador);
 
@@ -72,6 +78,7 @@ public sealed class EntregadorResposta
             Cpf = Mascaras.Cpf(entregador.Cpf),
             Cnh = Mascaras.Cnh(entregador.Cnh),
             Telefone = Mascaras.Telefone(entregador.Telefone),
+            Email = email is null ? null : Mascaras.Email(email),
             CriadoEm = entregador.CriadoEm,
             PossuiFichaMedica = entregador.FichaMedica is not null,
             Contatos = entregador.Contatos.Select(ContatoResposta.De).ToList(),

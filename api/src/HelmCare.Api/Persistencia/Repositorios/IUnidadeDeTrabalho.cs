@@ -22,4 +22,12 @@ public interface IUnidadeDeTrabalho
     /// leitura vir do banco. Usada na nova tentativa do aceite depois de um conflito de concorrência.
     /// </summary>
     void DescartarAlteracoes();
+
+    /// <summary>
+    /// Abre uma transação do banco. Usada no cadastro, em que a conta do Identity e o entregador são
+    /// gravados em dois passos e precisam valer juntos: se o segundo falhar, o primeiro é desfeito.
+    /// </summary>
+    /// <param name="cancellationToken">Cancelamento da requisição.</param>
+    /// <returns>A transação aberta; descartada sem confirmar, desfaz tudo.</returns>
+    Task<ITransacao> IniciarTransacaoAsync(CancellationToken cancellationToken);
 }

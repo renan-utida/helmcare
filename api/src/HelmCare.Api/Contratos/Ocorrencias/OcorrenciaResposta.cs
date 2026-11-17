@@ -46,6 +46,11 @@ public sealed class OcorrenciaResposta
     public required int? TempoAteAceiteSegundos { get; init; }
 
     /// <summary>
+    /// Verdadeiro quando a API encerrou a ocorrência por tempo (<c>TEMPO_ENCERRAMENTO_AUTOMATICO_MIN</c>).
+    /// </summary>
+    public required bool EncerradaAutomaticamente { get; init; }
+
+    /// <summary>
     /// Latitude: exata para o voluntário que aceitou; nos outros casos, com 2 casas (seção 9).
     /// </summary>
     /// <example>-23.56</example>
@@ -61,6 +66,13 @@ public sealed class OcorrenciaResposta
     /// Diz qual localização veio: verdadeiro para a exata, falso para a aproximada.
     /// </summary>
     public required bool LocalizacaoExata { get; init; }
+
+    /// <summary>
+    /// Só para a vítima, depois do aceite: distância, em km com 1 casa, da última posição do voluntário
+    /// que aceitou até a localização exata. Nula para qualquer outro usuário, antes do aceite ou com o
+    /// voluntário sem posição. A posição do voluntário nunca é devolvida.
+    /// </summary>
+    public required double? DistanciaVoluntarioKm { get; init; }
 
     /// <summary>
     /// Cronômetro desde a queda.

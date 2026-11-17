@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using HelmCare.Api.Contratos.Turnos;
 using HelmCare.Api.Mensageria;
 using HelmCare.Api.Persistencia.Repositorios;
+using HelmCare.Api.Seguranca;
 using HelmCare.Api.Servicos.Comum;
 using HelmCare.Api.Servicos.Risco;
 using HelmCare.Dominio.Comum;
@@ -31,6 +32,7 @@ public sealed class TurnoServico
     private readonly IServicoRisco _risco;
     private readonly IPublicadorComandos _publicador;
     private readonly IUnidadeDeTrabalho _unidadeDeTrabalho;
+    private readonly IAutorizacaoRecursos _autorizacao;
     private readonly TimeProvider _relogio;
 
     /// <summary>
@@ -44,6 +46,7 @@ public sealed class TurnoServico
     /// <param name="risco">Cálculo do Índice de Risco do Turno.</param>
     /// <param name="publicador">Comandos MQTT para o capacete.</param>
     /// <param name="unidadeDeTrabalho">Confirma a gravação.</param>
+    /// <param name="autorizacao">Conferência do dono do turno (só o próprio entregador).</param>
     /// <param name="relogio">Relógio do servidor.</param>
     public TurnoServico(
         ITurnoRepositorio turnos,
@@ -54,6 +57,7 @@ public sealed class TurnoServico
         IServicoRisco risco,
         IPublicadorComandos publicador,
         IUnidadeDeTrabalho unidadeDeTrabalho,
+        IAutorizacaoRecursos autorizacao,
         TimeProvider relogio)
     {
         _turnos = turnos;
@@ -64,6 +68,7 @@ public sealed class TurnoServico
         _risco = risco;
         _publicador = publicador;
         _unidadeDeTrabalho = unidadeDeTrabalho;
+        _autorizacao = autorizacao;
         _relogio = relogio;
     }
 
@@ -92,6 +97,9 @@ public sealed class TurnoServico
         {
             throw new RecursoNaoEncontradoException("Entregador não encontrado.");
         }
+
+        // O entregadorId do corpo precisa ser o do token (403 depois do 404).
+        _autorizacao.ExigirDono(turno.EntregadorId);
 
         if (await _turnos.ExisteAtivoDoEntregadorAsync(turno.EntregadorId, cancellationToken))
         {
@@ -131,7 +139,7 @@ public sealed class TurnoServico
     /// <exception cref="RecursoNaoEncontradoException">Turno inexistente (404).</exception>
     public async Task<RiscoTurnoResposta> ObterRiscoAsync(Guid id, CancellationToken cancellationToken)
     {
-        Turno turno = await _turnos.ObterAsync(id, cancellationToken) ?? throw TurnoNaoEncontrado();
+        Turno turno = await ObterDoDonoAsync(id, cancellationToken);
         return RiscoTurnoResposta.De(turno);
     }
 
@@ -149,6 +157,7 @@ public sealed class TurnoServico
     {
         // Rastreado: é o único caso de uso que altera o turno.
         Turno turno = await _turnos.ObterPorIdAsync(id, cancellationToken) ?? throw TurnoNaoEncontrado();
+        _autorizacao.ExigirDono(turno.EntregadorId);
 
         if (!turno.EstaAtivo)
         {
@@ -202,7 +211,7 @@ public sealed class TurnoServico
     /// <exception cref="RecursoNaoEncontradoException">Turno inexistente (404).</exception>
     public async Task<AlertaTurnoResposta> ObterAlertaAsync(Guid id, CancellationToken cancellationToken)
     {
-        Turno turno = await _turnos.ObterAsync(id, cancellationToken) ?? throw TurnoNaoEncontrado();
+        Turno turno = await ObterDoDonoAsync(id, cancellationToken);
 
         DadosAlertaTurno? dados = await _turnos.ObterDadosAlertaAsync(turno.EntregadorId, cancellationToken);
 
@@ -240,7 +249,7 @@ public sealed class TurnoServico
     /// <exception cref="MensageriaIndisponivelException">O <c>CANCELAR</c> não pôde ser publicado (503).</exception>
     public async Task CancelarAlertaAsync(Guid id, CancellationToken cancellationToken)
     {
-        Turno turno = await _turnos.ObterAsync(id, cancellationToken) ?? throw TurnoNaoEncontrado();
+        Turno turno = await ObterDoDonoAsync(id, cancellationToken);
 
         if (!turno.EstaAtivo)
         {
@@ -281,6 +290,14 @@ public sealed class TurnoServico
             DateTimeKind.Local => instante.ToUniversalTime(),
             _ => DateTime.SpecifyKind(instante, DateTimeKind.Utc),
         };
+    }
+
+    // 404 antes de 403: primeiro acha o turno (sem rastrear), depois confere o dono.
+    private async Task<Turno> ObterDoDonoAsync(Guid id, CancellationToken cancellationToken)
+    {
+        Turno turno = await _turnos.ObterAsync(id, cancellationToken) ?? throw TurnoNaoEncontrado();
+        _autorizacao.ExigirDono(turno.EntregadorId);
+        return turno;
     }
 
     private static ValidacaoDominioException CampoObrigatorio(string campo)

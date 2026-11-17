@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using HelmCare.Api.Contratos.TrechosCriticos;
 using HelmCare.Api.Servicos.TrechosCriticos;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -13,6 +14,7 @@ namespace HelmCare.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/trechos-criticos")]
+[AllowAnonymous]
 public sealed class TrechosCriticosController : ControllerBase
 {
     private readonly TrechosCriticosServico _servico;

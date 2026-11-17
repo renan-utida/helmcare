@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using HelmCare.Api.Contratos.Voluntarios;
 using HelmCare.Api.Persistencia.Repositorios;
+using HelmCare.Api.Seguranca;
 using HelmCare.Api.Servicos.Comum;
 using HelmCare.Dominio.Comum;
 using HelmCare.Dominio.Entidades;
@@ -30,6 +31,7 @@ public sealed partial class VoluntarioServico
     private readonly IVoluntarioRepositorio _voluntarios;
     private readonly IEntregadorRepositorio _entregadores;
     private readonly IUnidadeDeTrabalho _unidadeDeTrabalho;
+    private readonly IAutorizacaoRecursos _autorizacao;
     private readonly ILogger<VoluntarioServico> _logger;
 
     /// <summary>
@@ -38,16 +40,19 @@ public sealed partial class VoluntarioServico
     /// <param name="voluntarios">Repositório de voluntários.</param>
     /// <param name="entregadores">Repositório de entregadores (para conferir se o entregador existe).</param>
     /// <param name="unidadeDeTrabalho">Confirma a gravação.</param>
+    /// <param name="autorizacao">Conferência do dono (o voluntário precisa ser o do token).</param>
     /// <param name="logger">Log da aplicação.</param>
     public VoluntarioServico(
         IVoluntarioRepositorio voluntarios,
         IEntregadorRepositorio entregadores,
         IUnidadeDeTrabalho unidadeDeTrabalho,
+        IAutorizacaoRecursos autorizacao,
         ILogger<VoluntarioServico> logger)
     {
         _voluntarios = voluntarios;
         _entregadores = entregadores;
         _unidadeDeTrabalho = unidadeDeTrabalho;
+        _autorizacao = autorizacao;
         _logger = logger;
     }
 
@@ -84,6 +89,9 @@ public sealed partial class VoluntarioServico
             throw new RecursoNaoEncontradoException("Entregador não encontrado.");
         }
 
+        // O entregadorId do corpo precisa ser o do token (403 depois do 404).
+        _autorizacao.ExigirDono(voluntario.EntregadorId);
+
         if (await _voluntarios.ExisteDoEntregadorAsync(voluntario.EntregadorId, cancellationToken))
         {
             throw new RegraNegocioException(MensagemJaVoluntario);
@@ -115,6 +123,9 @@ public sealed partial class VoluntarioServico
 
         Voluntario voluntario = await _voluntarios.ObterPorIdAsync(id, cancellationToken)
             ?? throw new RecursoNaoEncontradoException("Voluntário não encontrado.");
+
+        // Só o voluntário do próprio entregador muda a disponibilidade.
+        _autorizacao.ExigirDono(voluntario.EntregadorId);
 
         // Só monta a coordenada com as duas partes; com uma só, fica nula e o domínio decide:
         // disponível sem posição é 400, indisponível descarta o que veio.

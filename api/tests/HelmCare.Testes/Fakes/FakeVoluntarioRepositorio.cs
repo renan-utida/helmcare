@@ -59,4 +59,10 @@ public sealed class FakeVoluntarioRepositorio : IVoluntarioRepositorio
     {
         return Task.FromResult(_voluntarios.Exists(v => v.EntregadorId == entregadorId));
     }
+
+    /// <inheritdoc/>
+    public Task<Guid?> ObterIdDoEntregadorAsync(Guid entregadorId, CancellationToken cancellationToken)
+    {
+        return Task.FromResult(_voluntarios.Where(v => v.EntregadorId == entregadorId).Select(v => (Guid?)v.Id).FirstOrDefault());
+    }
 }

@@ -20,6 +20,24 @@ public interface IOcorrenciaRepositorio : IRepositorio<Ocorrencia>
     Task<bool> ExisteAtivaDoEntregadorAsync(Guid entregadorId, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Id da ocorrência ainda aberta do entregador como vítima (<c>SOS_CAMADA_1</c>, <c>SOS_CAMADA_2</c>
+    /// ou <c>SOCORRO_A_CAMINHO</c>), para a sessão do app. Havendo mais de uma, a mais recente.
+    /// </summary>
+    /// <param name="entregadorId">Id do entregador.</param>
+    /// <param name="cancellationToken">Cancelamento da requisição.</param>
+    /// <returns>O id da ocorrência ativa, ou nulo.</returns>
+    Task<Guid?> ObterIdAtivaDoEntregadorAsync(Guid entregadorId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Ocorrências ainda ativas criadas até o instante, rastreadas, para o encerramento automático,
+    /// das mais antigas para as mais novas.
+    /// </summary>
+    /// <param name="criadaAte">Último <c>criadaEm</c> aceito (agora menos o tempo de encerramento).</param>
+    /// <param name="cancellationToken">Cancelamento da operação.</param>
+    /// <returns>As ocorrências vencidas.</returns>
+    Task<IReadOnlyList<Ocorrencia>> ListarAtivasCriadasAteAsync(DateTime criadaAte, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Busca a ocorrência com o impacto e os aceites carregados (usada nas rotas de ocorrência).
     /// </summary>
     /// <param name="id">Id da ocorrência.</param>

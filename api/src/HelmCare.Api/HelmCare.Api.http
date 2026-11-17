@@ -2,6 +2,8 @@
 
 # Dados simulados (seção 2 do contrato): nenhum CPF, CNH ou telefone de pessoa real.
 # Rode na ordem: o id do entregador criado no passo 1 alimenta os passos seguintes.
+# Desde a 1.15, as rotas exigem login: o passo 1b guarda o token numa variável, e cada requisição
+# protegida manda o Authorization. Senhas de exemplo fictícias (Senha123) e e-mails de exemplo.com.
 
 ### Health check da API
 GET {{baseUrl}}/api/v1/saude
@@ -14,6 +16,8 @@ Content-Type: application/json
 
 {
   "nome": "Entregador Simulado",
+  "email": "entregador@exemplo.com",
+  "senha": "Senha123",
   "cpf": "111.444.777-35",
   "cnh": "12345678900",
   "telefone": "(11) 91234-5678"
@@ -22,8 +26,24 @@ Content-Type: application/json
 ###
 @entregadorId = {{criarEntregador.response.body.$.id}}
 
-### 2. Criar a ficha médica (200, devolve os quatro campos só aqui)
+### 1b. Login do entregador (200: tokens e sessão; até 10 por minuto por IP)
+# @name login
+POST {{baseUrl}}/api/v1/entregadores/login
+Content-Type: application/json
+
+{
+  "email": "entregador@exemplo.com",
+  "senha": "Senha123"
+}
+
+###
+# Os tokens vêm da resposta do login: nenhum token fica escrito neste arquivo.
+@token = {{login.response.body.$.accessToken}}
+@refreshToken = {{login.response.body.$.refreshToken}}
+
+### 2. Criar a ficha médica (200, a ficha completa, com Cache-Control: no-store)
 PUT {{baseUrl}}/api/v1/entregadores/{{entregadorId}}/ficha-medica
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -34,7 +54,9 @@ Content-Type: application/json
 }
 
 ### 3. Adicionar um contato de emergência (201, telefone mascarado)
+# @name criarContato
 POST {{baseUrl}}/api/v1/entregadores/{{entregadorId}}/contatos
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -45,6 +67,7 @@ Content-Type: application/json
 
 ### 4. Vincular o capacete HC-0001 (201, qrToken e urlCofre só nesta resposta)
 POST {{baseUrl}}/api/v1/dispositivos
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -54,6 +77,7 @@ Content-Type: application/json
 
 ### 5. Consultar o entregador (200, PII mascarada, possuiFichaMedica sem o conteúdo da ficha)
 GET {{baseUrl}}/api/v1/entregadores/{{entregadorId}}
+Authorization: Bearer {{token}}
 Accept: application/json
 
 ### Erro 400: CPF com 10 dígitos
@@ -62,6 +86,8 @@ Content-Type: application/json
 
 {
   "nome": "Entregador Simulado Dois",
+  "email": "cpf.curto@exemplo.com",
+  "senha": "Senha123",
   "cpf": "1114447773",
   "cnh": "98765432100",
   "telefone": "11912345678"
@@ -69,6 +95,7 @@ Content-Type: application/json
 
 ### Erro 404: entregador inexistente
 GET {{baseUrl}}/api/v1/entregadores/00000000-0000-0000-0000-000000000001
+Authorization: Bearer {{token}}
 Accept: application/json
 
 ### Erro 409: CPF já cadastrado (o mesmo do passo 1, agora sem máscara)
@@ -77,6 +104,8 @@ Content-Type: application/json
 
 {
   "nome": "Entregador Simulado Repetido",
+  "email": "cpf.repetido@exemplo.com",
+  "senha": "Senha123",
   "cpf": "11144477735",
   "cnh": "98765432100",
   "telefone": "11912345678"
@@ -96,6 +125,7 @@ Content-Type: application/json
 ### T1. Iniciar o turno com proteção (201, Location para o risco; publica ARMAR)
 # @name iniciarTurno
 POST {{baseUrl}}/api/v1/turnos
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -110,10 +140,12 @@ Content-Type: application/json
 
 ### T2. Índice de Risco guardado no turno (200, o mesmo índice)
 GET {{baseUrl}}/api/v1/turnos/{{turnoId}}/risco
+Authorization: Bearer {{token}}
 Accept: application/json
 
 ### T3. Segundo turno ativo do mesmo entregador (409)
 POST {{baseUrl}}/api/v1/turnos
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -124,13 +156,16 @@ Content-Type: application/json
 
 ### T4. Alerta do turno (200; com SOS ativo, traz o ocorrenciaId)
 GET {{baseUrl}}/api/v1/turnos/{{turnoId}}/alerta
+Authorization: Bearer {{token}}
 Accept: application/json
 
 ### T5. Cancelar o alerta fora da contagem (409; em CONTAGEM seria 202 e publicaria CANCELAR)
 POST {{baseUrl}}/api/v1/turnos/{{turnoId}}/alerta/cancelar
+Authorization: Bearer {{token}}
 
 ### T6. Encerrar com ocorrência ativa (409; sem ela, 200 e publica DESARMAR)
 POST {{baseUrl}}/api/v1/turnos/{{turnoId}}/encerrar
+Authorization: Bearer {{token}}
 
 ### T7a. Outro entregador simulado, sem capacete (201; um segundo envio dá 409 pelo CPF)
 # @name criarEntregadorSemCapacete
@@ -139,6 +174,8 @@ Content-Type: application/json
 
 {
   "nome": "Entregador Simulado Sem Capacete",
+  "email": "sem.capacete@exemplo.com",
+  "senha": "Senha123",
   "cpf": "529.982.247-25",
   "cnh": "98765432100",
   "telefone": "(11) 99876-5432"
@@ -147,8 +184,22 @@ Content-Type: application/json
 ###
 @semCapaceteId = {{criarEntregadorSemCapacete.response.body.$.id}}
 
+### T7a2. Login do entregador sem capacete (o turno sem proteção e o voluntário são dele)
+# @name loginSemCapacete
+POST {{baseUrl}}/api/v1/entregadores/login
+Content-Type: application/json
+
+{
+  "email": "sem.capacete@exemplo.com",
+  "senha": "Senha123"
+}
+
+###
+@tokenSemCapacete = {{loginSemCapacete.response.body.$.accessToken}}
+
 ### T7b. Turno com proteção, sem capacete (409)
 POST {{baseUrl}}/api/v1/turnos
+Authorization: Bearer {{tokenSemCapacete}}
 Content-Type: application/json
 
 {
@@ -161,6 +212,7 @@ Content-Type: application/json
 ### T7c. Turno sem proteção (201, nenhum comando publicado)
 # @name iniciarTurnoSemProtecao
 POST {{baseUrl}}/api/v1/turnos
+Authorization: Bearer {{tokenSemCapacete}}
 Content-Type: application/json
 
 {
@@ -175,16 +227,20 @@ Content-Type: application/json
 
 ### T7d. Alerta de quem não tem capacete (200, os quatro campos null)
 GET {{baseUrl}}/api/v1/turnos/{{turnoSemProtecaoId}}/alerta
+Authorization: Bearer {{tokenSemCapacete}}
 Accept: application/json
 
 ### T7e. Encerrar o turno sem proteção (200, sem comando)
 POST {{baseUrl}}/api/v1/turnos/{{turnoSemProtecaoId}}/encerrar
+Authorization: Bearer {{tokenSemCapacete}}
 
 ### T7f. Encerrar de novo (409)
 POST {{baseUrl}}/api/v1/turnos/{{turnoSemProtecaoId}}/encerrar
+Authorization: Bearer {{tokenSemCapacete}}
 
 ### T8a. fimPrevisto antes do inicio (400)
 POST {{baseUrl}}/api/v1/turnos
+Authorization: Bearer {{tokenSemCapacete}}
 Content-Type: application/json
 
 {
@@ -196,24 +252,29 @@ Content-Type: application/json
 
 ### T8b. Risco de turno inexistente (404)
 GET {{baseUrl}}/api/v1/turnos/{{$guid}}/risco
+Authorization: Bearer {{token}}
 Accept: application/json
 
 ### T9a. Ocorrência sem voluntarioId (200, localização aproximada, cronômetro correndo)
 GET {{baseUrl}}/api/v1/ocorrencias/{{ocorrenciaId}}
+Authorization: Bearer {{token}}
 Accept: application/json
 
 ### T9b. Ocorrência com voluntarioId inexistente (404)
 GET {{baseUrl}}/api/v1/ocorrencias/{{ocorrenciaId}}?voluntarioId={{voluntarioInexistente}}
+Authorization: Bearer {{token}}
 Accept: application/json
 
 ### T9c. Ocorrência inexistente (404)
 GET {{baseUrl}}/api/v1/ocorrencias/{{$guid}}
+Authorization: Bearer {{token}}
 Accept: application/json
 
 ### R1. Turno do exemplo do contrato, sem proteção (201: 60, ALTO, 84/70/0). Com o Serviço de Risco
 ### fora do ar, o mesmo resultado vem da versão simulada. Use um entregador sem turno ativo.
 # @name iniciarTurnoExemplo
 POST {{baseUrl}}/api/v1/turnos
+Authorization: Bearer {{tokenSemCapacete}}
 Content-Type: application/json
 Accept: application/json
 
@@ -229,6 +290,7 @@ Accept: application/json
 
 ### R2. Encerrar o turno do exemplo (200)
 POST {{baseUrl}}/api/v1/turnos/{{turnoExemploId}}/encerrar
+Authorization: Bearer {{tokenSemCapacete}}
 Accept: application/json
 
 ### R3. Trechos críticos (200, os dois primeiros; 503 com o Serviço de Risco fora do ar)
@@ -248,6 +310,7 @@ Accept: application/json
 ### V1. Tornar o entregador sem capacete voluntário (201, indisponível e sem posição; Location para o entregador)
 # @name criarVoluntario
 POST {{baseUrl}}/api/v1/voluntarios
+Authorization: Bearer {{tokenSemCapacete}}
 Content-Type: application/json
 
 {
@@ -260,6 +323,7 @@ Content-Type: application/json
 
 ### V2. Ficar disponível no MASP (200, posição só nesta resposta)
 PUT {{baseUrl}}/api/v1/voluntarios/{{voluntarioId}}/disponibilidade
+Authorization: Bearer {{tokenSemCapacete}}
 Content-Type: application/json
 
 {
@@ -270,10 +334,12 @@ Content-Type: application/json
 
 ### V3. Chamados próximos (200; camada 1 só até 2 km, camada 2 todos, nunca o próprio SOS)
 GET {{baseUrl}}/api/v1/ocorrencias/proximas?voluntarioId={{voluntarioId}}
+Authorization: Bearer {{tokenSemCapacete}}
 Accept: application/json
 
 ### V4. Ficar indisponível (200; a posição é apagada mesmo vindo na requisição)
 PUT {{baseUrl}}/api/v1/voluntarios/{{voluntarioId}}/disponibilidade
+Authorization: Bearer {{tokenSemCapacete}}
 Content-Type: application/json
 
 {
@@ -284,10 +350,12 @@ Content-Type: application/json
 
 ### V5. Chamados próximos do voluntário indisponível (200, lista vazia)
 GET {{baseUrl}}/api/v1/ocorrencias/proximas?voluntarioId={{voluntarioId}}
+Authorization: Bearer {{tokenSemCapacete}}
 Accept: application/json
 
 ### V6. Cadastrar de novo o mesmo entregador (409)
 POST {{baseUrl}}/api/v1/voluntarios
+Authorization: Bearer {{tokenSemCapacete}}
 Content-Type: application/json
 
 {
@@ -297,6 +365,7 @@ Content-Type: application/json
 
 ### V7. Entregador inexistente (404)
 POST {{baseUrl}}/api/v1/voluntarios
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -306,6 +375,7 @@ Content-Type: application/json
 
 ### V8. Tipo fora do contrato (400)
 POST {{baseUrl}}/api/v1/voluntarios
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -315,6 +385,7 @@ Content-Type: application/json
 
 ### V9. Disponível sem posição (400)
 PUT {{baseUrl}}/api/v1/voluntarios/{{voluntarioId}}/disponibilidade
+Authorization: Bearer {{tokenSemCapacete}}
 Content-Type: application/json
 
 {
@@ -323,6 +394,7 @@ Content-Type: application/json
 
 ### V10. Voluntário inexistente na disponibilidade (404)
 PUT {{baseUrl}}/api/v1/voluntarios/{{voluntarioInexistente}}/disponibilidade
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -331,16 +403,20 @@ Content-Type: application/json
 
 ### V11. Chamados próximos sem voluntarioId (400)
 GET {{baseUrl}}/api/v1/ocorrencias/proximas
+Authorization: Bearer {{token}}
 Accept: application/json
 
 ### V12. Chamados próximos de voluntário inexistente (404)
 GET {{baseUrl}}/api/v1/ocorrencias/proximas?voluntarioId={{voluntarioInexistente}}
+Authorization: Bearer {{token}}
 Accept: application/json
 
 # ---------------------------------------------------------------------------
 # Aceite, cancelamento e encerramento da ocorrência (rodada 2 do SOS escalonado). Troque o id pela
 # ocorrência aberta pelo SOS de teste. O aceite publica SOCORRO_A_CAMINHO; cancelar e encerrar
 # publicam ENCERRAR. Os comandos saem depois de gravar e não bloqueiam a rota.
+# Desde a 1.15, o aceite só vale com o token do entregador dono do voluntarioId, e o cancelar só com o
+# da vítima: faça o login com a conta de cada um (veja a rota de desenvolvimento no fim) e troque o @token.
 # ---------------------------------------------------------------------------
 
 @ocorrenciaSosId = 00000000-0000-0000-0000-000000000003
@@ -349,6 +425,7 @@ Accept: application/json
 
 ### A1. Aceite do voluntário do MASP (201, localização exata e cronômetro parado; Location com o voluntarioId)
 POST {{baseUrl}}/api/v1/ocorrencias/{{ocorrenciaSosId}}/aceites
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -357,6 +434,7 @@ Content-Type: application/json
 
 ### A2. Segundo aceite, da Consolação (409)
 POST {{baseUrl}}/api/v1/ocorrencias/{{ocorrenciaSosId}}/aceites
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -365,12 +443,14 @@ Content-Type: application/json
 
 ### A3. Aceite sem voluntarioId (400)
 POST {{baseUrl}}/api/v1/ocorrencias/{{ocorrenciaSosId}}/aceites
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {}
 
 ### A4. Aceite com voluntário inexistente (404)
 POST {{baseUrl}}/api/v1/ocorrencias/{{ocorrenciaSosId}}/aceites
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -379,17 +459,132 @@ Content-Type: application/json
 
 ### A5. Ocorrência vista por quem aceitou (200, exata) e por outro voluntário (200, aproximada)
 GET {{baseUrl}}/api/v1/ocorrencias/{{ocorrenciaSosId}}?voluntarioId={{voluntarioMasp}}
+Authorization: Bearer {{token}}
 Accept: application/json
 
 ###
 GET {{baseUrl}}/api/v1/ocorrencias/{{ocorrenciaSosId}}?voluntarioId={{voluntarioConsolacao}}
+Authorization: Bearer {{token}}
 Accept: application/json
 
 ### A6. Encerrar (200, aproximada; publica ENCERRAR)
 POST {{baseUrl}}/api/v1/ocorrencias/{{ocorrenciaSosId}}/encerrar
+Authorization: Bearer {{token}}
 
 ### A7. Cancelar depois de encerrar (409; cancelar só vale em SOS_CAMADA_1 ou SOS_CAMADA_2)
 POST {{baseUrl}}/api/v1/ocorrencias/{{ocorrenciaSosId}}/cancelar
+Authorization: Bearer {{token}}
 
 ### A8. Cancelar ou encerrar ocorrência inexistente (404)
 POST {{baseUrl}}/api/v1/ocorrencias/{{voluntarioInexistente}}/cancelar
+Authorization: Bearer {{token}}
+
+
+# ---------------------------------------------------------------------------
+# Identidade e autorização (1.15): renovação, sessão, 401, 403 e os pedidos do app. Usa o
+# entregador do passo 1 (token) e o sem capacete do T7a (tokenSemCapacete).
+# ---------------------------------------------------------------------------
+
+### I1. Renovar o token (200, o mesmo corpo do login, com tokens novos)
+POST {{baseUrl}}/api/v1/entregadores/renovar-token
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}
+
+### I2. Renovar com um refreshToken inválido (401; o app volta para o login)
+POST {{baseUrl}}/api/v1/entregadores/renovar-token
+Content-Type: application/json
+
+{
+  "refreshToken": "token-invalido"
+}
+
+### I3. Sessão do token (200: o corpo do login sem os campos do token, com ocorrenciaAtivaId)
+GET {{baseUrl}}/api/v1/entregadores/sessao
+Authorization: Bearer {{token}}
+
+### I4. Login com a senha errada (401, o mesmo texto do e-mail desconhecido e da conta bloqueada)
+POST {{baseUrl}}/api/v1/entregadores/login
+Content-Type: application/json
+
+{
+  "email": "entregador@exemplo.com",
+  "senha": "SenhaErrada1"
+}
+
+### I5. Rota protegida sem token (401 em ProblemDetails, sem redirecionar)
+GET {{baseUrl}}/api/v1/entregadores/{{entregadorId}}
+
+### I6. Entregador do passo 1 lido com o token do outro entregador (403)
+GET {{baseUrl}}/api/v1/entregadores/{{entregadorId}}
+Authorization: Bearer {{tokenSemCapacete}}
+
+### I7. Ficha médica completa (200, Cache-Control: no-store)
+GET {{baseUrl}}/api/v1/entregadores/{{entregadorId}}/ficha-medica
+Authorization: Bearer {{token}}
+
+### I8. Ficha de quem não tem ficha (404)
+GET {{baseUrl}}/api/v1/entregadores/{{semCapaceteId}}/ficha-medica
+Authorization: Bearer {{tokenSemCapacete}}
+
+###
+@contatoId = {{criarContato.response.body.$.id}}
+
+### I9. Editar o contato do passo 3 (200, mesmo corpo do POST)
+PUT {{baseUrl}}/api/v1/entregadores/{{entregadorId}}/contatos/{{contatoId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "nome": "Contato Simulado Editado",
+  "telefone": "(11) 98888-7777",
+  "parentesco": "Irmã"
+}
+
+### I10. Contato de outro entregador ou inexistente (404)
+PUT {{baseUrl}}/api/v1/entregadores/{{semCapaceteId}}/contatos/{{contatoId}}
+Authorization: Bearer {{tokenSemCapacete}}
+Content-Type: application/json
+
+{
+  "nome": "Contato Simulado",
+  "telefone": "(11) 3123-4567",
+  "parentesco": "Pai"
+}
+
+### I11. Trocar o telefone (200, o corpo do GET /entregadores/{id})
+PUT {{baseUrl}}/api/v1/entregadores/{{entregadorId}}/telefone
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "telefone": "(11) 98765-4321"
+}
+
+### I12. Telefone já usado pelo entregador sem capacete (409)
+PUT {{baseUrl}}/api/v1/entregadores/{{entregadorId}}/telefone
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "telefone": "(11) 99876-5432"
+}
+
+### I13. Excluir o contato (204; excluir o último é permitido)
+DELETE {{baseUrl}}/api/v1/entregadores/{{entregadorId}}/contatos/{{contatoId}}
+Authorization: Bearer {{token}}
+
+###
+# Troque pelo id de um entregador antigo (sem conta) do banco de desenvolvimento.
+@entregadorAntigoId = 00000000-0000-0000-0000-000000000004
+
+### I14. Só em Development: conta de um entregador anterior à 1.15 (201; já com conta ou e-mail repetido, 409)
+POST {{baseUrl}}/api/v1/dev/entregadores/{{entregadorAntigoId}}/conta
+Content-Type: application/json
+
+{
+  "email": "entregador.antigo@exemplo.com",
+  "senha": "Senha123"
+}

@@ -4,9 +4,9 @@ using HelmCare.Dominio.Entidades;
 namespace HelmCare.Api.Contratos.Entregadores;
 
 /// <summary>
-/// Ficha médica devolvida SOMENTE no <c>PUT /api/v1/entregadores/{id}/ficha-medica</c>, para quem
-/// acabou de enviar os mesmos dados. Nenhuma outra rota do entregador devolve a ficha
-/// (PII sensível, seção 9 do contrato).
+/// Ficha médica completa, devolvida SOMENTE no <c>GET</c> e no <c>PUT /api/v1/entregadores/{id}/ficha-medica</c>,
+/// para o próprio entregador e com <c>Cache-Control: no-store</c>. Nenhuma outra rota do entregador
+/// devolve a ficha (PII sensível, seção 9 do contrato).
 /// </summary>
 public sealed class FichaMedicaResposta
 {
