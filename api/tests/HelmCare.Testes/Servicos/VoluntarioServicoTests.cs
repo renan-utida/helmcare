@@ -32,7 +32,7 @@ public sealed class VoluntarioServicoTests
     /// </summary>
     public VoluntarioServicoTests()
     {
-        _servico = new VoluntarioServico(_voluntarios, _entregadores, _unidade, _logger);
+        _servico = new VoluntarioServico(_voluntarios, _entregadores, _unidade, new FakeAutorizacaoLivre(), _logger);
     }
 
     /// <summary>

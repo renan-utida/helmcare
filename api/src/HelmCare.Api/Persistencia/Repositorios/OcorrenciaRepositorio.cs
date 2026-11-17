@@ -43,6 +43,29 @@ public sealed class OcorrenciaRepositorio : RepositorioBase<Ocorrencia>, IOcorre
     }
 
     /// <inheritdoc/>
+    public Task<Guid?> ObterIdAtivaDoEntregadorAsync(Guid entregadorId, CancellationToken cancellationToken)
+    {
+        return Conjunto
+            .Where(o => o.EntregadorId == entregadorId)
+            .Where(Ativa)
+            .OrderByDescending(o => o.CriadaEm)
+            .Select(o => (Guid?)o.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<Ocorrencia>> ListarAtivasCriadasAteAsync(
+        DateTime criadaAte,
+        CancellationToken cancellationToken)
+    {
+        return await Conjunto
+            .Where(Ativa)
+            .Where(o => o.CriadaEm <= criadaAte)
+            .OrderBy(o => o.CriadaEm)
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public Task<Ocorrencia?> ObterAsync(Guid id, CancellationToken cancellationToken)
     {
         return Conjunto

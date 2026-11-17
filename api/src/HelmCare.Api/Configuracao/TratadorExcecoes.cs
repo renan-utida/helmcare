@@ -3,6 +3,8 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using HelmCare.Api.Persistencia.Configuracoes;
+using HelmCare.Api.Seguranca;
+using HelmCare.Api.Servicos.Cadastro;
 using HelmCare.Api.Servicos.Comum;
 using HelmCare.Api.Servicos.Voluntarios;
 using HelmCare.Dominio.Comum;
@@ -74,6 +76,12 @@ public sealed partial class TratadorExcecoes : IExceptionHandler
         });
     }
 
+    /// <summary>
+    /// Nome do índice único do nome de usuário normalizado do Identity. O nome de usuário é o e-mail,
+    /// então é este índice que segura o e-mail repetido na corrida de dois cadastros.
+    /// </summary>
+    public const string IndiceEmailIdentity = "UserNameIndex";
+
     // A ordem importa: DbUpdateConcurrencyException herda de DbUpdateException.
     // As mensagens das exceções do domínio e do serviço são escritas para o cliente (em português e
     // sem dado pessoal); as do EF Core, do Npgsql e da mensageria citam tabelas, índices ou o broker,
@@ -83,6 +91,8 @@ public sealed partial class TratadorExcecoes : IExceptionHandler
         return exception switch
         {
             ValidacaoDominioException e => (StatusCodes.Status400BadRequest, "Dados inválidos", e.Message),
+            NaoAutenticadoException e => (StatusCodes.Status401Unauthorized, ProblemasPadrao.TituloNaoAutenticado, e.Message),
+            AcessoNegadoException e => (StatusCodes.Status403Forbidden, ProblemasPadrao.TituloAcessoNegado, e.Message),
             RecursoNaoEncontradoException e => (StatusCodes.Status404NotFound, "Recurso não encontrado", e.Message),
             TransicaoInvalidaException e => (StatusCodes.Status409Conflict, "Transição de estado inválida", e.Message),
             RegraNegocioException e => (StatusCodes.Status409Conflict, "Regra de negócio violada", e.Message),
@@ -121,14 +131,28 @@ public sealed partial class TratadorExcecoes : IExceptionHandler
                     ConstraintName: VoluntarioConfiguracao.IndiceEntregadorUnico,
                 },
             } => (StatusCodes.Status409Conflict, "Regra de negócio violada", VoluntarioServico.MensagemJaVoluntario),
-            DbUpdateException { InnerException: PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } } => (
-                StatusCodes.Status409Conflict,
-                "Registro duplicado",
-                "Já existe um registro com estes dados, que precisam ser únicos."),
+            // Dois cadastros simultâneos com o mesmo CPF, CNH, telefone ou e-mail passam juntos pela
+            // conferência do serviço; o segundo esbarra no índice único e recebe a mesma resposta.
+            DbUpdateException { InnerException: PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } e } =>
+                MensagemDoIndice(e.ConstraintName) is { } mensagem
+                    ? (StatusCodes.Status409Conflict, "Regra de negócio violada", mensagem)
+                    : (StatusCodes.Status409Conflict, "Registro duplicado", "Já existe um registro com estes dados, que precisam ser únicos."),
             _ => (
                 StatusCodes.Status500InternalServerError,
                 "Erro interno",
                 "Ocorreu um erro inesperado. Informe o traceId ao suporte."),
+        };
+    }
+
+    private static string? MensagemDoIndice(string? indice)
+    {
+        return indice switch
+        {
+            EntregadorConfiguracao.IndiceCpf => EntregadorServico.MensagemCpfRepetido,
+            EntregadorConfiguracao.IndiceCnh => EntregadorServico.MensagemCnhRepetida,
+            EntregadorConfiguracao.IndiceTelefone => EntregadorServico.MensagemTelefoneRepetido,
+            IndiceEmailIdentity => IContasIdentity.MensagemEmailRepetido,
+            _ => null,
         };
     }
 

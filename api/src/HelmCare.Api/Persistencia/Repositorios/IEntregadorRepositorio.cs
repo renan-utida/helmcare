@@ -27,6 +27,31 @@ public interface IEntregadorRepositorio : IRepositorio<Entregador>
     Task<bool> CpfJaCadastradoAsync(string cpf, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Diz se já existe entregador com a CNH (só os 11 dígitos).
+    /// </summary>
+    /// <param name="cnh">CNH normalizada.</param>
+    /// <param name="cancellationToken">Cancelamento da requisição.</param>
+    /// <returns><see langword="true"/> se a CNH já está cadastrada.</returns>
+    Task<bool> CnhJaCadastradaAsync(string cnh, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Diz se outro entregador já usa o telefone (só os dígitos).
+    /// </summary>
+    /// <param name="telefone">Telefone normalizado.</param>
+    /// <param name="excetoEntregadorId">Entregador que não conta (o próprio, na troca de telefone), ou nulo no cadastro.</param>
+    /// <param name="cancellationToken">Cancelamento da requisição.</param>
+    /// <returns><see langword="true"/> se o telefone já é de outro entregador.</returns>
+    Task<bool> TelefoneEmUsoAsync(string telefone, Guid? excetoEntregadorId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Busca, sem rastrear, o entregador da conta do Identity.
+    /// </summary>
+    /// <param name="usuarioId">Id do usuário do Identity.</param>
+    /// <param name="cancellationToken">Cancelamento da requisição.</param>
+    /// <returns>O entregador, ou nulo se a conta não é de entregador.</returns>
+    Task<Entregador?> ObterPorUsuarioAsync(string usuarioId, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Conta os contatos de emergência do entregador, sem carregar nenhum dado deles. Usada pelo
     /// aviso simulado ao contato, que só registra a quantidade.
     /// </summary>

@@ -5,6 +5,7 @@ using HelmCare.Api.Configuracao;
 using HelmCare.Api.Contratos.Ocorrencias;
 using HelmCare.Api.Mensageria;
 using HelmCare.Api.Persistencia.Repositorios;
+using HelmCare.Api.Seguranca;
 using HelmCare.Api.Servicos.Comum;
 using HelmCare.Dominio.Comum;
 using HelmCare.Dominio.Entidades;
@@ -28,6 +29,7 @@ public sealed partial class AtendimentoOcorrenciaServico
     private readonly IUnidadeDeTrabalho _unidadeDeTrabalho;
     private readonly PublicadorComandosOcorrencia _comandos;
     private readonly OcorrenciaServico _consulta;
+    private readonly IAutorizacaoRecursos _autorizacao;
     private readonly TimeProvider _relogio;
     private readonly double _raioCamada1Km;
     private readonly TimeSpan _trechoCapacetePadrao;
@@ -41,6 +43,7 @@ public sealed partial class AtendimentoOcorrenciaServico
     /// <param name="unidadeDeTrabalho">Grava e, na nova tentativa do aceite, descarta o que está rastreado.</param>
     /// <param name="comandos">Publicação dos comandos da ocorrência sem bloquear.</param>
     /// <param name="consulta">Monta o corpo do <c>GET /ocorrencias/{id}</c>.</param>
+    /// <param name="autorizacao">Quem pode aceitar, cancelar e encerrar.</param>
     /// <param name="relogio">Relógio do servidor (instante do aceite e do fim).</param>
     /// <param name="opcoes">Constantes do contrato (<c>RAIO_CAMADA_1_KM</c> e o trecho padrão do capacete).</param>
     /// <param name="logger">Log da aplicação.</param>
@@ -50,6 +53,7 @@ public sealed partial class AtendimentoOcorrenciaServico
         IUnidadeDeTrabalho unidadeDeTrabalho,
         PublicadorComandosOcorrencia comandos,
         OcorrenciaServico consulta,
+        IAutorizacaoRecursos autorizacao,
         TimeProvider relogio,
         IOptions<OpcoesHelmCare> opcoes,
         ILogger<AtendimentoOcorrenciaServico> logger)
@@ -61,6 +65,7 @@ public sealed partial class AtendimentoOcorrenciaServico
         _unidadeDeTrabalho = unidadeDeTrabalho;
         _comandos = comandos;
         _consulta = consulta;
+        _autorizacao = autorizacao;
         _relogio = relogio;
         _raioCamada1Km = opcoes.Value.RaioCamada1Km;
         _trechoCapacetePadrao = opcoes.Value.TrechoCapacetePadrao;
@@ -84,11 +89,16 @@ public sealed partial class AtendimentoOcorrenciaServico
     /// <param name="cancellationToken">Cancelamento da requisição.</param>
     /// <returns>O corpo do <c>GET /ocorrencias/{id}?voluntarioId=</c> desse voluntário (localização exata).</returns>
     /// <exception cref="RecursoNaoEncontradoException">Ocorrência ou voluntário inexistente (404).</exception>
+    /// <exception cref="AcessoNegadoException">O voluntário não é o do token (403).</exception>
     /// <exception cref="RegraNegocioException">O voluntário não pode atender, ou outro aceitou antes (409).</exception>
     /// <exception cref="TransicaoInvalidaException">A ocorrência não aguarda aceite (409).</exception>
     public async Task<OcorrenciaResposta> AceitarAsync(Guid ocorrenciaId, Guid voluntarioId, CancellationToken cancellationToken)
     {
         (Ocorrencia ocorrencia, Voluntario voluntario) = await CarregarParaAceiteAsync(ocorrenciaId, voluntarioId, cancellationToken);
+
+        // Só o voluntário do próprio entregador aceita (403 depois dos dois 404).
+        _autorizacao.ExigirDono(voluntario.EntregadorId);
+
         ocorrencia.Aceitar(voluntario, Agora(), _raioCamada1Km, _trechoCapacetePadrao);
 
         try
@@ -115,7 +125,7 @@ public sealed partial class AtendimentoOcorrenciaServico
         RegistrarAceite(_logger, ocorrencia.Id, voluntarioId);
         await _comandos.PublicarSemBloquearAsync(ocorrencia, TipoComandoMqtt.SocorroACaminho, cancellationToken);
 
-        return _consulta.MontarResposta(ocorrencia, voluntarioId);
+        return await _consulta.MontarRespostaAsync(ocorrencia, voluntarioId, cancellationToken);
     }
 
     /// <summary>
@@ -126,10 +136,19 @@ public sealed partial class AtendimentoOcorrenciaServico
     /// <param name="cancellationToken">Cancelamento da requisição.</param>
     /// <returns>O corpo do <c>GET /ocorrencias/{id}</c>, com a localização aproximada.</returns>
     /// <exception cref="RecursoNaoEncontradoException">Ocorrência inexistente (404).</exception>
+    /// <exception cref="AcessoNegadoException">Quem pede não é a vítima (403).</exception>
     /// <exception cref="TransicaoInvalidaException">Fora da espera de aceite (409).</exception>
     public Task<OcorrenciaResposta> CancelarAsync(Guid ocorrenciaId, CancellationToken cancellationToken)
     {
-        return FinalizarAsync(ocorrenciaId, (o, agora) => o.Cancelar(agora), cancellationToken);
+        return FinalizarAsync(
+            ocorrenciaId,
+            (o, _) =>
+            {
+                _autorizacao.ExigirDono(o.EntregadorId);
+                return Task.CompletedTask;
+            },
+            (o, agora) => o.Cancelar(agora),
+            cancellationToken);
     }
 
     /// <summary>
@@ -139,22 +158,29 @@ public sealed partial class AtendimentoOcorrenciaServico
     /// <param name="cancellationToken">Cancelamento da requisição.</param>
     /// <returns>O corpo do <c>GET /ocorrencias/{id}</c>, com a localização aproximada.</returns>
     /// <exception cref="RecursoNaoEncontradoException">Ocorrência inexistente (404).</exception>
+    /// <exception cref="AcessoNegadoException">Quem pede não é a vítima nem o voluntário que aceitou (403).</exception>
     /// <exception cref="TransicaoInvalidaException">Ocorrência já encerrada ou cancelada (409).</exception>
     public Task<OcorrenciaResposta> EncerrarAsync(Guid ocorrenciaId, CancellationToken cancellationToken)
     {
-        return FinalizarAsync(ocorrenciaId, (o, agora) => o.Encerrar(agora), cancellationToken);
+        return FinalizarAsync(
+            ocorrenciaId,
+            _autorizacao.ExigirEncerramentoAsync,
+            (o, agora) => o.Encerrar(agora),
+            cancellationToken);
     }
 
-    // Cancelar e encerrar só diferem na transição do domínio; o resto (404, gravar, ENCERRAR sem
-    // bloquear e a resposta sem voluntário) é igual.
+    // Cancelar e encerrar só diferem em quem pode e na transição do domínio; o resto (404, depois a
+    // conferência de quem pede, gravar, ENCERRAR sem bloquear e a resposta sem voluntário) é igual.
     private async Task<OcorrenciaResposta> FinalizarAsync(
         Guid ocorrenciaId,
+        Func<Ocorrencia, CancellationToken, Task> autorizar,
         Action<Ocorrencia, DateTime> transicao,
         CancellationToken cancellationToken)
     {
         Ocorrencia ocorrencia = await _ocorrencias.ObterAsync(ocorrenciaId, cancellationToken)
             ?? throw new RecursoNaoEncontradoException("Ocorrência não encontrada.");
 
+        await autorizar(ocorrencia, cancellationToken);
         transicao(ocorrencia, Agora());
         await _unidadeDeTrabalho.SalvarAsync(cancellationToken);
 
@@ -162,7 +188,7 @@ public sealed partial class AtendimentoOcorrenciaServico
         RegistrarFim(_logger, ocorrencia.Id, estadoFinal);
         await _comandos.PublicarSemBloquearAsync(ocorrencia, TipoComandoMqtt.Encerrar, cancellationToken);
 
-        return _consulta.MontarResposta(ocorrencia, null);
+        return await _consulta.MontarRespostaAsync(ocorrencia, null, cancellationToken);
     }
 
     private async Task<(Ocorrencia Ocorrencia, Voluntario Voluntario)> CarregarParaAceiteAsync(

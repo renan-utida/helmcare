@@ -127,6 +127,26 @@ public sealed class FakeOcorrenciaRepositorio : IOcorrenciaRepositorio
             .FirstOrDefault());
     }
 
+    /// <inheritdoc/>
+    public Task<Guid?> ObterIdAtivaDoEntregadorAsync(Guid entregadorId, CancellationToken cancellationToken)
+    {
+        return Task.FromResult(Copia()
+            .Where(o => o.EntregadorId == entregadorId && o.EstaAtiva)
+            .OrderByDescending(o => o.CriadaEm)
+            .Select(o => (Guid?)o.Id)
+            .FirstOrDefault());
+    }
+
+    /// <inheritdoc/>
+    public Task<IReadOnlyList<Ocorrencia>> ListarAtivasCriadasAteAsync(DateTime criadaAte, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<Ocorrencia> lista = Ocorrencias
+            .Where(o => o.EstaAtiva && o.CriadaEm <= criadaAte)
+            .OrderBy(o => o.CriadaEm)
+            .ToList();
+        return Task.FromResult(lista);
+    }
+
     // Cópia feita sob a trava: quem consulta nunca percorre a lista enquanto outra thread acrescenta.
     private List<Ocorrencia> Copia()
     {

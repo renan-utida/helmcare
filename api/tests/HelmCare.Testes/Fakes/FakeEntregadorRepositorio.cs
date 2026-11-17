@@ -56,6 +56,24 @@ public sealed class FakeEntregadorRepositorio : IEntregadorRepositorio
     }
 
     /// <inheritdoc/>
+    public Task<bool> CnhJaCadastradaAsync(string cnh, CancellationToken cancellationToken)
+    {
+        return Task.FromResult(_entregadores.Exists(e => e.Cnh == cnh));
+    }
+
+    /// <inheritdoc/>
+    public Task<bool> TelefoneEmUsoAsync(string telefone, Guid? excetoEntregadorId, CancellationToken cancellationToken)
+    {
+        return Task.FromResult(_entregadores.Exists(e => e.Telefone == telefone && e.Id != excetoEntregadorId));
+    }
+
+    /// <inheritdoc/>
+    public Task<Entregador?> ObterPorUsuarioAsync(string usuarioId, CancellationToken cancellationToken)
+    {
+        return Task.FromResult(_entregadores.FirstOrDefault(e => e.UsuarioId == usuarioId));
+    }
+
+    /// <inheritdoc/>
     public Task<int> ContarContatosAsync(Guid entregadorId, CancellationToken cancellationToken)
     {
         return Task.FromResult(_entregadores.FirstOrDefault(e => e.Id == entregadorId)?.Contatos.Count ?? 0);

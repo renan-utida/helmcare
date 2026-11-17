@@ -47,6 +47,27 @@ public static class Mascaras
         return string.Concat("*******", cnh.AsSpan(7, 4));
     }
 
+    /// <summary>
+    /// Mascara o e-mail deixando a primeira letra e o domínio: <c>r***@exemplo.com</c> (seção 7 do contrato).
+    /// </summary>
+    /// <param name="email">E-mail com um <c>@</c> que não é o primeiro caractere.</param>
+    /// <returns>O e-mail mascarado.</returns>
+    /// <exception cref="ArgumentException">Quando o valor não tem a forma de um e-mail.</exception>
+    public static string Email(string email)
+    {
+        ArgumentNullException.ThrowIfNull(email);
+
+        int arroba = email.LastIndexOf('@');
+
+        if (arroba < 1 || arroba == email.Length - 1)
+        {
+            // A mensagem nunca repete o valor recebido, que é PII.
+            throw new ArgumentException("O valor deve ser um e-mail.", nameof(email));
+        }
+
+        return string.Concat(email.AsSpan(0, 1), "***", email.AsSpan(arroba));
+    }
+
     private static void ExigirDigitos(string valor, string nome, params int[] tamanhos)
     {
         ArgumentNullException.ThrowIfNull(valor, nome);

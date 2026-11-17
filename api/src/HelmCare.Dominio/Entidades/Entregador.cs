@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using HelmCare.Dominio.Comum;
 
 namespace HelmCare.Dominio.Entidades;
@@ -16,6 +17,11 @@ public sealed class Entregador : Entidade
     /// Tamanho máximo do nome.
     /// </summary>
     public const int TamanhoMaximoNome = 120;
+
+    /// <summary>
+    /// Tamanho máximo do id do usuário do Identity (o mesmo do <see cref="Socorrista.TamanhoMaximoUsuarioId"/>).
+    /// </summary>
+    public const int TamanhoMaximoUsuarioId = 450;
 
     private readonly List<ContatoEmergencia> _contatos = [];
 
@@ -82,6 +88,41 @@ public sealed class Entregador : Entidade
     public IReadOnlyCollection<ContatoEmergencia> Contatos => _contatos.AsReadOnly();
 
     /// <summary>
+    /// Id do usuário do ASP.NET Core Identity (e-mail e senha) usado no login, ou nulo para os
+    /// entregadores cadastrados antes da 1.15, que ainda não têm conta.
+    /// </summary>
+    public string? UsuarioId { get; private set; }
+
+    /// <summary>
+    /// Vincula o entregador a um usuário do Identity. Repetir com o mesmo usuário não muda nada.
+    /// </summary>
+    /// <param name="usuarioId">Id do usuário do Identity.</param>
+    /// <exception cref="ValidacaoDominioException">Quando o id é vazio ou longo demais.</exception>
+    /// <exception cref="RegraNegocioException">Quando o entregador já tem outra conta.</exception>
+    public void VincularUsuario(string usuarioId)
+    {
+        string id = Garantir.TextoObrigatorio(usuarioId, "usuarioId", TamanhoMaximoUsuarioId);
+
+        // Trocar a conta vinculada daria os dados do entregador para outro login.
+        if (UsuarioId is not null && UsuarioId != id)
+        {
+            throw new RegraNegocioException("O entregador já tem uma conta.");
+        }
+
+        UsuarioId = id;
+    }
+
+    /// <summary>
+    /// Troca o telefone do entregador, com a mesma regra do cadastro.
+    /// </summary>
+    /// <param name="telefone">Telefone com DDD, com ou sem máscara (10 ou 11 dígitos).</param>
+    /// <exception cref="ValidacaoDominioException">Quando o telefone é inválido.</exception>
+    public void TrocarTelefone(string telefone)
+    {
+        Telefone = Garantir.SoDigitos(telefone, "telefone", 10, 11);
+    }
+
+    /// <summary>
     /// Cria a ficha médica na primeira chamada e atualiza a mesma instância nas seguintes,
     /// garantindo uma única ficha por entregador.
     /// </summary>
@@ -122,5 +163,31 @@ public sealed class Entregador : Entidade
         var contato = new ContatoEmergencia(Id, nome, telefone, parentesco);
         _contatos.Add(contato);
         return contato;
+    }
+
+    /// <summary>
+    /// Substitui os dados de um contato de emergência do entregador.
+    /// </summary>
+    /// <param name="contatoId">Id do contato.</param>
+    /// <param name="nome">Nome do contato, até 120 caracteres.</param>
+    /// <param name="telefone">Telefone com DDD (10 ou 11 dígitos).</param>
+    /// <param name="parentesco">Relação com o entregador, até 40 caracteres.</param>
+    /// <returns>O contato editado, ou nulo se o entregador não tem contato com esse id.</returns>
+    /// <exception cref="ValidacaoDominioException">Quando algum dado do contato é inválido.</exception>
+    public ContatoEmergencia? EditarContato(Guid contatoId, string nome, string telefone, string parentesco)
+    {
+        ContatoEmergencia? contato = _contatos.FirstOrDefault(c => c.Id == contatoId);
+        contato?.Atualizar(nome, telefone, parentesco);
+        return contato;
+    }
+
+    /// <summary>
+    /// Exclui um contato de emergência do entregador. Excluir o último contato é permitido.
+    /// </summary>
+    /// <param name="contatoId">Id do contato.</param>
+    /// <returns><see langword="true"/> se o contato existia e foi excluído.</returns>
+    public bool RemoverContato(Guid contatoId)
+    {
+        return _contatos.RemoveAll(c => c.Id == contatoId) > 0;
     }
 }

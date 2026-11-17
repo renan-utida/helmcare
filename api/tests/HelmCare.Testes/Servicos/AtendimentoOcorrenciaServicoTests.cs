@@ -48,7 +48,7 @@ public sealed class AtendimentoOcorrenciaServicoTests
     {
         _dispositivos.Semear(new Dispositivo(Codigo, _vitimaId));
         IOptions<OpcoesHelmCare> opcoes = Options.Create(new OpcoesHelmCare());
-        var consulta = new OcorrenciaServico(_ocorrencias, _voluntarios, _relogio, opcoes);
+        var consulta = new OcorrenciaServico(_ocorrencias, _voluntarios, new FakeAutorizacaoLivre(), _relogio, opcoes);
         var comandos = new PublicadorComandosOcorrencia(_publicador, _dispositivos, _logComandos);
         _servico = new AtendimentoOcorrenciaServico(
             _ocorrencias,
@@ -56,6 +56,7 @@ public sealed class AtendimentoOcorrenciaServicoTests
             _unidade,
             comandos,
             consulta,
+            new FakeAutorizacaoLivre(),
             _relogio,
             opcoes,
             new FakeLogger<AtendimentoOcorrenciaServico>());

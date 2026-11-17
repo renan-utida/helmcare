@@ -61,4 +61,22 @@ public sealed class ContatoEmergencia : Entidade
     /// Relação com o entregador (ex.: mãe, irmão, cônjuge).
     /// </summary>
     public string Parentesco { get; private set; }
+
+    /// <summary>
+    /// Substitui os três dados do contato, validando todos antes de alterar qualquer um.
+    /// Interno: chamado por <see cref="Entregador.EditarContato"/>.
+    /// </summary>
+    /// <param name="nome">Nome do contato.</param>
+    /// <param name="telefone">Telefone com DDD (10 ou 11 dígitos).</param>
+    /// <param name="parentesco">Relação com o entregador.</param>
+    internal void Atualizar(string nome, string telefone, string parentesco)
+    {
+        string novoNome = Garantir.TextoObrigatorio(nome, "nome", TamanhoMaximoNome);
+        string novoTelefone = Garantir.SoDigitos(telefone, "telefone", 10, 11);
+        string novoParentesco = Garantir.TextoObrigatorio(parentesco, "parentesco", TamanhoMaximoParentesco);
+
+        Nome = novoNome;
+        Telefone = novoTelefone;
+        Parentesco = novoParentesco;
+    }
 }

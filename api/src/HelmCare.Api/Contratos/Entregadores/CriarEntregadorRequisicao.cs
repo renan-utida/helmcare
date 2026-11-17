@@ -11,6 +11,11 @@ namespace HelmCare.Api.Contratos.Entregadores;
 public sealed class CriarEntregadorRequisicao
 {
     /// <summary>
+    /// Tamanho máximo do e-mail (seção 3 do contrato).
+    /// </summary>
+    public const int TamanhoMaximoEmail = 254;
+
+    /// <summary>
     /// Nome completo, até 120 caracteres.
     /// </summary>
     /// <example>Entregador Simulado</example>
@@ -41,4 +46,22 @@ public sealed class CriarEntregadorRequisicao
     [Required(ErrorMessage = "O campo telefone é obrigatório.")]
     [Digitos(10, 11, ErrorMessage = "O campo telefone deve ter 10 ou 11 dígitos, com DDD.")]
     public string Telefone { get; init; } = string.Empty;
+
+    /// <summary>
+    /// E-mail da conta, até 254 caracteres. Não pode repetir (sem diferenciar maiúsculas).
+    /// </summary>
+    /// <example>entregador@exemplo.com</example>
+    [Required(ErrorMessage = "O campo email é obrigatório.")]
+    [EmailAddress(ErrorMessage = "O campo email deve ser um e-mail válido.")]
+    [StringLength(TamanhoMaximoEmail, ErrorMessage = "O campo email deve ter até 254 caracteres.")]
+    public string Email { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Senha de 8 a 64 caracteres, com pelo menos uma letra maiúscula, uma minúscula e um dígito.
+    /// Fica só como hash no Identity.
+    /// </summary>
+    /// <example>Senha123</example>
+    [Required(ErrorMessage = "O campo senha é obrigatório.")]
+    [Senha]
+    public string Senha { get; init; } = string.Empty;
 }

@@ -28,6 +28,14 @@ public interface IVoluntarioRepositorio : IRepositorio<Voluntario>
     Task<bool> ExisteDoEntregadorAsync(Guid entregadorId, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Id do voluntário do entregador (cada entregador tem no máximo um), para a sessão do app.
+    /// </summary>
+    /// <param name="entregadorId">Id do entregador.</param>
+    /// <param name="cancellationToken">Cancelamento da requisição.</param>
+    /// <returns>O id do voluntário, ou nulo se o entregador não é voluntário.</returns>
+    Task<Guid?> ObterIdDoEntregadorAsync(Guid entregadorId, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Busca o voluntário só para leitura (sem rastreio de alterações). Usada nos chamados próximos,
     /// que só leem a disponibilidade e a posição.
     /// </summary>

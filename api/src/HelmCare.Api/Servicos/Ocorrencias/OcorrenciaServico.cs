@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using HelmCare.Api.Configuracao;
 using HelmCare.Api.Contratos.Ocorrencias;
 using HelmCare.Api.Persistencia.Repositorios;
+using HelmCare.Api.Seguranca;
 using HelmCare.Api.Servicos.Comum;
 using HelmCare.Dominio.Entidades;
 using HelmCare.Dominio.ObjetosDeValor;
@@ -22,6 +23,7 @@ public sealed class OcorrenciaServico
 {
     private readonly IOcorrenciaRepositorio _ocorrencias;
     private readonly IVoluntarioRepositorio _voluntarios;
+    private readonly IAutorizacaoRecursos _autorizacao;
     private readonly TimeProvider _relogio;
     private readonly int _metaTempoAceiteS;
     private readonly TimeSpan _trechoCapacetePadrao;
@@ -32,11 +34,13 @@ public sealed class OcorrenciaServico
     /// </summary>
     /// <param name="ocorrencias">Repositório de ocorrências.</param>
     /// <param name="voluntarios">Repositório de voluntários.</param>
+    /// <param name="autorizacao">Quem pode ver cada ocorrência e quem é a vítima.</param>
     /// <param name="relogio">Relógio do servidor, para o cronômetro que ainda corre.</param>
     /// <param name="opcoes">Constantes do contrato (<c>META_TEMPO_ACEITE_S</c>, <c>JANELA_OBSERVACAO_S</c>, <c>CONTAGEM_CANCELAMENTO_S</c> e <c>RAIO_CAMADA_1_KM</c>).</param>
     public OcorrenciaServico(
         IOcorrenciaRepositorio ocorrencias,
         IVoluntarioRepositorio voluntarios,
+        IAutorizacaoRecursos autorizacao,
         TimeProvider relogio,
         IOptions<OpcoesHelmCare> opcoes)
     {
@@ -44,6 +48,7 @@ public sealed class OcorrenciaServico
 
         _ocorrencias = ocorrencias;
         _voluntarios = voluntarios;
+        _autorizacao = autorizacao;
         _relogio = relogio;
         _metaTempoAceiteS = opcoes.Value.MetaTempoAceiteS;
         _trechoCapacetePadrao = opcoes.Value.TrechoCapacetePadrao;
@@ -60,17 +65,24 @@ public sealed class OcorrenciaServico
     /// <param name="cancellationToken">Cancelamento da requisição.</param>
     /// <returns>O status e o cronômetro.</returns>
     /// <exception cref="RecursoNaoEncontradoException">Ocorrência inexistente, ou voluntário informado e inexistente (404).</exception>
+    /// <exception cref="AcessoNegadoException">Nem vítima nem voluntário, voluntário de outro entregador ou papel errado (403).</exception>
     public async Task<OcorrenciaResposta> ObterAsync(Guid id, Guid? voluntarioId, CancellationToken cancellationToken)
     {
         Ocorrencia ocorrencia = await _ocorrencias.ObterParaConsultaAsync(id, cancellationToken)
             ?? throw new RecursoNaoEncontradoException("Ocorrência não encontrada.");
 
-        if (voluntarioId is { } informado && !await _voluntarios.ExisteAsync(informado, cancellationToken))
+        Voluntario? informado = null;
+
+        if (voluntarioId is { } idInformado)
         {
-            throw new RecursoNaoEncontradoException("Voluntário não encontrado.");
+            informado = await _voluntarios.ObterParaConsultaAsync(idInformado, cancellationToken)
+                ?? throw new RecursoNaoEncontradoException("Voluntário não encontrado.");
         }
 
-        return MontarResposta(ocorrencia, voluntarioId);
+        // 403 só depois dos dois 404: a vítima ou qualquer voluntário; o voluntarioId tem que ser o do token.
+        await _autorizacao.ExigirLeituraOcorrenciaAsync(ocorrencia, informado, cancellationToken);
+
+        return await MontarRespostaAsync(ocorrencia, voluntarioId, cancellationToken);
     }
 
     /// <summary>
@@ -80,8 +92,12 @@ public sealed class OcorrenciaServico
     /// </summary>
     /// <param name="ocorrencia">Ocorrência com o impacto e os aceites carregados.</param>
     /// <param name="voluntarioId">Voluntário que consulta, ou nulo.</param>
+    /// <param name="cancellationToken">Cancelamento da requisição.</param>
     /// <returns>O status e o cronômetro.</returns>
-    public OcorrenciaResposta MontarResposta(Ocorrencia ocorrencia, Guid? voluntarioId)
+    public async Task<OcorrenciaResposta> MontarRespostaAsync(
+        Ocorrencia ocorrencia,
+        Guid? voluntarioId,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(ocorrencia);
 
@@ -99,10 +115,12 @@ public sealed class OcorrenciaServico
             CriadaEm = ocorrencia.CriadaEm,
             AceitaEm = ocorrencia.AceitaEm,
             EncerradaEm = ocorrencia.EncerradaEm,
+            EncerradaAutomaticamente = ocorrencia.EncerradaAutomaticamente,
             TempoAteAceiteSegundos = ocorrencia.TempoAteAceiteSegundos,
             Latitude = mostrada.Latitude,
             Longitude = mostrada.Longitude,
             LocalizacaoExata = exata,
+            DistanciaVoluntarioKm = await DistanciaVoluntarioAsync(ocorrencia, local, quemAceitou, cancellationToken),
             Cronometro = Cronometro(ocorrencia, _relogio.GetUtcNow().UtcDateTime),
         };
     }
@@ -128,6 +146,9 @@ public sealed class OcorrenciaServico
     {
         Voluntario voluntario = await _voluntarios.ObterParaConsultaAsync(voluntarioId, cancellationToken)
             ?? throw new RecursoNaoEncontradoException("Voluntário não encontrado.");
+
+        // Só o voluntário do próprio entregador vê os chamados próximos dele (403 depois do 404).
+        _autorizacao.ExigirDono(voluntario.EntregadorId);
 
         // Indisponível (sem posição) não atende nada: responde vazio sem consultar as ocorrências.
         if (!voluntario.Disponivel || voluntario.Latitude is not { } latitude || voluntario.Longitude is not { } longitude)
@@ -164,6 +185,31 @@ public sealed class OcorrenciaServico
             DistanciaKm = Math.Round(posicaoVoluntario.DistanciaKmAte(aproximada), 1, MidpointRounding.AwayFromZero),
             Cronometro = Cronometro(ocorrencia, agora),
         };
+    }
+
+    // Só a vítima, e só depois do aceite: a distância da última posição do voluntário que aceitou até
+    // a localização exata, com 1 casa. Sem posição (o voluntário ficou indisponível), nula. A posição
+    // do voluntário nunca sai da API nem vai para o log.
+    private async Task<double?> DistanciaVoluntarioAsync(
+        Ocorrencia ocorrencia,
+        Coordenada localExato,
+        Guid? quemAceitou,
+        CancellationToken cancellationToken)
+    {
+        if (quemAceitou is not { } voluntarioId || _autorizacao.EntregadorDoToken != ocorrencia.EntregadorId)
+        {
+            return null;
+        }
+
+        Voluntario? voluntario = await _voluntarios.ObterParaConsultaAsync(voluntarioId, cancellationToken);
+
+        if (voluntario is not { Latitude: { } latitude, Longitude: { } longitude })
+        {
+            return null;
+        }
+
+        double distancia = new Coordenada(latitude, longitude).DistanciaKmAte(localExato);
+        return Math.Round(distancia, 1, MidpointRounding.AwayFromZero);
     }
 
     // O cronômetro para no aceite; sem aceite, no encerramento; senão, corre até agora. A conta

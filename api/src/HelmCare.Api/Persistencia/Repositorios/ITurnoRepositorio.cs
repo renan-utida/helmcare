@@ -28,6 +28,14 @@ public interface ITurnoRepositorio : IRepositorio<Turno>
     Task<bool> ExisteAtivoDoEntregadorAsync(Guid entregadorId, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Id do turno ativo do entregador (no máximo um), para a sessão do app.
+    /// </summary>
+    /// <param name="entregadorId">Id do entregador.</param>
+    /// <param name="cancellationToken">Cancelamento da requisição.</param>
+    /// <returns>O id do turno ativo, ou nulo.</returns>
+    Task<Guid?> ObterIdAtivoDoEntregadorAsync(Guid entregadorId, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Lê, numa consulta só, o estado do capacete do entregador, o último índice de calor, o fim da
     /// contagem do impacto em aberto mais recente e o id da ocorrência ativa.
     /// </summary>
