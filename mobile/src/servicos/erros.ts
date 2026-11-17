@@ -4,11 +4,13 @@ import type { ProblemDetails } from '@/tipos/contrato';
 
 /**
  * Tipo do erro, decidido só pelo status HTTP (seção 7 do contrato):
- * 400 validação, 404 não encontrado, 409 conflito, 503 indisponível,
- * sem resposta (rede ou tempo esgotado) e qualquer outro caso.
+ * 400 validação, 401 sem login válido, 403 sem permissão, 404 não encontrado,
+ * 409 conflito, 503 indisponível, sem resposta (rede ou tempo esgotado) e qualquer outro caso.
  */
 export type TipoErroApi =
   | 'validacao'
+  | 'nao-autorizado'
+  | 'proibido'
   | 'nao-encontrado'
   | 'conflito'
   | 'indisponivel'
@@ -41,6 +43,10 @@ function tipoPeloStatus(status: number): TipoErroApi {
   switch (status) {
     case 400:
       return 'validacao';
+    case 401:
+      return 'nao-autorizado';
+    case 403:
+      return 'proibido';
     case 404:
       return 'nao-encontrado';
     case 409:

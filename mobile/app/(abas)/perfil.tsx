@@ -10,8 +10,10 @@ import { EstadoVazio } from '@/componentes/EstadoVazio';
 import { FormularioCapacete } from '@/componentes/FormularioCapacete';
 import { Icone } from '@/componentes/Icone';
 import { LinhaInfo } from '@/componentes/LinhaInfo';
+import { ParticiparRede } from '@/componentes/ParticiparRede';
 import { Tela } from '@/componentes/Tela';
 import { Texto } from '@/componentes/Texto';
+import { useChamados } from '@/contextos/ChamadosContext';
 import { useSessao } from '@/contextos/SessaoContext';
 import { useTema } from '@/contextos/TemaContext';
 import { entregadorServico } from '@/servicos/entregadorServico';
@@ -22,18 +24,20 @@ import { mensagemComum } from '@/utils/mensagensErro';
 /** Mensagem de erro do Perfil para cada tipo de erro da API. */
 function mensagemDoErro(erro: ErroApi): string {
   if (erro.tipo === 'nao-encontrado') {
-    return 'Este cadastro não foi encontrado na API. Escolha outro perfil em Configurações.';
+    return 'Este cadastro não foi encontrado na API. Escolha outro perfil em Ajustes.';
   }
   return mensagemComum(erro);
 }
 
 /**
  * Perfil do entregador: dados do `GET /entregadores/{id}` como a API devolve (mascarados),
- * o capacete do perfil local, os contatos e se há ficha médica. Recarrega ao voltar dos modais.
+ * o capacete do perfil local, os contatos, se há ficha médica e a participação na rede de
+ * socorro (com o botão "Fazer parte da rede de socorro"). Recarrega ao voltar dos modais.
  */
 export default function Perfil() {
   const { cores, espaco } = useTema();
   const { perfilAtivo } = useSessao();
+  const { voluntarioId, rede } = useChamados();
   const entregadorId = perfilAtivo?.entregadorId ?? null;
   const [resposta, setResposta] = useState<EntregadorResposta | null>(null);
   // O erro guarda de qual entregador ele é, para não aparecer no perfil seguinte.
@@ -87,7 +91,7 @@ export default function Perfil() {
     return (
       <Tela dentroDeAbas aoAtualizar={atualizar} atualizando={atualizando}>
         <EstadoErro mensagem={mensagemDoErro(erro)} aoTentarDeNovo={atualizar} tentando={atualizando} />
-        <Botao titulo="Abrir Configurações" variante="secundaria" aoPressionar={() => router.push('/configuracoes')} />
+        <Botao titulo="Abrir os Ajustes" variante="secundaria" aoPressionar={() => router.navigate('/ajustes')} />
       </Tela>
     );
   }
@@ -109,7 +113,6 @@ export default function Perfil() {
             <LinhaInfo rotulo="CPF" valor={dados.cpf} mascarado />
             <LinhaInfo rotulo="CNH" valor={dados.cnh} mascarado />
             <LinhaInfo rotulo="Telefone" valor={dados.telefone} mascarado />
-            <LinhaInfo rotulo="Código do cadastro" valor={dados.id} selecionavel />
           </Cartao>
 
           <Cartao titulo="Capacete">
@@ -146,6 +149,32 @@ export default function Perfil() {
               icone="medkit"
               aoPressionar={() => router.push('/ficha-medica')}
             />
+          </Cartao>
+
+          <Cartao titulo="Rede de socorro">
+            {voluntarioId ? (
+              <>
+                <View
+                  accessible
+                  accessibilityLabel={`Você faz parte da rede de socorro. ${rede.disponivel ? 'Disponível para ajudar' : 'Indisponível agora'}`}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: espaco.pequeno }}
+                >
+                  <Icone nome="people" cor={cores.aviso.sucesso.icone} />
+                  <View style={{ flex: 1 }}>
+                    <Texto variante="rotulo">Você faz parte da rede de socorro</Texto>
+                    <Texto variante="legenda">{rede.disponivel ? 'Disponível para ajudar' : 'Indisponível agora'}</Texto>
+                  </View>
+                </View>
+                <Botao
+                  titulo="Abrir os chamados"
+                  variante="secundaria"
+                  icone="people"
+                  aoPressionar={() => router.navigate('/chamados')}
+                />
+              </>
+            ) : (
+              <ParticiparRede />
+            )}
           </Cartao>
 
           <Cartao titulo="Contatos de emergência">

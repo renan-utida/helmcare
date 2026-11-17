@@ -26,6 +26,8 @@ export interface BotaoProps {
   selecionado?: boolean;
   accessibilityLabel?: string;
   accessibilityHint?: string;
+  /** Altura mínima maior que a padrão (56 dp), para ações de emergência (ex.: 72 dp). */
+  alturaMinima?: number;
 }
 
 /**
@@ -42,6 +44,7 @@ export function Botao({
   selecionado,
   accessibilityLabel,
   accessibilityHint,
+  alturaMinima,
 }: BotaoProps) {
   const { cores, espaco, raio, medidas } = useTema();
   const inativo = desabilitado || carregando;
@@ -65,11 +68,12 @@ export function Botao({
       accessibilityRole={selecionado === undefined ? 'button' : 'radio'}
       accessibilityLabel={accessibilityLabel ?? titulo}
       accessibilityHint={accessibilityHint}
-      accessibilityState={{ disabled: inativo, busy: carregando, checked: selecionado }}
+      // Nas opções, `checked` dá o estado do papel "radio" e `selected` marca a escolhida.
+      accessibilityState={{ disabled: inativo, busy: carregando, checked: selecionado, selected: selecionado }}
       style={({ pressed }) => [
         styles.base,
         {
-          minHeight: medidas.alturaBotao,
+          minHeight: Math.max(medidas.alturaBotao, alturaMinima ?? 0),
           minWidth: medidas.toqueMinimo,
           paddingHorizontal: espaco.medio,
           paddingVertical: espaco.pequeno,

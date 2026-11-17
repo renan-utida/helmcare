@@ -1,23 +1,28 @@
-import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { AccessibilityInfo, Alert, Pressable, Switch, View } from 'react-native';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AccessibilityInfo, Alert, View } from 'react-native';
 
 import { Aviso, type TipoAviso } from '@/componentes/Aviso';
 import { Botao } from '@/componentes/Botao';
 import { Carregando } from '@/componentes/Carregando';
 import { Cartao } from '@/componentes/Cartao';
+import { Chave } from '@/componentes/Chave';
+import { EstadoCapacete } from '@/componentes/EstadoCapacete';
 import { EstadoVazio } from '@/componentes/EstadoVazio';
 import { GrupoOpcoes } from '@/componentes/GrupoOpcoes';
 import { fraseIndiceRisco, IndiceRisco, type DadosIndiceRisco } from '@/componentes/IndiceRisco';
 import { LinhaInfo } from '@/componentes/LinhaInfo';
 import { Tela } from '@/componentes/Tela';
 import { Texto } from '@/componentes/Texto';
+import { TrechosCriticos } from '@/componentes/TrechosCriticos';
+import { ALERTA_CALOR_C } from '@/config/constantes';
 import { useSessao } from '@/contextos/SessaoContext';
 import { useTema } from '@/contextos/TemaContext';
 import { useTurno } from '@/contextos/TurnoContext';
 import type { TurnoLocal } from '@/banco/turnoRepositorio';
+import { useTrechosCriticos } from '@/hooks/useTrechosCriticos';
 import { converterErro, type ErroApi } from '@/servicos/erros';
-import { formatarDiaHora, jaPassou } from '@/utils/datas';
+import { formatarDecimal, formatarDiaHora, jaPassou } from '@/utils/datas';
 import { MENSAGEM_SEM_CONEXAO, mensagemComum } from '@/utils/mensagensErro';
 
 /** Durações oferecidas em botões (em horas). O contrato aceita até 24 h. */
@@ -26,6 +31,12 @@ type Duracao = (typeof DURACOES)[number];
 
 /** Mensagem quando o comando não chegou ao capacete (503 nas rotas do turno; nada foi gravado). */
 const MENSAGEM_CAPACETE_NAO_RESPONDEU = 'O capacete não respondeu. Confira se ele está ligado e tente de novo.';
+
+/**
+ * Id da última troca de perfil já avisada nesta aba. Fica fora do componente para valer
+ * mesmo se a aba for recriada; só guarda um número de controle, nenhum dado pessoal.
+ */
+let ultimaTrocaMostrada: string | null = null;
 
 /** Aviso mostrado na tela, com o tipo e o texto. */
 interface AvisoTela {
@@ -57,6 +68,22 @@ export default function Turno() {
   const { turno, carregando } = useTurno();
   // Aviso que sobrevive à troca de estado (ex.: "Turno encerrado" ao voltar para o início).
   const [avisoFinal, setAvisoFinal] = useState<AvisoTela | null>(null);
+  // Apelido do perfil recém-escolhido na tela Perfis e o id único daquela troca (pela rota).
+  const { perfilTrocado, troca } = useLocalSearchParams<{ perfilTrocado?: string; troca?: string }>();
+  const [avisoTroca, setAvisoTroca] = useState<string | null>(null);
+
+  // O aviso aparece uma vez por troca: ao ganhar o foco, mostra se aquela troca ainda não foi
+  // mostrada e marca como mostrada; ao sair da aba, some. Ao voltar, o parâmetro antigo continua
+  // na rota, mas a troca já está marcada e o aviso não reaparece.
+  useFocusEffect(
+    useCallback(() => {
+      if (perfilTrocado && troca && troca !== ultimaTrocaMostrada) {
+        ultimaTrocaMostrada = troca;
+        setAvisoTroca(`Você está usando o perfil ${perfilTrocado}`);
+      }
+      return () => setAvisoTroca(null);
+    }, [perfilTrocado, troca]),
+  );
 
   if (!perfilAtivo) {
     return (
@@ -70,7 +97,7 @@ export default function Turno() {
     return <Carregando mensagem="Abrindo o turno..." />;
   }
   if (turno) {
-    return <TurnoAtivo turno={turno} aoEncerrar={setAvisoFinal} />;
+    return <TurnoAtivo turno={turno} aoEncerrar={setAvisoFinal} avisoTroca={avisoTroca} />;
   }
   const temCapacete = perfilAtivo.codigoCapacete !== null;
   return (
@@ -81,6 +108,7 @@ export default function Turno() {
       temCapacete={temCapacete}
       avisoFinal={avisoFinal}
       limparAvisoFinal={() => setAvisoFinal(null)}
+      avisoTroca={avisoTroca}
     />
   );
 }
@@ -90,12 +118,14 @@ function NovoTurno({
   temCapacete,
   avisoFinal,
   limparAvisoFinal,
+  avisoTroca,
 }: {
   temCapacete: boolean;
   avisoFinal: AvisoTela | null;
+  avisoTroca: string | null;
   limparAvisoFinal: () => void;
 }) {
-  const { cores, espaco, medidas } = useTema();
+  const { espaco } = useTema();
   const { iniciar } = useTurno();
   const [duracao, setDuracao] = useState<Duracao>('4');
   // A proteção começa ligada quando há capacete; sem capacete, não pode ligar.
@@ -132,7 +162,7 @@ function NovoTurno({
       } else if (erro.tipo === 'validacao') {
         setAviso({ tipo: 'erro', mensagem: 'A duração do turno não foi aceita. Escolha 4, 8 ou 12 horas.' });
       } else if (erro.tipo === 'nao-encontrado') {
-        setAviso({ tipo: 'erro', mensagem: 'Cadastro não encontrado na API. Confira o perfil nas Configurações.' });
+        setAviso({ tipo: 'erro', mensagem: 'Cadastro não encontrado na API. Confira o perfil nos Ajustes.' });
       } else {
         setAviso({ tipo: 'erro', mensagem: mensagemComum(erro) });
       }
@@ -144,6 +174,7 @@ function NovoTurno({
   return (
     <Tela dentroDeAbas>
       <Texto variante="titulo">Começar o turno</Texto>
+      {avisoTroca ? <Aviso tipo="informacao" mensagem={avisoTroca} /> : null}
       {avisoFinal ? <Aviso tipo={avisoFinal.tipo} mensagem={avisoFinal.mensagem} /> : null}
 
       <GrupoOpcoes
@@ -157,40 +188,17 @@ function NovoTurno({
       />
 
       <View style={{ gap: espaco.pequeno }}>
-        {/* A linha inteira é a chave: área de toque grande e uma leitura só. */}
-        <Pressable
-          onPress={alternarProtecao}
-          disabled={!temCapacete}
-          accessibilityRole="switch"
-          accessibilityLabel="Proteção contra quedas"
-          accessibilityState={{ checked: protecao && temCapacete, disabled: !temCapacete }}
+        <Chave
+          rotulo="Proteção contra quedas"
+          ligada={protecao && temCapacete}
+          aoAlternar={alternarProtecao}
+          desabilitada={!temCapacete}
           accessibilityHint={
             temCapacete
               ? 'Liga o capacete para perceber quedas durante o turno'
               : 'Vincule um capacete no Perfil para ligar a proteção'
           }
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: espaco.medio,
-            minHeight: medidas.alturaBotao,
-          }}
-        >
-          <View style={{ flex: 1 }}>
-            <Texto variante="rotulo">Proteção contra quedas</Texto>
-            <Texto variante="legenda">{protecao && temCapacete ? 'Ligada' : 'Desligada'}</Texto>
-          </View>
-          <Switch
-            value={protecao && temCapacete}
-            onValueChange={alternarProtecao}
-            disabled={!temCapacete}
-            trackColor={{ false: cores.borda, true: cores.primaria }}
-            thumbColor={cores.superficie}
-            // A linha já anuncia a chave; o Switch não entra no leitor de novo.
-            accessible={false}
-            importantForAccessibility="no-hide-descendants"
-          />
-        </Pressable>
+        />
         {temCapacete ? null : (
           <>
             <Texto cor="textoSecundario">Vincule um capacete no Perfil para ligar a proteção.</Texto>
@@ -212,12 +220,35 @@ function NovoTurno({
 }
 
 /** Estado com turno aberto: horários, Índice de Risco e encerramento. */
-function TurnoAtivo({ turno, aoEncerrar }: { turno: TurnoLocal; aoEncerrar: (aviso: AvisoTela) => void }) {
+function TurnoAtivo({
+  turno,
+  aoEncerrar,
+  avisoTroca,
+}: {
+  turno: TurnoLocal;
+  aoEncerrar: (aviso: AvisoTela) => void;
+  avisoTroca: string | null;
+}) {
   const { atualizarRisco, encerrar } = useTurno();
   const [atualizando, setAtualizando] = useState(false);
   const [semConexao, setSemConexao] = useState(false);
   const [aviso, setAviso] = useState<AvisoTela | null>(null);
   const [encerrando, setEncerrando] = useState(false);
+  const { alerta, alertaSemConexao, emergencia } = useTurno();
+  const trechos = useTrechosCriticos();
+
+  // Calor: aviso quando o índice de calor é maior ou igual a ALERTA_CALOR_C (seção 5).
+  const calorForte = alerta?.indiceCalorC != null && alerta.indiceCalorC >= ALERTA_CALOR_C;
+  const calorAnterior = useRef(false);
+  useEffect(() => {
+    // Anuncia só quando o aviso PASSA a valer, não a cada consulta de 5 s.
+    if (calorForte && !calorAnterior.current && alerta?.indiceCalorC != null) {
+      AccessibilityInfo.announceForAccessibility(
+        `Calor forte agora, índice de calor de ${formatarDecimal(alerta.indiceCalorC)} graus, medido pelo seu capacete. Pare na sombra e beba água.`,
+      );
+    }
+    calorAnterior.current = calorForte;
+  }, [calorForte, alerta?.indiceCalorC]);
 
   const atualizar = useCallback(async () => {
     setAtualizando(true);
@@ -262,7 +293,16 @@ function TurnoAtivo({ turno, aoEncerrar }: { turno: TurnoLocal; aoEncerrar: (avi
     } catch (e) {
       const erro = converterErro(e);
       if (erro.tipo === 'conflito') {
-        setAviso({ tipo: 'erro', mensagem: 'Há um alerta ou uma ocorrência em andamento. Resolva antes de encerrar.' });
+        // 409 resolvível: se o app sabe qual é a emergência, oferece abrir a tela dela.
+        setAviso({
+          tipo: 'erro',
+          mensagem:
+            emergencia?.tipo === 'alerta'
+              ? 'Há um alerta de queda em andamento. Resolva o alerta antes de encerrar.'
+              : emergencia?.tipo === 'ocorrencia'
+                ? 'Há uma ocorrência (SOS) em andamento. Resolva a ocorrência antes de encerrar.'
+                : 'Há um alerta ou uma ocorrência em andamento. Resolva antes de encerrar.',
+        });
       } else if (erro.tipo === 'indisponivel') {
         setAviso({ tipo: 'erro', mensagem: MENSAGEM_CAPACETE_NAO_RESPONDEU });
       } else if (erro.tipo === 'sem-conexao') {
@@ -284,9 +324,42 @@ function TurnoAtivo({ turno, aoEncerrar }: { turno: TurnoLocal; aoEncerrar: (avi
   const dados = dadosDoIndice(turno);
   const horarioTerminou = jaPassou(turno.fimPrevisto);
 
+  /** Abre a tela da emergência em andamento (alerta ou ocorrência da vítima). */
+  function abrirEmergencia() {
+    if (emergencia?.tipo === 'alerta') {
+      router.push('/alerta');
+    } else if (emergencia?.tipo === 'ocorrencia') {
+      router.push({ pathname: '/ocorrencia/[id]', params: { id: emergencia.ocorrenciaId, papel: 'VITIMA' } });
+    }
+  }
+
   return (
-    <Tela dentroDeAbas aoAtualizar={() => void atualizar()} atualizando={atualizando}>
+    <Tela
+      dentroDeAbas
+      aoAtualizar={() => {
+        void atualizar();
+        void trechos.atualizar();
+      }}
+      atualizando={atualizando}
+    >
       <Texto variante="titulo">Turno em andamento</Texto>
+      {avisoTroca ? <Aviso tipo="informacao" mensagem={avisoTroca} /> : null}
+
+      {calorForte && alerta?.indiceCalorC != null ? (
+        <Aviso
+          tipo="atencao"
+          mensagem={`Calor forte agora (índice de calor de ${formatarDecimal(alerta.indiceCalorC)} °C). Pare na sombra e beba água.\nMedido pelo seu capacete agora.`}
+        />
+      ) : null}
+
+      {emergencia ? (
+        <Botao
+          titulo={emergencia.tipo === 'alerta' ? 'Abrir o alerta de queda' : 'Abrir a ocorrência'}
+          variante="perigo"
+          icone="alert-circle"
+          aoPressionar={abrirEmergencia}
+        />
+      ) : null}
 
       {semConexao ? (
         <Aviso
@@ -304,12 +377,26 @@ function TurnoAtivo({ turno, aoEncerrar }: { turno: TurnoLocal; aoEncerrar: (avi
         <LinhaInfo rotulo="Proteção contra quedas" valor={turno.protecaoAtiva ? 'Ligada' : 'Desligada'} />
       </Cartao>
 
+      <EstadoCapacete
+        estado={turno.protecaoAtiva ? (alerta?.estadoCapacete ?? null) : null}
+        semConexao={turno.protecaoAtiva && alertaSemConexao}
+      />
+
       <Cartao>
         <IndiceRisco dados={dados} anunciarMudancas />
         <Texto variante="legenda">Puxe a tela para baixo para atualizar o Índice.</Texto>
       </Cartao>
 
+      <TrechosCriticos estado={trechos} />
+
       {aviso ? <Aviso tipo={aviso.tipo} mensagem={aviso.mensagem} /> : null}
+      {aviso && emergencia ? (
+        <Botao
+          titulo={emergencia.tipo === 'alerta' ? 'Abrir o alerta' : 'Abrir a ocorrência'}
+          variante="secundaria"
+          aoPressionar={abrirEmergencia}
+        />
+      ) : null}
       <Botao
         titulo="Encerrar turno"
         variante="perigo"

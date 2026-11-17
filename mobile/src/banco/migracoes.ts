@@ -78,8 +78,42 @@ CREATE TABLE trecho_cache (
 );
 `;
 
+/**
+ * Migração 2: a chave da `ocorrencia` passa a ser (id, entregador_id). Com um celular só, a
+ * vítima e o voluntário são dois perfis do mesmo aparelho e veem a MESMA ocorrência: com a
+ * chave só no id, o registro do voluntário caía no da vítima e sumia do histórico dele.
+ * O SQLite não troca a chave de uma tabela, então ela é recriada e os dados são copiados.
+ */
+const MIGRACAO_2 = `
+CREATE TABLE ocorrencia_v2 (
+  id TEXT NOT NULL,
+  entregador_id TEXT NOT NULL,
+  papel TEXT NOT NULL CHECK (papel IN ('VITIMA', 'VOLUNTARIO')),
+  estado TEXT NOT NULL,
+  camada INTEGER NOT NULL,
+  criada_em TEXT NOT NULL,
+  aceita_em TEXT NULL,
+  encerrada_em TEXT NULL,
+  tempo_ate_aceite_segundos INTEGER NULL,
+  atualizado_em TEXT NOT NULL,
+  PRIMARY KEY (id, entregador_id)
+);
+
+INSERT INTO ocorrencia_v2 SELECT id, entregador_id, papel, estado, camada, criada_em, aceita_em,
+  encerrada_em, tempo_ate_aceite_segundos, atualizado_em FROM ocorrencia;
+
+DROP TABLE ocorrencia;
+
+ALTER TABLE ocorrencia_v2 RENAME TO ocorrencia;
+
+CREATE INDEX ix_ocorrencia_entregador_criada ON ocorrencia (entregador_id, criada_em);
+`;
+
 /** Lista de migrações, em ordem. A próxima entra no fim, com a versão seguinte. */
-const MIGRACOES: readonly Migracao[] = [{ versao: 1, sql: MIGRACAO_1 }];
+const MIGRACOES: readonly Migracao[] = [
+  { versao: 1, sql: MIGRACAO_1 },
+  { versao: 2, sql: MIGRACAO_2 },
+];
 
 /**
  * Executa as migrações pendentes. Usada no `onInit` do `SQLiteProvider`, antes de qualquer tela.

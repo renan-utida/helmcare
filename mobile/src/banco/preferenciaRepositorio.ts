@@ -4,8 +4,10 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 export const CHAVES_PREFERENCIA = {
   /** Id do entregador do perfil ativo no aparelho. */
   perfilAtivo: 'perfil_ativo',
-  /** URL da API salva à mão na tela Configurações. */
+  /** URL da API salva à mão na aba Ajustes. */
   urlApiManual: 'url_api_manual',
+  /** Aparência escolhida nos Ajustes: "sistema", "claro" ou "escuro". */
+  tema: 'tema',
 } as const;
 
 /** Uma das chaves aceitas pela tabela `preferencia`. */

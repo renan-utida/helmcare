@@ -1,31 +1,49 @@
-import { router, Tabs } from 'expo-router';
+import { Tabs } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, useWindowDimensions, View, type ColorValue } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icone, type NomeIcone } from '@/componentes/Icone';
 import { SimboloMarca } from '@/componentes/Marca';
+import { MenuConta } from '@/componentes/MenuConta';
 import { Texto } from '@/componentes/Texto';
+import { useChamados } from '@/contextos/ChamadosContext';
+import { useSessao } from '@/contextos/SessaoContext';
 import { useTema } from '@/contextos/TemaContext';
+import { useNomeEntregador } from '@/hooks/useNomeEntregador';
 
-/** Botão de engrenagem do cabeçalho, que abre o modal de Configurações. */
-function BotaoConfiguracoes() {
+/**
+ * Único botão do lado direito do cabeçalho: o ícone de pessoa, que abre o menu da conta
+ * (painel lateral). O nome vem do `GET /entregadores/{id}`, só em memória; enquanto não
+ * chega (ou sem conexão), o rótulo usa o apelido.
+ */
+function BotaoConta() {
   const { cores, medidas } = useTema();
+  const { perfilAtivo } = useSessao();
+  const dadosNome = useNomeEntregador(perfilAtivo?.entregadorId ?? null);
+  const [aberto, setAberto] = useState(false);
+  if (!perfilAtivo) {
+    return null;
+  }
   return (
-    <Pressable
-      onPress={() => router.push('/configuracoes')}
-      accessibilityRole="button"
-      accessibilityLabel="Configurações"
-      accessibilityHint="Abre a conexão com a API e os perfis do aparelho"
-      hitSlop={8}
-      style={{
-        minWidth: medidas.toqueMinimo,
-        minHeight: medidas.toqueMinimo,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <Icone nome="settings-outline" cor={cores.texto} tamanho={28} />
-    </Pressable>
+    <>
+      <Pressable
+        onPress={() => setAberto(true)}
+        accessibilityRole="button"
+        accessibilityLabel={`Menu da conta: ${dadosNome.nome ?? perfilAtivo.apelido}`}
+        accessibilityHint="Abre seus dados, a troca de conta e os códigos para suporte"
+        hitSlop={8}
+        style={{
+          minWidth: medidas.toqueMinimo,
+          minHeight: medidas.toqueMinimo,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Icone nome="person-circle-outline" cor={cores.texto} tamanho={32} />
+      </Pressable>
+      <MenuConta visivel={aberto} aoFechar={() => setAberto(false)} dadosNome={dadosNome} />
+    </>
   );
 }
 
@@ -55,12 +73,48 @@ function iconeDaAba(nome: NomeIcone, corReserva: string) {
 }
 
 /**
- * Abas do app: Turno, Chamados, Histórico e Perfil, sempre com ícone e texto.
+ * Rótulo de uma aba. Com 5 abas e a fonte no máximo, "Histórico" e "Chamados" não cabem na
+ * largura de uma aba: o texto cresce com a fonte do sistema e, só quando passaria da largura,
+ * encolhe até 60% para caber inteiro (em vez de terminar em reticências).
+ */
+function rotuloDaAba(texto: string, corReserva: string) {
+  function RotuloAba({ color }: { color: ColorValue }) {
+    return (
+      <Texto
+        variante="legenda"
+        corPersonalizada={typeof color === 'string' ? color : corReserva}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.6}
+        style={{ fontWeight: '700' }}
+      >
+        {texto}
+      </Texto>
+    );
+  }
+  return RotuloAba;
+}
+
+/** As 5 abas, na ordem da barra, com o ícone de cada uma. */
+const ABAS: { nome: string; titulo: string; icone: NomeIcone }[] = [
+  { nome: 'turno', titulo: 'Turno', icone: 'speedometer' },
+  { nome: 'chamados', titulo: 'Chamados', icone: 'people' },
+  { nome: 'historico', titulo: 'Histórico', icone: 'time' },
+  { nome: 'perfil', titulo: 'Perfil', icone: 'person-circle' },
+  { nome: 'ajustes', titulo: 'Ajustes', icone: 'settings' },
+];
+
+/**
+ * Abas do app: Turno, Chamados, Histórico, Perfil e Ajustes, sempre com ícone e texto.
  * A altura da barra soma a área segura de baixo e cresce com a fonte do sistema,
- * para o texto das abas nunca ser cortado.
+ * para o texto das abas nunca ser cortado. No cabeçalho, só o botão do menu da conta.
+ * A aba Chamados mostra no ícone o número de chamados próximos (com o voluntário disponível),
+ * e o leitor de tela diz esse número junto com o nome da aba.
  */
 export default function LayoutAbas() {
   const { cores, tipografia, espaco, medidas } = useTema();
+  const { chamados } = useChamados();
+  const quantidadeChamados = chamados?.length ?? 0;
   const insets = useSafeAreaInsets();
   const { fontScale } = useWindowDimensions();
   // Ícone + texto da legenda escalado (com folga de 1,4 por linha) + respiro em cima e embaixo.
@@ -75,11 +129,10 @@ export default function LayoutAbas() {
         headerTitleStyle: { color: cores.texto },
         headerTitleAlign: 'left',
         headerTitle: ({ children }) => <TituloComSimbolo>{children}</TituloComSimbolo>,
-        headerRight: () => <BotaoConfiguracoes />,
+        headerRight: () => <BotaoConta />,
         headerRightContainerStyle: { paddingRight: espaco.pequeno },
         tabBarActiveTintColor: cores.abaAtiva,
         tabBarInactiveTintColor: cores.abaInativa,
-        tabBarLabelStyle: { fontSize: tipografia.legenda.fontSize, fontWeight: '700' },
         tabBarStyle: {
           backgroundColor: cores.superficie,
           // Faixa laranja da marca no topo da barra: só enfeite, não carrega informação.
@@ -92,10 +145,35 @@ export default function LayoutAbas() {
         sceneStyle: { backgroundColor: cores.fundo },
       }}
     >
-      <Tabs.Screen name="turno" options={{ title: 'Turno', tabBarIcon: iconeDaAba('speedometer', cores.abaInativa) }} />
-      <Tabs.Screen name="chamados" options={{ title: 'Chamados', tabBarIcon: iconeDaAba('people', cores.abaInativa) }} />
-      <Tabs.Screen name="historico" options={{ title: 'Histórico', tabBarIcon: iconeDaAba('time', cores.abaInativa) }} />
-      <Tabs.Screen name="perfil" options={{ title: 'Perfil', tabBarIcon: iconeDaAba('person-circle', cores.abaInativa) }} />
+      {ABAS.map((aba, indice) => {
+        const selo = aba.nome === 'chamados' && quantidadeChamados > 0 ? quantidadeChamados : undefined;
+        const leituraSelo =
+          selo === undefined ? '' : `, ${selo} ${selo === 1 ? 'chamado de socorro' : 'chamados de socorro'}`;
+        return (
+          <Tabs.Screen
+            key={aba.nome}
+            name={aba.nome}
+            options={{
+              title: aba.titulo,
+              tabBarIcon: iconeDaAba(aba.icone, cores.abaInativa),
+              tabBarLabel: rotuloDaAba(aba.titulo, cores.abaInativa),
+              // Número de chamados no ícone; o número também vai em palavras no rótulo abaixo.
+              tabBarBadge: selo,
+              // O selo da biblioteca tem altura fixa de 18 dp: com `height: 'auto'`, ele cresce
+              // junto com a fonte do sistema e o número não é cortado.
+              tabBarBadgeStyle: {
+                backgroundColor: cores.perigo,
+                color: cores.textoSobrePerigo,
+                height: 'auto',
+                minHeight: 18,
+                paddingHorizontal: espaco.pequeno / 2,
+              },
+              // O padrão da biblioteca vem em inglês ("tab, 1 of 5"): aqui, em português.
+              tabBarAccessibilityLabel: `${aba.titulo}${leituraSelo}, aba ${indice + 1} de ${ABAS.length}`,
+            }}
+          />
+        );
+      })}
     </Tabs>
   );
 }

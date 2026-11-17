@@ -25,6 +25,10 @@ export interface ValorSessao {
   definirPerfilAtivo: (entregadorId: string) => Promise<void>;
   /** Grava (ou atualiza) um perfil e, com `ativar`, já o deixa em uso. */
   salvarPerfil: (perfil: Perfil, opcoes?: { ativar?: boolean }) => Promise<void>;
+  /** Guarda no perfil o `voluntarioId` recebido no 201 do `POST /voluntarios`. */
+  definirVoluntario: (entregadorId: string, voluntarioId: string) => Promise<void>;
+  /** Apaga do aparelho um perfil que não está em uso e os dados locais dele (a API não muda). */
+  removerPerfil: (entregadorId: string) => Promise<void>;
   /**
    * Escolhe um apelido livre a partir da base: se outro perfil já usa "Voluntário",
    * devolve "Voluntário 2", depois "Voluntário 3", e assim por diante.
@@ -40,7 +44,7 @@ const SessaoContext = createContext<ValorSessao | null>(null);
 
 /**
  * Sessão local do aparelho, guardada no SQLite (tabelas `perfil` e `preferencia`).
- * Ao abrir, também aplica a URL manual da API salva nas Configurações.
+ * Ao abrir, também aplica a URL manual da API salva nos Ajustes.
  */
 export function SessaoProvider({ children }: { children: ReactNode }) {
   const db = useSQLiteContext();
@@ -101,6 +105,26 @@ export function SessaoProvider({ children }: { children: ReactNode }) {
     [db, recarregar],
   );
 
+  const definirVoluntario = useCallback(
+    async (idEntregador: string, voluntarioId: string) => {
+      await perfilRepositorio.atualizarVoluntario(db, idEntregador, voluntarioId);
+      await recarregar();
+    },
+    [db, recarregar],
+  );
+
+  const removerPerfil = useCallback(
+    async (entregadorId: string) => {
+      // O perfil em uso nunca é removido por aqui: a tela só oferece a remoção dos outros.
+      if (entregadorId === perfilAtivo?.entregadorId) {
+        return;
+      }
+      await perfilRepositorio.removerComDadosLocais(db, entregadorId);
+      await recarregar();
+    },
+    [db, perfilAtivo, recarregar],
+  );
+
   const escolherApelido = useCallback(
     (base: string, entregadorId: string) => {
       const emUso = new Set(
@@ -138,11 +162,25 @@ export function SessaoProvider({ children }: { children: ReactNode }) {
       urlApi,
       definirPerfilAtivo,
       salvarPerfil,
+      definirVoluntario,
+      removerPerfil,
       escolherApelido,
       definirUrlManual,
       recarregar,
     }),
-    [perfis, perfilAtivo, carregando, urlApi, definirPerfilAtivo, salvarPerfil, escolherApelido, definirUrlManual, recarregar],
+    [
+      perfis,
+      perfilAtivo,
+      carregando,
+      urlApi,
+      definirPerfilAtivo,
+      salvarPerfil,
+      definirVoluntario,
+      removerPerfil,
+      escolherApelido,
+      definirUrlManual,
+      recarregar,
+    ],
   );
 
   return <SessaoContext.Provider value={valor}>{children}</SessaoContext.Provider>;

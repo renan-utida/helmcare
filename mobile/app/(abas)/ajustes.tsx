@@ -1,17 +1,17 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { View } from 'react-native';
 
 import { Aviso, type TipoAviso } from '@/componentes/Aviso';
 import { Botao } from '@/componentes/Botao';
 import { Campo } from '@/componentes/Campo';
 import { Cartao } from '@/componentes/Cartao';
+import { GrupoOpcoes } from '@/componentes/GrupoOpcoes';
 import { LinhaInfo } from '@/componentes/LinhaInfo';
 import { Tela } from '@/componentes/Tela';
 import { Texto } from '@/componentes/Texto';
 import { DESCRICAO_ORIGEM_URL, normalizarUrl } from '@/config/urlApi';
 import { useSessao } from '@/contextos/SessaoContext';
-import { useTema } from '@/contextos/TemaContext';
+import { PREFERENCIAS_TEMA, usePreferenciaTema, type PreferenciaTema } from '@/contextos/TemaContext';
 import { converterErro } from '@/servicos/erros';
 import { saudeServico } from '@/servicos/saudeServico';
 import { MENSAGEM_ERRO_GENERICO } from '@/utils/mensagensErro';
@@ -23,13 +23,20 @@ interface ResultadoTeste {
   mensagem: string;
 }
 
+/** Texto de cada opção de aparência. */
+const TEXTO_PREFERENCIA: Record<PreferenciaTema, string> = {
+  sistema: 'Igual ao celular',
+  claro: 'Claro',
+  escuro: 'Escuro',
+};
+
 /**
- * Configurações: endereço da API (automático ou manual, salvo na tabela `preferencia`),
- * teste de conexão pelo `GET /saude` e troca de perfil do aparelho.
+ * Aba Ajustes: endereço da API (automático ou manual, salvo na tabela `preferencia`),
+ * teste de conexão pelo `GET /saude`, aparência (tema) e o atalho para os perfis do aparelho.
  */
-export default function Configuracoes() {
-  const { espaco } = useTema();
-  const { urlApi, definirUrlManual, perfis, perfilAtivo, definirPerfilAtivo } = useSessao();
+export default function Ajustes() {
+  const { urlApi, definirUrlManual, perfilAtivo } = useSessao();
+  const { preferencia, definirPreferencia } = usePreferenciaTema();
   const [urlDigitada, setUrlDigitada] = useState(urlApi.origem === 'manual' ? urlApi.url : '');
   const [erroUrl, setErroUrl] = useState<string | null>(null);
   const [resultado, setResultado] = useState<ResultadoTeste | null>(null);
@@ -89,7 +96,7 @@ export default function Configuracoes() {
   }
 
   return (
-    <Tela>
+    <Tela dentroDeAbas>
       <Cartao titulo="Conexão com a API">
         <LinhaInfo rotulo="Endereço em uso" valor={urlApi.url} selecionavel />
         <LinhaInfo rotulo="De onde veio" valor={DESCRICAO_ORIGEM_URL[urlApi.origem]} />
@@ -120,31 +127,25 @@ export default function Configuracoes() {
         ) : null}
       </Cartao>
 
+      <Cartao titulo="Aparência">
+        <GrupoOpcoes
+          rotulo="Cores do app"
+          opcoes={PREFERENCIAS_TEMA}
+          selecionada={preferencia}
+          aoSelecionar={(opcao) => void definirPreferencia(opcao)}
+          textoDe={(opcao) => TEXTO_PREFERENCIA[opcao]}
+          colunas={1}
+        />
+      </Cartao>
+
       <Cartao titulo="Perfis neste aparelho">
-        {perfis.map((perfil) => {
-          const emUso = perfil.entregadorId === perfilAtivo?.entregadorId;
-          return (
-            <View key={perfil.entregadorId} style={{ gap: espaco.pequeno }}>
-              <LinhaInfo
-                rotulo={emUso ? 'Em uso agora' : 'Perfil'}
-                valor={`${perfil.apelido}${perfil.codigoCapacete ? ` (${perfil.codigoCapacete})` : ''}`}
-              />
-              {emUso ? null : (
-                <Botao
-                  titulo="Usar este perfil"
-                  variante="secundaria"
-                  accessibilityLabel={`Usar o perfil ${perfil.apelido}`}
-                  aoPressionar={() => void definirPerfilAtivo(perfil.entregadorId)}
-                />
-              )}
-            </View>
-          );
-        })}
+        {perfilAtivo ? <LinhaInfo rotulo="Em uso agora" valor={perfilAtivo.apelido} /> : null}
         <Botao
-          titulo="Adicionar outro perfil"
-          icone="person-add"
-          aoPressionar={() => router.push('/cadastro')}
-          accessibilityHint="Abre o cadastro de um novo entregador neste aparelho"
+          titulo="Ver e trocar perfis"
+          variante="secundaria"
+          icone="people"
+          aoPressionar={() => router.push('/perfis')}
+          accessibilityHint="Abre a lista de perfis deste aparelho"
         />
       </Cartao>
     </Tela>

@@ -87,7 +87,7 @@ export default function FichaMedica() {
         setErros(errosDosCampos(erro.campos, CAMPOS));
         setMensagem(MENSAGEM_CONFIRA_CAMPOS);
       } else if (erro.tipo === 'nao-encontrado') {
-        setMensagem('Cadastro não encontrado. Confira o perfil em uso nas Configurações.');
+        setMensagem('Cadastro não encontrado. Confira o perfil em uso nos Ajustes.');
       } else {
         setMensagem(mensagemComum(erro));
       }

@@ -1,4 +1,9 @@
-import type { IniciarTurnoRequisicao, RiscoTurnoResposta, TurnoResposta } from '@/tipos/contrato';
+import type {
+  AlertaTurnoResposta,
+  IniciarTurnoRequisicao,
+  RiscoTurnoResposta,
+  TurnoResposta,
+} from '@/tipos/contrato';
 
 import { api } from './api';
 
@@ -26,5 +31,22 @@ export const turnoServico = {
   async encerrar(turnoId: string): Promise<TurnoResposta> {
     const { data } = await api.post<TurnoResposta>(`/turnos/${encodeURIComponent(turnoId)}/encerrar`);
     return data;
+  },
+
+  /**
+   * `GET /turnos/{id}/alerta`: estado do capacete no turno. Sem capacete vinculado, 200 com
+   * todos os campos `null`. O `contagemTerminaEm` está no relógio do capacete: só informação.
+   */
+  async obterAlerta(turnoId: string): Promise<AlertaTurnoResposta> {
+    const { data } = await api.get<AlertaTurnoResposta>(`/turnos/${encodeURIComponent(turnoId)}/alerta`);
+    return data;
+  },
+
+  /**
+   * `POST /turnos/{id}/alerta/cancelar`: 202 em CONTAGEM (a API publicou o `CANCELAR`);
+   * 409 em qualquer outro estado (por exemplo, o SOS já saiu); 503 o comando não chegou ao broker.
+   */
+  async cancelarAlerta(turnoId: string): Promise<void> {
+    await api.post(`/turnos/${encodeURIComponent(turnoId)}/alerta/cancelar`);
   },
 };

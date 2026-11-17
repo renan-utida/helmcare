@@ -1,62 +1,55 @@
-import { Image, View } from 'react-native';
+import { useWindowDimensions, View } from 'react-native';
 
-import logoClaro from '../../assets/marca/logo-horizontal.png';
-import logoEscuro from '../../assets/marca/logo-horizontal-escuro.png';
-import simbolo from '../../assets/marca/simbolo-transparente.png';
+import LogoClaro from '../../assets/marca/logo-horizontal.svg';
+import LogoEscuro from '../../assets/marca/logo-horizontal-escuro.svg';
+import SimboloClaro from '../../assets/marca/simbolo.svg';
+import SimboloEscuro from '../../assets/marca/simbolo-escuro.svg';
 import { useTema } from '@/contextos/TemaContext';
 
-/** Proporção do logo horizontal (2243 x 349 px), para a altura acompanhar a largura sem distorcer. */
-const PROPORCAO_LOGO = 2243 / 349;
-/** Proporção do símbolo (491 x 391 px). */
-const PROPORCAO_SIMBOLO = 491 / 391;
+/*
+ * Exceção à regra "cores só pelo tema": as cores do logo e do símbolo são as da arte
+ * da marca e ficam dentro dos próprios SVGs (azul-marinho #001D48, laranja #FE7801 e,
+ * nas versões escuras, branco). O tema só escolhe qual arquivo usar.
+ */
+
+/** Proporção do viewBox do logo claro (1526 x 304) e do escuro (1526 x 302). */
+const PROPORCAO_LOGO = { claro: 1526 / 304, escuro: 1526 / 302 };
+/** Proporção do viewBox do símbolo claro (419 x 304) e do escuro (419 x 302). */
+const PROPORCAO_SIMBOLO = { claro: 419 / 304, escuro: 419 / 302 };
+/** Largura máxima do logo, em dp. */
+const LARGURA_MAXIMA_LOGO = 320;
 /** Altura do símbolo no cabeçalho, em dp. */
 const ALTURA_SIMBOLO = 32;
 
 /**
- * Logo horizontal do HelmCare: a versão clara no tema claro e a escura no tema escuro.
- * Os dois PNGs têm fundo próprio (quase branco e azul-marinho #001C45), iguais ao fundo
- * da tela em cada tema, por isso o logo fica direto sobre o fundo.
- * Ocupa 80% da largura disponível, até 360 dp, e a altura sai da proporção da imagem.
+ * Logo horizontal do HelmCare, claro ou escuro pelo tema, sem fundo próprio.
+ * O tamanho sai em números (não em porcentagem): largura = mín(80% da janela, 320 dp)
+ * e altura = largura ÷ proporção do viewBox. Assim o logo ocupa só o espaço dele,
+ * sem sobra em cima e embaixo. O desenho não muda com a fonte do sistema (não é texto).
  */
 export function LogoHorizontal() {
   const { esquema } = useTema();
+  const { width } = useWindowDimensions();
+  const largura = Math.min(width * 0.8, LARGURA_MAXIMA_LOGO);
+  const altura = largura / PROPORCAO_LOGO[esquema];
+  const Logo = esquema === 'escuro' ? LogoEscuro : LogoClaro;
   return (
-    <Image
-      source={esquema === 'escuro' ? logoEscuro : logoClaro}
-      accessible
-      accessibilityRole="image"
-      accessibilityLabel="HelmCare"
-      resizeMode="contain"
-      style={{ width: '80%', maxWidth: 360, aspectRatio: PROPORCAO_LOGO, alignSelf: 'center' }}
-    />
+    <View accessible accessibilityRole="image" accessibilityLabel="HelmCare" style={{ alignSelf: 'center' }}>
+      <Logo width={largura} height={altura} />
+    </View>
   );
 }
 
 /**
- * Símbolo do capacete com cerca de 32 dp, para o cabeçalho. O azul-marinho do símbolo
- * fica com 1,21:1 sobre o cabeçalho escuro (#0B2C5E), quase invisível; por isso, no tema
- * escuro, ele ganha um fundo branco arredondado (símbolo 16,54:1 sobre o branco e o
- * branco 13,67:1 sobre o cabeçalho). No tema claro, o símbolo fica direto (15,14:1).
+ * Símbolo do capacete com 32 dp de altura, para o cabeçalho. No tema escuro, o capacete é
+ * branco e aparece direto sobre a superfície do cabeçalho; no claro, é azul-marinho.
  */
 export function SimboloMarca() {
-  const { cores, raio, espaco } = useTema();
-  const comFundo = cores.fundoSimbolo !== null;
+  const { esquema } = useTema();
+  const Simbolo = esquema === 'escuro' ? SimboloEscuro : SimboloClaro;
   return (
-    <View
-      accessible
-      accessibilityRole="image"
-      accessibilityLabel="HelmCare"
-      style={{
-        backgroundColor: cores.fundoSimbolo ?? 'transparent',
-        borderRadius: raio.pequeno,
-        padding: comFundo ? espaco.pequeno / 2 : 0,
-      }}
-    >
-      <Image
-        source={simbolo}
-        resizeMode="contain"
-        style={{ height: ALTURA_SIMBOLO, width: ALTURA_SIMBOLO * PROPORCAO_SIMBOLO }}
-      />
+    <View accessible accessibilityRole="image" accessibilityLabel="HelmCare">
+      <Simbolo width={ALTURA_SIMBOLO * PROPORCAO_SIMBOLO[esquema]} height={ALTURA_SIMBOLO} />
     </View>
   );
 }
