@@ -239,11 +239,15 @@ export interface CadastrarVoluntarioRequisicao {
   tipo: TipoVoluntario;
 }
 
-/** Corpo do `PUT /voluntarios/{id}/disponibilidade`. Indisponível apaga a posição. */
+/**
+ * Corpo do `PUT /voluntarios/{id}/disponibilidade`. Só `disponivel` é obrigatório: disponível
+ * exige as duas coordenadas (senão, 400); indisponível apaga a posição, então o app manda só
+ * `{ disponivel: false }`.
+ */
 export interface DisponibilidadeRequisicao {
   disponivel: boolean;
-  latitude: number | null;
-  longitude: number | null;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 /** Resposta do cadastro e da disponibilidade do voluntário. */

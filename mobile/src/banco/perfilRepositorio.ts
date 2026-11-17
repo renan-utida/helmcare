@@ -83,7 +83,7 @@ export const perfilRepositorio = {
     );
   },
 
-  /** Guarda o id de voluntário do perfil (usado na próxima entrega). */
+  /** Guarda o id de voluntário do perfil, recebido no 201 do `POST /voluntarios`. */
   async atualizarVoluntario(
     db: SQLiteDatabase,
     entregadorId: string,

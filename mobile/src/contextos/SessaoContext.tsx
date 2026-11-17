@@ -25,6 +25,8 @@ export interface ValorSessao {
   definirPerfilAtivo: (entregadorId: string) => Promise<void>;
   /** Grava (ou atualiza) um perfil e, com `ativar`, já o deixa em uso. */
   salvarPerfil: (perfil: Perfil, opcoes?: { ativar?: boolean }) => Promise<void>;
+  /** Guarda no perfil o `voluntarioId` recebido no 201 do `POST /voluntarios`. */
+  definirVoluntario: (entregadorId: string, voluntarioId: string) => Promise<void>;
   /** Apaga do aparelho um perfil que não está em uso e os dados locais dele (a API não muda). */
   removerPerfil: (entregadorId: string) => Promise<void>;
   /**
@@ -103,6 +105,14 @@ export function SessaoProvider({ children }: { children: ReactNode }) {
     [db, recarregar],
   );
 
+  const definirVoluntario = useCallback(
+    async (idEntregador: string, voluntarioId: string) => {
+      await perfilRepositorio.atualizarVoluntario(db, idEntregador, voluntarioId);
+      await recarregar();
+    },
+    [db, recarregar],
+  );
+
   const removerPerfil = useCallback(
     async (entregadorId: string) => {
       // O perfil em uso nunca é removido por aqui: a tela só oferece a remoção dos outros.
@@ -152,6 +162,7 @@ export function SessaoProvider({ children }: { children: ReactNode }) {
       urlApi,
       definirPerfilAtivo,
       salvarPerfil,
+      definirVoluntario,
       removerPerfil,
       escolherApelido,
       definirUrlManual,
@@ -164,6 +175,7 @@ export function SessaoProvider({ children }: { children: ReactNode }) {
       urlApi,
       definirPerfilAtivo,
       salvarPerfil,
+      definirVoluntario,
       removerPerfil,
       escolherApelido,
       definirUrlManual,
