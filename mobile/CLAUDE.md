@@ -52,24 +52,35 @@ Nunca renomeie campos, enums, rotas ou payloads do contrato. O app usa exatament
 mobile/
 ├── CLAUDE.md, README.md, app.json, package.json, tsconfig.json, eslint.config.js, .env.example
 ├── app/                       rotas do Expo Router (só telas e layouts)
-│   ├── _layout.tsx            pilha raiz e provedores
-│   ├── index.tsx              redireciona para o cadastro ou para as abas
-│   ├── cadastro.tsx
-│   ├── (abas)/_layout.tsx     abas: Turno, Chamados, Histórico, Perfil
-│   ├── (abas)/turno.tsx, chamados.tsx, historico.tsx, perfil.tsx
-│   ├── ficha-medica.tsx, contato.tsx, configuracoes.tsx   modais
-│   ├── alerta.tsx             modal em tela cheia, sem gesto de fechar
-│   └── ocorrencia/[id].tsx    vítima ou voluntário (parâmetro papel)
+│   ├── _layout.tsx            pilha raiz e provedores (SQLite, Tema, Sessao, Turno e Chamados)
+│   ├── index.tsx              abertura com o logo; vai para o cadastro ou para as abas
+│   ├── cadastro.tsx           3 passos (dados, contato, capacete) e "Já tenho cadastro"
+│   ├── (abas)/_layout.tsx     5 abas: Turno, Chamados, Histórico, Perfil e Ajustes;
+│   │                          no cabeçalho, só o botão do menu da conta
+│   ├── (abas)/turno.tsx       turno, Índice de Risco, estado do capacete, calor e trechos
+│   ├── (abas)/chamados.tsx    rede de voluntários: disponibilidade, posição e chamados
+│   ├── (abas)/historico.tsx   histórico offline (só SQLite) com o resumo do indicador
+│   ├── (abas)/perfil.tsx      dados mascarados, capacete, ficha, contatos e rede
+│   ├── (abas)/ajustes.tsx     conexão com a API, aparência e atalho para os perfis
+│   ├── ficha-medica.tsx, contato.tsx, perfis.tsx   modais
+│   ├── alerta.tsx             alerta de queda em tela cheia, sem gesto de fechar
+│   └── ocorrencia/[id].tsx    o SOS, para a vítima ou o voluntário (parâmetro papel)
 └── src/
     ├── config/        constantes.ts (seção 5 do contrato) e urlApi.ts
     ├── tipos/         contrato.ts (DTOs e enums das seções 4 e 7)
-    ├── servicos/      api.ts, erros.ts e um serviço por recurso
-    ├── banco/         migracoes.ts e repositórios
-    ├── contextos/     Sessao, Tema, Turno e Chamados
-    ├── hooks/         usePolling, useContagemRegressiva, useCronometro
-    ├── componentes/   componentes reutilizáveis
+    ├── servicos/      api.ts (instância única e interceptores), erros.ts,
+    │                  armazenamentoSeguro.ts e um serviço por recurso (entregador,
+    │                  dispositivo, turno, trecho, voluntario, ocorrencia e saude)
+    ├── banco/         migracoes.ts e um repositório por tabela
+    ├── contextos/     Sessao, Tema, Turno (alerta de queda) e Chamados (rede de voluntários)
+    ├── hooks/         usePolling, useContagemRegressiva, useCronometro, useOcorrencia,
+    │                  useHistorico, useNomeEntregador, useTrechosCriticos e useAberturaMinima
+    ├── componentes/   componentes reutilizáveis; da rede e da ocorrência: Chave,
+    │                  ParticiparRede, CartaoChamado, CartaoCronometro, BotaoLigar192
+    │                  e MenuConta (painel lateral da conta)
     ├── tema/          cores, tipografia e espaçamentos
-    └── utils/         validacao, datas, dadosSimulados e posicoesSimuladas
+    └── utils/         validacao, datas, dadosSimulados, posicoesSimuladas,
+                       mensagensErro e repetirEmConflito
 ```
 
 - Telas não chamam o Axios nem o SQLite direto: usam serviços, repositórios, hooks e contextos.
