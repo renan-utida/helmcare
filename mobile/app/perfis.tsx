@@ -8,6 +8,7 @@ import { Icone } from '@/componentes/Icone';
 import { LinhaInfo } from '@/componentes/LinhaInfo';
 import { Tela } from '@/componentes/Tela';
 import { Texto } from '@/componentes/Texto';
+import { useChamados } from '@/contextos/ChamadosContext';
 import { APELIDO_COM_CAPACETE, APELIDO_SEM_CAPACETE, useSessao } from '@/contextos/SessaoContext';
 import { useTema } from '@/contextos/TemaContext';
 import { useTurno } from '@/contextos/TurnoContext';
@@ -89,26 +90,46 @@ function CartaoPerfil({ perfil, emUso, aoTrocar, aoRemover }: CartaoPerfilProps)
 }
 
 /**
- * Perfis neste aparelho: um cartão por perfil, troca com confirmação (e aviso de turno aberto)
+ * Perfis neste aparelho: um cartão por perfil, troca com confirmação (avisa de turno aberto,
+ * de emergência e de atendimento aceito como voluntário)
  * e remoção só do celular. Aberta pelo cabeçalho das abas e pela aba Ajustes.
  */
 export default function Perfis() {
   const { perfis, perfilAtivo, definirPerfilAtivo, removerPerfil } = useSessao();
   const { turno, emergencia } = useTurno();
+  const { voluntarioId, rede, ocorrenciaAceita } = useChamados();
 
-  /** Avisos sobre o perfil atual que a pessoa precisa saber antes de trocar. */
+  /**
+   * Avisos sobre o perfil atual que a pessoa precisa saber antes de trocar: emergência ou turno
+   * aberto (como vítima) e atendimento aceito ou disponibilidade ligada (como voluntário).
+   */
   function avisoAntesDeTrocar(): string {
     const atual = perfilAtivo?.apelido ?? 'atual';
+    const avisos: string[] = [];
     if (emergencia?.tipo === 'alerta') {
-      return `\n\nAtenção: o perfil ${atual} tem um alerta de queda em andamento. Depois da troca, este celular deixa de mostrar o alerta.`;
+      avisos.push(
+        `Atenção: o perfil ${atual} tem um alerta de queda em andamento. Depois da troca, este celular deixa de mostrar o alerta.`,
+      );
+    } else if (emergencia?.tipo === 'ocorrencia') {
+      avisos.push(
+        `Atenção: o perfil ${atual} tem um SOS em andamento. Depois da troca, este celular deixa de acompanhar o socorro.`,
+      );
+    } else if (turno) {
+      avisos.push(
+        `Atenção: o perfil ${atual} tem um turno aberto. Ele continua aberto e volta a aparecer quando você usar esse perfil de novo.`,
+      );
     }
-    if (emergencia?.tipo === 'ocorrencia') {
-      return `\n\nAtenção: o perfil ${atual} tem um SOS em andamento. Depois da troca, este celular deixa de acompanhar o socorro.`;
+    if (ocorrenciaAceita) {
+      avisos.push(
+        `Atenção: o perfil ${atual} aceitou um chamado de socorro que ainda está em andamento. O entregador continua esperando. Volte a este perfil para acompanhar e encerrar o atendimento.`,
+      );
+    } else if (voluntarioId && rede.disponivel) {
+      // A API continua com o último PUT: o voluntário segue disponível mesmo com outro perfil em uso.
+      avisos.push(
+        `O perfil ${atual} continua disponível na rede de socorro, mas este celular só avisa de chamados novos quando você voltar a ele.`,
+      );
     }
-    if (turno) {
-      return `\n\nAtenção: o perfil ${atual} tem um turno aberto. Ele continua aberto e volta a aparecer quando você usar esse perfil de novo.`;
-    }
-    return '';
+    return avisos.map((aviso) => `\n\n${aviso}`).join('');
   }
 
   /** `exibido` é o nome do entregador quando ele já chegou da API, ou o apelido. */

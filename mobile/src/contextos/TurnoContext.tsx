@@ -278,7 +278,8 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
   }, [tratarLeitura]);
 
   // Polling do alerta só com turno aberto e proteção ligada (sem capacete, os campos vêm nulos).
-  usePolling(consultarAlerta, turno !== null && turno.protecaoAtiva);
+  // A chave é o id do turno: na troca de perfil ou de turno, o polling anterior para na hora.
+  usePolling(consultarAlerta, turno !== null && turno.protecaoAtiva, turno?.id ?? null);
 
   // Ao trocar de turno (encerrar ou trocar de perfil), esquece o estado anterior.
   const turnoId = turno?.id ?? null;
