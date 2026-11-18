@@ -10,6 +10,7 @@ import { Carregando } from '@/componentes/Carregando';
 import { Cartao } from '@/componentes/Cartao';
 import { CartaoCronometro, situacaoDaMeta, TEXTO_META } from '@/componentes/CartaoCronometro';
 import { EstadoErro } from '@/componentes/EstadoErro';
+import { FaixaSessaoTerminada } from '@/componentes/FaixaSessaoTerminada';
 import { Icone, type NomeIcone } from '@/componentes/Icone';
 import { Tela } from '@/componentes/Tela';
 import { Texto } from '@/componentes/Texto';
@@ -208,38 +209,42 @@ function OcorrenciaDaVitima({ id }: { id: string }) {
   }
 
   return (
-    <Tela aoAtualizar={() => void recarregar()} atualizando={false}>
-      <CabecalhoStatus status={STATUS_VITIMA[ocorrencia.estado]} ativa={ativa} />
+    // A faixa do fim da sessão fica fixa em cima, fora da rolagem; o 192 continua na tela.
+    <View style={{ flex: 1 }}>
+      <FaixaSessaoTerminada />
+      <Tela aoAtualizar={() => void recarregar()} atualizando={false}>
+        <CabecalhoStatus status={STATUS_VITIMA[ocorrencia.estado]} ativa={ativa} />
 
-      <Aviso tipo="informacao" mensagem="Seu contato de emergência foi avisado." />
-      {erro?.tipo === 'sem-conexao' ? (
-        <Aviso tipo="atencao" mensagem="Sem conexão: o status pode estar desatualizado." />
-      ) : null}
+        <Aviso tipo="informacao" mensagem="Seu contato de emergência foi avisado." />
+        {erro?.tipo === 'sem-conexao' ? (
+          <Aviso tipo="atencao" mensagem="Sem conexão: o status pode estar desatualizado." />
+        ) : null}
 
-      <CartaoCronometro ocorrencia={ocorrencia} segundos={segundos} papel="VITIMA" />
+        <CartaoCronometro ocorrencia={ocorrencia} segundos={segundos} papel="VITIMA" />
 
-      {ativa ? <BotaoLigar192 /> : null}
+        {ativa ? <BotaoLigar192 /> : null}
 
-      {mensagem ? <Aviso tipo={mensagem.tipo} mensagem={mensagem.texto} /> : null}
+        {mensagem ? <Aviso tipo={mensagem.tipo} mensagem={mensagem.texto} /> : null}
 
-      {ESTADOS_CANCELAVEIS.includes(ocorrencia.estado) ? (
-        <Botao
-          titulo="Estou bem, cancelar o SOS"
-          variante="secundaria"
-          icone="hand-left"
-          aoPressionar={confirmarCancelamento}
-          carregando={cancelando}
-          accessibilityHint="Pede confirmação antes de cancelar o pedido de socorro"
-        />
-      ) : null}
+        {ESTADOS_CANCELAVEIS.includes(ocorrencia.estado) ? (
+          <Botao
+            titulo="Estou bem, cancelar o SOS"
+            variante="secundaria"
+            icone="hand-left"
+            aoPressionar={confirmarCancelamento}
+            carregando={cancelando}
+            accessibilityHint="Pede confirmação antes de cancelar o pedido de socorro"
+          />
+        ) : null}
 
-      {!ativa ? (
-        <Cartao titulo="Resumo">
-          <Texto>{fraseResumo(ocorrencia)}</Texto>
-          <Botao titulo="Voltar ao turno" icone="arrow-back" aoPressionar={() => router.dismissTo('/turno')} />
-        </Cartao>
-      ) : null}
-    </Tela>
+        {!ativa ? (
+          <Cartao titulo="Resumo">
+            <Texto>{fraseResumo(ocorrencia)}</Texto>
+            <Botao titulo="Voltar ao turno" icone="arrow-back" aoPressionar={() => router.dismissTo('/turno')} />
+          </Cartao>
+        ) : null}
+      </Tela>
+    </View>
   );
 }
 
@@ -329,64 +334,68 @@ function OcorrenciaDoVoluntario({ id }: { id: string }) {
   }
 
   return (
-    <Tela aoAtualizar={() => void recarregar()} atualizando={false}>
-      <CabecalhoStatus status={STATUS_VOLUNTARIO[ocorrencia.estado]} ativa={ativa} />
+    // A faixa do fim da sessão fica fixa em cima, fora da rolagem; o 192 continua na tela.
+    <View style={{ flex: 1 }}>
+      <FaixaSessaoTerminada />
+      <Tela aoAtualizar={() => void recarregar()} atualizando={false}>
+        <CabecalhoStatus status={STATUS_VOLUNTARIO[ocorrencia.estado]} ativa={ativa} />
 
-      {erro?.tipo === 'sem-conexao' ? (
-        <Aviso tipo="atencao" mensagem="Sem conexão: o status pode estar desatualizado." />
-      ) : null}
+        {erro?.tipo === 'sem-conexao' ? (
+          <Aviso tipo="atencao" mensagem="Sem conexão: o status pode estar desatualizado." />
+        ) : null}
 
-      {ativa ? (
-        <Cartao titulo="Onde está o entregador">
-          {ocorrencia.localizacaoExata ? (
-            <>
-              <View
-                accessible
-                accessibilityLabel="Localização exata liberada"
-                style={{ flexDirection: 'row', alignItems: 'center', gap: espaco.pequeno }}
-              >
-                <Icone nome="location" cor={cores.aviso.sucesso.icone} />
-                <Texto variante="rotulo" style={{ flex: 1 }}>
-                  Localização exata liberada
-                </Texto>
-              </View>
-              <Botao
-                titulo="Abrir no mapa"
-                icone="map"
-                aoPressionar={() => void abrirMapa(ocorrencia)}
-                accessibilityHint="Abre o app de mapas com o ponto onde o entregador caiu"
-              />
-            </>
-          ) : (
-            <Texto>A localização exata aparece aqui depois do seu aceite.</Texto>
-          )}
-          {distancia !== null ? (
-            <Texto cor="textoSecundario">{`Cerca de ${formatarDecimal(distancia)} km de você (distância aproximada).`}</Texto>
-          ) : null}
-        </Cartao>
-      ) : null}
+        {ativa ? (
+          <Cartao titulo="Onde está o entregador">
+            {ocorrencia.localizacaoExata ? (
+              <>
+                <View
+                  accessible
+                  accessibilityLabel="Localização exata liberada"
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: espaco.pequeno }}
+                >
+                  <Icone nome="location" cor={cores.aviso.sucesso.icone} />
+                  <Texto variante="rotulo" style={{ flex: 1 }}>
+                    Localização exata liberada
+                  </Texto>
+                </View>
+                <Botao
+                  titulo="Abrir no mapa"
+                  icone="map"
+                  aoPressionar={() => void abrirMapa(ocorrencia)}
+                  accessibilityHint="Abre o app de mapas com o ponto onde o entregador caiu"
+                />
+              </>
+            ) : (
+              <Texto>A localização exata aparece aqui depois do seu aceite.</Texto>
+            )}
+            {distancia !== null ? (
+              <Texto cor="textoSecundario">{`Cerca de ${formatarDecimal(distancia)} km de você (distância aproximada).`}</Texto>
+            ) : null}
+          </Cartao>
+        ) : null}
 
-      <CartaoCronometro ocorrencia={ocorrencia} segundos={segundos} papel="VOLUNTARIO" />
+        <CartaoCronometro ocorrencia={ocorrencia} segundos={segundos} papel="VOLUNTARIO" />
 
-      {ativa ? <BotaoLigar192 /> : null}
+        {ativa ? <BotaoLigar192 /> : null}
 
-      {mensagem ? <Aviso tipo={mensagem.tipo} mensagem={mensagem.texto} /> : null}
+        {mensagem ? <Aviso tipo={mensagem.tipo} mensagem={mensagem.texto} /> : null}
 
-      {ativa ? (
-        <Botao
-          titulo="Encerrar atendimento"
-          variante="secundaria"
-          icone="checkmark-done"
-          aoPressionar={confirmarEncerrar}
-          carregando={encerrando}
-          accessibilityHint="Pede confirmação antes de encerrar"
-        />
-      ) : (
-        <Cartao titulo="Resumo">
-          <Texto>{fraseResumo(ocorrencia)}</Texto>
-          <Botao titulo="Voltar aos chamados" icone="arrow-back" aoPressionar={() => router.dismissTo('/chamados')} />
-        </Cartao>
-      )}
-    </Tela>
+        {ativa ? (
+          <Botao
+            titulo="Encerrar atendimento"
+            variante="secundaria"
+            icone="checkmark-done"
+            aoPressionar={confirmarEncerrar}
+            carregando={encerrando}
+            accessibilityHint="Pede confirmação antes de encerrar"
+          />
+        ) : (
+          <Cartao titulo="Resumo">
+            <Texto>{fraseResumo(ocorrencia)}</Texto>
+            <Botao titulo="Voltar aos chamados" icone="arrow-back" aoPressionar={() => router.dismissTo('/chamados')} />
+          </Cartao>
+        )}
+      </Tela>
+    </View>
   );
 }

@@ -1,5 +1,7 @@
+import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { useState } from 'react';
+import { Alert, Pressable } from 'react-native';
 
 import { Aviso, type TipoAviso } from '@/componentes/Aviso';
 import { Botao } from '@/componentes/Botao';
@@ -14,6 +16,7 @@ import { useSessao } from '@/contextos/SessaoContext';
 import { PREFERENCIAS_TEMA, usePreferenciaTema, type PreferenciaTema } from '@/contextos/TemaContext';
 import { converterErro } from '@/servicos/erros';
 import { saudeServico } from '@/servicos/saudeServico';
+import { invalidarAcessoParaTeste, invalidarRenovacaoParaTeste } from '@/servicos/testeSessaoDev';
 import { MENSAGEM_ERRO_GENERICO } from '@/utils/mensagensErro';
 import { validarUrlApi } from '@/utils/validacao';
 
@@ -22,6 +25,9 @@ interface ResultadoTeste {
   tipo: TipoAviso;
   mensagem: string;
 }
+
+/** Versão do app, do app.json. */
+const VERSAO_APP = Constants.expoConfig?.version ?? 'desconhecida';
 
 /** Texto de cada opção de aparência. */
 const TEXTO_PREFERENCIA: Record<PreferenciaTema, string> = {
@@ -32,16 +38,35 @@ const TEXTO_PREFERENCIA: Record<PreferenciaTema, string> = {
 
 /**
  * Aba Ajustes: endereço da API (automático ou manual, salvo na tabela `preferencia`),
- * teste de conexão pelo `GET /saude`, aparência (tema) e o atalho para os perfis do aparelho.
+ * teste de conexão pelo `GET /saude`, aparência (tema) e o atalho para as contas do aparelho.
  */
 export default function Ajustes() {
-  const { urlApi, definirUrlManual, perfilAtivo } = useSessao();
+  const { urlApi, definirUrlManual, contaAtiva, sessao } = useSessao();
   const { preferencia, definirPreferencia } = usePreferenciaTema();
   const [urlDigitada, setUrlDigitada] = useState(urlApi.origem === 'manual' ? urlApi.url : '');
   const [erroUrl, setErroUrl] = useState<string | null>(null);
   const [resultado, setResultado] = useState<ResultadoTeste | null>(null);
   const [testando, setTestando] = useState(false);
   const [salvando, setSalvando] = useState(false);
+
+  /** Ações de teste da renovação e do fim da sessão (só em __DEV__, pelo toque longo na versão). */
+  function abrirTestesDaSessao() {
+    if (!__DEV__ || !contaAtiva) {
+      return;
+    }
+    Alert.alert('Testes da sessão (desenvolvimento)', 'Escolha o que invalidar na conta em uso.', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Invalidar o token de acesso',
+        onPress: () => void invalidarAcessoParaTeste(contaAtiva),
+      },
+      {
+        text: 'Invalidar a renovação',
+        style: 'destructive',
+        onPress: () => void invalidarRenovacaoParaTeste(contaAtiva),
+      },
+    ]);
+  }
 
   async function testarConexao() {
     setTestando(true);
@@ -138,14 +163,26 @@ export default function Ajustes() {
         />
       </Cartao>
 
-      <Cartao titulo="Perfis neste aparelho">
-        {perfilAtivo ? <LinhaInfo rotulo="Em uso agora" valor={perfilAtivo.apelido} /> : null}
+      <Cartao titulo="Sobre o app">
+        {/* Só no desenvolvimento, o toque longo na versão abre as ações de teste da sessão.
+            Fora do __DEV__, a linha é só texto: nenhuma ação aparece. */}
+        <Pressable
+          onLongPress={__DEV__ ? abrirTestesDaSessao : undefined}
+          accessibilityRole="text"
+          accessibilityLabel={`Versão do app: ${VERSAO_APP}`}
+        >
+          <LinhaInfo rotulo="Versão do app" valor={VERSAO_APP} />
+        </Pressable>
+      </Cartao>
+
+      <Cartao titulo="Contas neste aparelho">
+        {contaAtiva ? <LinhaInfo rotulo="Em uso agora" valor={sessao?.nome ?? 'Conta salva'} /> : null}
         <Botao
-          titulo="Ver e trocar perfis"
+          titulo="Ver e trocar contas"
           variante="secundaria"
           icone="people"
-          aoPressionar={() => router.push('/perfis')}
-          accessibilityHint="Abre a lista de perfis deste aparelho"
+          aoPressionar={() => router.push('/contas')}
+          accessibilityHint="Abre as contas salvas neste celular"
         />
       </Cartao>
     </Tela>
