@@ -121,6 +121,24 @@ public sealed class QrTokenForaDasSaidasTests
         Assert.DoesNotContain("IncludeScopes", File.ReadAllText(caminho));
     }
 
+    /// <summary>
+    /// Garante que o log do HttpClient, que leva a URL da Open-Meteo com a coordenada da cidade, fica
+    /// abaixo do nível registrado (seção 9 do contrato: nenhuma posição vai para o log).
+    /// </summary>
+    [TestMethod]
+    public void Configuracao_LogDoHttpClient_EmWarning()
+    {
+        // Arrange
+        string caminho = Path.Combine(RaizDaApi(), "src", "HelmCare.Api", "appsettings.json");
+        using JsonDocument documento = JsonDocument.Parse(File.ReadAllText(caminho));
+
+        // Act
+        string? nivel = documento.RootElement.GetProperty("Logging").GetProperty("LogLevel").GetProperty("System.Net.Http.HttpClient").GetString();
+
+        // Assert
+        Assert.AreEqual("Warning", nivel);
+    }
+
     private static string RaizDaApi()
     {
         DirectoryInfo? pasta = new(AppContext.BaseDirectory);

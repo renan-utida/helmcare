@@ -115,6 +115,13 @@ public sealed class OpcoesHelmCare
     public string ProxiesConfiaveis { get; set; } = "127.0.0.1,::1";
 
     /// <summary>
+    /// Previsão simulada forçada (seção 7 do contrato, 1.17): verdadeiro faz o <c>POST /turnos</c> usar
+    /// sempre a previsão simulada (7 mm/h, 24 °C e 85%), sem chamar a Open-Meteo. É a configuração dos
+    /// testes e da demonstração com o índice de referência 60. Não vale para o <c>GET /clima</c>.
+    /// </summary>
+    public bool PrevisaoSimuladaForcada { get; set; }
+
+    /// <summary>
     /// <c>JANELA_OBSERVACAO_S + CONTAGEM_CANCELAMENTO_S</c>: trecho do capacete no indicador de impacto
     /// quando ele não pode ser medido (impacto estimado ou <c>CONTAGEM_INICIADA</c> perdido, seção 7).
     /// </summary>
