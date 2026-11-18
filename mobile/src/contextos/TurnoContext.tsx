@@ -14,8 +14,10 @@ import {
 
 import { alertaRepositorio } from '@/banco/alertaRepositorio';
 import { turnoRepositorio, type TurnoLocal } from '@/banco/turnoRepositorio';
+import { ALERTA_CALOR_C } from '@/config/constantes';
 import { usePolling } from '@/hooks/usePolling';
 import { converterErro } from '@/servicos/erros';
+import { notificacoes } from '@/servicos/notificacoes';
 import { turnoServico } from '@/servicos/turnoServico';
 import type { AlertaTurnoResposta, EstadoDispositivo, RiscoTurnoResposta, TurnoResposta } from '@/tipos/contrato';
 import { agoraIso, somarHorasIso } from '@/utils/datas';
@@ -67,6 +69,11 @@ export interface ValorTurno {
    * alerta, ou `null` fora da contagem. A contagem regressiva do app parte daqui (seção 7).
    */
   contagemVistaEm: number | null;
+  /**
+   * Instante (relógio do app, em ms) da primeira leitura em IMPACTO_DETECTADO ou OBSERVACAO neste
+   * alerta, ou `null` fora da verificação. O anel de `JANELA_OBSERVACAO_S` parte daqui.
+   */
+  verificacaoVistaEm: number | null;
   /** Emergência em andamento no turno: alerta de queda ou ocorrência (SOS) da vítima. */
   emergencia: Emergencia | null;
   /** Consulta o alerta na hora, fora do ritmo do polling (ex.: logo depois de cancelar). */
@@ -315,6 +322,9 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
   const [leitura, setLeitura] = useState<{ turnoId: string; resposta: AlertaTurnoResposta } | null>(null);
   const [alertaSemConexao, setAlertaSemConexao] = useState(false);
   const [contagem, setContagem] = useState<{ turnoId: string; vistaEm: number } | null>(null);
+  const [verificacao, setVerificacao] = useState<{ turnoId: string; vistaEm: number } | null>(null);
+  // Turnos em que o calor forte já virou notificação: uma vez só por turno.
+  const calorNotificado = useRef(new Set<string>());
   const estadoAnterior = useRef<EstadoDispositivo | null>(null);
   // Ocorrências já abertas nesta sessão do app: o SOS_ENVIADO se repete até o capacete
   // receber o ENCERRAR, e a tela da ocorrência não pode reabrir a cada consulta.
@@ -331,9 +341,31 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
         await alertaRepositorio.registrar(db, turnoId, atual);
       }
 
+      // Calor forte medido pelo capacete (maior ou igual a ALERTA_CALOR_C): notifica uma vez por
+      // turno, quando passa a valer. O aviso na tela continua no Turno em andamento.
+      if (
+        resposta.indiceCalorC !== null &&
+        resposta.indiceCalorC >= ALERTA_CALOR_C &&
+        !calorNotificado.current.has(turnoId)
+      ) {
+        calorNotificado.current.add(turnoId);
+        void notificacoes.calorForte();
+      }
+
       // A contagem do app parte da PRIMEIRA leitura em CONTAGEM e zera ao sair dela.
+      // A verificação (impacto e observação) também é contada no relógio do app, para o anel.
+      const emVerificacao = atual === 'IMPACTO_DETECTADO' || atual === 'OBSERVACAO';
+      const estavaEmVerificacao = anterior === 'IMPACTO_DETECTADO' || anterior === 'OBSERVACAO';
+      if (emVerificacao && !estavaEmVerificacao) {
+        setVerificacao({ turnoId, vistaEm: Date.now() });
+      } else if (!emVerificacao) {
+        setVerificacao(null);
+      }
+
       if (atual === 'CONTAGEM' && anterior !== 'CONTAGEM') {
         setContagem({ turnoId, vistaEm: Date.now() });
+        // Com o app minimizado, é a notificação que avisa (o polling do alerta continua).
+        void notificacoes.alertaDeQueda();
       } else if (atual !== 'CONTAGEM') {
         setContagem(null);
       }
@@ -347,6 +379,7 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
       const ocorrenciaId = resposta.ocorrenciaId;
       if (atual === 'SOS_ENVIADO' && ocorrenciaId && !ocorrenciasAbertas.current.has(ocorrenciaId)) {
         ocorrenciasAbertas.current.add(ocorrenciaId);
+        void notificacoes.sosEnviado(ocorrenciaId);
         const destino: Href = { pathname: '/ocorrencia/[id]', params: { id: ocorrenciaId, papel: 'VITIMA' } };
         if (caminhoAtual.current === '/alerta') {
           router.replace(destino);
@@ -384,7 +417,10 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
   // turno, o polling anterior para na hora.
   const consultaAlerta =
     turno !== null && (turno.protecaoAtiva === true || (turno.protecaoAtiva === null && temCapacete));
-  usePolling(consultarAlerta, consultaAlerta, turno ? `${turno.entregadorId}:${turno.id}` : null);
+  // Único polling que continua com o app minimizado (melhor esforço: o Android pode pausar o app).
+  usePolling(consultarAlerta, consultaAlerta, turno ? `${turno.entregadorId}:${turno.id}` : null, {
+    continuarEmSegundoPlano: true,
+  });
 
   // Ocorrência ativa como vítima trazida pela sessão (o app foi fechado no meio de um SOS): abre a
   // tela da ocorrência uma vez, depois que a abertura do app terminou (fora da rota "/" e do login).
@@ -408,6 +444,7 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
 
   const alerta = leitura && turno && leitura.turnoId === turno.id ? leitura.resposta : null;
   const contagemVistaEm = contagem && turno && contagem.turnoId === turno.id ? contagem.vistaEm : null;
+  const verificacaoVistaEm = verificacao && turno && verificacao.turnoId === turno.id ? verificacao.vistaEm : null;
 
   const emergencia = useMemo<Emergencia | null>(() => {
     if (!alerta) {
@@ -432,6 +469,7 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
       alerta,
       alertaSemConexao,
       contagemVistaEm,
+      verificacaoVistaEm,
       emergencia,
       atualizarAlerta: consultarAlerta,
     }),
@@ -444,6 +482,7 @@ export function TurnoProvider({ children }: { children: ReactNode }) {
       alerta,
       alertaSemConexao,
       contagemVistaEm,
+      verificacaoVistaEm,
       emergencia,
       consultarAlerta,
     ],

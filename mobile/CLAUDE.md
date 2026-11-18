@@ -41,6 +41,7 @@ Nunca renomeie campos, enums, rotas ou payloads do contrato. O app usa exatament
 | Logo e símbolo (SVG) | `react-native-svg` e, só no desenvolvimento, `react-native-svg-transformer` (configurado no `metro.config.js`) |
 | Contas e tokens do login da API | `expo-secure-store` (`src/servicos/armazenamentoSeguro.ts`) |
 | QR Code do capacete | `react-native-qrcode-svg` (usa o `react-native-svg`), só na tela `app/qr-capacete.tsx` |
+| Notificações locais | `expo-notifications` (`src/servicos/notificacoes.ts`), canal Android "alertas" de alta importância; só locais (o push remoto não funciona no Expo Go) |
 | Node | 22.13 ou mais novo |
 
 - Instale pacotes sempre com `npx expo install <pacote>`, para receber a versão compatível com o SDK.
@@ -128,7 +129,8 @@ npx expo start           # o Renan escaneia o QR Code no Expo Go
 - **`POST /turnos`:** tempo limite próprio de `TEMPO_LIMITE_TURNO_MS` (15 s; o contrato pede pelo menos 10 s, porque a rota pode levar cerca de 6 s com a Open-Meteo e o Serviço de Risco lentos), com o carregamento na tela.
 - **Turno da sessão:** com `turnoAtivoId`, o app assume esse turno; se o SQLite tem outro turno aberto, ele é encerrado no histórico (a API manda). O `GET /turnos/{id}/risco` não traz os horários: um turno que o SQLite não tem fica só em memória, sem horários, e entra no histórico pelo 200 do encerrar. Com `ocorrenciaAtivaId`, o app abre a ocorrência como vítima.
 - **`GET /clima`:** fora do polling (ao abrir a aba Início e ao puxar para atualizar), comparando o número e escondendo o cartão no 503.
-- **Polling:** a cada `INTERVALO_POLLING_APP_S` (5 s), com `setTimeout` encadeado (a próxima consulta só começa depois que a anterior termina), pausado com o app em segundo plano (`AppState`) e cancelado ao desmontar.
+- **Polling:** a cada `INTERVALO_POLLING_APP_S` (5 s), com `setTimeout` encadeado (a próxima consulta só começa depois que a anterior termina), pausado com o app em segundo plano (`AppState`) e cancelado ao desmontar. A única exceção é o alerta do turno com a proteção ligada, que continua com o app minimizado (`continuarEmSegundoPlano`), para a queda virar notificação. É melhor esforço: o Android pode pausar ou encerrar o app em segundo plano, e aí as consultas param até ele voltar para a frente. Os chamados e a ocorrência continuam pausando.
+- **Notificações:** só locais, sem nenhum dado pessoal no texto (seção 9). A permissão é pedida ao começar o primeiro turno, com uma frase antes explicando o motivo; negar não muda nada no app. Com o app aberto, a notificação também aparece no topo. Tocar abre a tela certa (alerta, ocorrência, chamados ou turno). As notificações de chamado novo, de voluntário a caminho e de ocorrência encerrada dependem de pollings que pausam em segundo plano: aparecem com o app aberto.
 - **Contagem do alerta:** conte os 15 s (`CONTAGEM_CANCELAMENTO_S`) no relógio do app, a partir da primeira leitura com `estadoCapacete` = `CONTAGEM`. O `contagemTerminaEm` aparece só como informação. Quando a contagem do app zerar e o estado ainda for `CONTAGEM`, mostre "Enviando SOS..." até o estado mudar. O botão de cancelar fica habilitado enquanto o estado for `CONTAGEM`: quem decide é a API (202 ou 409).
 - **Calor:** sugira pausa quando o `indiceCalorC` for maior ou igual a `ALERTA_CALOR_C` (32).
 - **Cronômetro da ocorrência:** use o `cronometro.segundosDesdeQueda` de cada consulta e some 1 por segundo no relógio do app até a próxima. Com `parado` verdadeiro, pare. A meta é `META_TEMPO_ACEITE_S` (120).

@@ -3,6 +3,14 @@ import { AppState } from 'react-native';
 
 import { INTERVALO_POLLING_APP_S } from '@/config/constantes';
 
+/** Opções do polling. */
+export interface OpcoesPolling {
+  /** Intervalo entre o fim de uma consulta e o começo da próxima (padrão: 5 s). */
+  intervaloMs?: number;
+  /** Continua com o app em segundo plano (melhor esforço; padrão: pausa). */
+  continuarEmSegundoPlano?: boolean;
+}
+
 /**
  * Consulta periódica do app (CLAUDE.md, "Polling"): executa `tarefa` na hora e depois a cada
  * `INTERVALO_POLLING_APP_S` segundos, com `setTimeout` encadeado (a próxima só começa quando a
@@ -13,13 +21,19 @@ import { INTERVALO_POLLING_APP_S } from '@/config/constantes';
  * `chave` identifica de quem é o polling (por exemplo, o `voluntarioId` do perfil ativo). Quando
  * ela muda, o polling anterior é cancelado (inclusive a próxima consulta agendada) e um novo
  * começa na hora: assim, na troca de conta, nenhuma consulta da conta antiga continua rodando.
+ *
+ * `continuarEmSegundoPlano` (só o alerta do turno com a proteção ligada usa): não pausa com o app
+ * minimizado, para o alerta de queda virar notificação. É melhor esforço: o Android pode pausar
+ * ou encerrar o app em segundo plano, e aí as consultas param até ele voltar para a frente.
  */
 export function usePolling(
   tarefa: () => Promise<void>,
   ativo: boolean,
   chave: string | null = null,
-  intervaloMs: number = INTERVALO_POLLING_APP_S * 1000,
+  opcoes: OpcoesPolling = {},
 ): void {
+  const intervaloMs = opcoes.intervaloMs ?? INTERVALO_POLLING_APP_S * 1000;
+  const continuarEmSegundoPlano = opcoes.continuarEmSegundoPlano ?? false;
   // A tarefa mais recente fica numa ref: trocar a função não reinicia o polling.
   const tarefaAtual = useRef(tarefa);
   useEffect(() => {
@@ -33,7 +47,8 @@ export function usePolling(
     let cancelado = false;
     let rodando = false;
     let temporizador: ReturnType<typeof setTimeout> | null = null;
-    let emPrimeiroPlano = AppState.currentState === 'active';
+    // Quem continua em segundo plano age como se estivesse sempre na frente.
+    let emPrimeiroPlano = continuarEmSegundoPlano || AppState.currentState === 'active';
 
     const agendar = () => {
       if (!cancelado && emPrimeiroPlano) {
@@ -57,7 +72,7 @@ export function usePolling(
     };
 
     const assinatura = AppState.addEventListener('change', (estado) => {
-      const ativoAgora = estado === 'active';
+      const ativoAgora = continuarEmSegundoPlano || estado === 'active';
       if (ativoAgora && !emPrimeiroPlano) {
         // Voltou para a frente: consulta na hora (se não houver uma em curso).
         emPrimeiroPlano = true;
@@ -82,5 +97,5 @@ export function usePolling(
       assinatura.remove();
     };
     // `chave` entra nas dependências só para reiniciar o polling quando o dono dele muda.
-  }, [ativo, chave, intervaloMs]);
+  }, [ativo, chave, intervaloMs, continuarEmSegundoPlano]);
 }
