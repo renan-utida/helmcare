@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { AccessibilityInfo, Alert, Linking, Vibration, View } from 'react-native';
 
 import type { PapelOcorrencia } from '@/banco/ocorrenciaRepositorio';
@@ -20,6 +20,7 @@ import { useTema } from '@/contextos/TemaContext';
 import { useCronometro } from '@/hooks/useCronometro';
 import { ESTADOS_FINAIS, useOcorrencia } from '@/hooks/useOcorrencia';
 import { converterErro, type ErroApi } from '@/servicos/erros';
+import { notificacoes } from '@/servicos/notificacoes';
 import { ocorrenciaServico } from '@/servicos/ocorrenciaServico';
 import type { EstadoOcorrencia, OcorrenciaResposta } from '@/tipos/contrato';
 import { duracaoFalada, formatarDecimal, formatarMinutosSegundos, textoEncerramentoAutomatico } from '@/utils/datas';
@@ -68,7 +69,7 @@ interface MensagemTela {
 }
 
 /**
- * Ocorrência (o SOS). Parâmetro `papel`: VITIMA (aberta pelo alerta ou pela aba Turno) ou
+ * Ocorrência (o SOS). Parâmetro `papel`: VITIMA (aberta pelo alerta, pela Início ou pelo turno) ou
  * VOLUNTARIO (aberta pelo aceite na aba Chamados). As duas mostram o status do socorro, o
  * cronômetro com a meta de 2 minutos e o "Ligar 192"; a vítima pode cancelar o SOS e o
  * voluntário vê a localização exata e encerra o atendimento.
@@ -88,18 +89,33 @@ export default function Ocorrencia() {
 function useAnunciarEstado(
   estado: EstadoOcorrencia | undefined,
   status: Record<EstadoOcorrencia, StatusTela>,
-  vibrarNoAceite = false,
+  opcoes: {
+    ocorrenciaId: string;
+    papel: PapelOcorrencia;
+    vibrarNoAceite?: boolean;
+    /** Verdadeiro enquanto a própria pessoa encerra ou cancela: o fim dela não vira notificação. */
+    acaoPropria: RefObject<boolean>;
+  },
 ) {
+  const { ocorrenciaId, papel, vibrarNoAceite = false, acaoPropria } = opcoes;
   const anunciado = useRef<EstadoOcorrencia | null>(null);
   useEffect(() => {
     if (estado && estado !== anunciado.current) {
+      // Só as MUDANÇAS viram notificação; a primeira leitura (ao abrir a tela) não.
+      const mudou = anunciado.current !== null;
       anunciado.current = estado;
       AccessibilityInfo.announceForAccessibility(status[estado].texto);
       if (vibrarNoAceite && estado === 'SOCORRO_A_CAMINHO') {
         Vibration.vibrate(VIBRACAO_SOCORRO_A_CAMINHO);
       }
+      if (mudou && papel === 'VITIMA' && estado === 'SOCORRO_A_CAMINHO') {
+        void notificacoes.voluntarioACaminho(ocorrenciaId);
+      }
+      if (mudou && ESTADOS_FINAIS.includes(estado) && !acaoPropria.current) {
+        void notificacoes.ocorrenciaEncerrada(ocorrenciaId, papel);
+      }
     }
-  }, [estado, status, vibrarNoAceite]);
+  }, [estado, status, vibrarNoAceite, ocorrenciaId, papel, acaoPropria]);
 }
 
 /** Tela de erro ou de carregamento enquanto a primeira leitura não chega. */
@@ -110,7 +126,7 @@ function SemOcorrencia({
 }: {
   erro: ErroApi | null;
   aoTentarDeNovo: () => void;
-  voltar: { titulo: string; destino: '/turno' | '/chamados' };
+  voltar: { titulo: string; destino: '/inicio' | '/chamados' };
 }) {
   if (!erro) {
     return <Carregando mensagem="Abrindo a ocorrência..." />;
@@ -190,20 +206,31 @@ function DistanciaVoluntario({ km }: { km: number | null }) {
   );
 }
 
-/** Tela da vítima: status, cronômetro, Ligar 192 e "Estou bem, cancelar o SOS". */
+/**
+ * Tela da vítima: status, cronômetro, Ligar 192, "Estou bem, cancelar o SOS" (antes do aceite) e
+ * "Já fui atendido, encerrar" (depois do aceite, por exemplo quando o SAMU chegou: o contrato
+ * deixa a vítima encerrar, com ou sem aceite).
+ */
 function OcorrenciaDaVitima({ id }: { id: string }) {
   const { ocorrencia, lidoEm, erro, recarregar, aplicar } = useOcorrencia(id, 'VITIMA');
   const segundos = useCronometro(ocorrencia?.cronometro ?? null, lidoEm);
   const [cancelando, setCancelando] = useState(false);
+  const [encerrando, setEncerrando] = useState(false);
   const [mensagem, setMensagem] = useState<MensagemTela | null>(null);
-  useAnunciarEstado(ocorrencia?.estado, STATUS_VITIMA, true);
+  const acaoPropria = useRef(false);
+  useAnunciarEstado(ocorrencia?.estado, STATUS_VITIMA, {
+    ocorrenciaId: id,
+    papel: 'VITIMA',
+    vibrarNoAceite: true,
+    acaoPropria,
+  });
 
   if (!ocorrencia) {
     return (
       <SemOcorrencia
         erro={erro}
         aoTentarDeNovo={() => void recarregar()}
-        voltar={{ titulo: 'Voltar ao turno', destino: '/turno' }}
+        voltar={{ titulo: 'Voltar ao início', destino: '/inicio' }}
       />
     );
   }
@@ -216,6 +243,7 @@ function OcorrenciaDaVitima({ id }: { id: string }) {
     try {
       // 409 pode ser conflito com o escalonamento da camada 2: repete até 3 vezes.
       const resposta = await repetirEmConflito(() => ocorrenciaServico.cancelar(id));
+      acaoPropria.current = true;
       await aplicar(resposta);
       setMensagem({ tipo: 'sucesso', texto: 'SOS cancelado. Que bom que você está bem.' });
     } catch (e) {
@@ -238,6 +266,37 @@ function OcorrenciaDaVitima({ id }: { id: string }) {
     Alert.alert('Cancelar o SOS?', 'Os voluntários deixam de ser chamados. Cancele só se você está bem.', [
       { text: 'Manter o SOS', style: 'cancel' },
       { text: 'Estou bem, cancelar', style: 'destructive', onPress: () => void cancelarSos() },
+    ]);
+  }
+
+  /** `POST /ocorrencias/{id}/encerrar` pela vítima, depois do aceite (409: repete até 3 vezes). */
+  async function encerrarAtendido() {
+    setEncerrando(true);
+    setMensagem(null);
+    try {
+      const resposta = await repetirEmConflito(() => ocorrenciaServico.encerrar(id));
+      acaoPropria.current = true;
+      await aplicar(resposta);
+      setMensagem({ tipo: 'sucesso', texto: 'Ocorrência encerrada. Melhoras!' });
+    } catch (e) {
+      const erroApi = converterErro(e);
+      if (erroApi.tipo === 'conflito') {
+        await recarregar();
+        setMensagem({ tipo: 'atencao', texto: 'Não deu para encerrar: a ocorrência mudou. Veja o estado atual acima.' });
+      } else if (erroApi.tipo === 'sem-conexao') {
+        setMensagem({ tipo: 'erro', texto: `A ocorrência continua aberta. ${MENSAGEM_SEM_CONEXAO}` });
+      } else {
+        setMensagem({ tipo: 'erro', texto: mensagemComum(erroApi) });
+      }
+    } finally {
+      setEncerrando(false);
+    }
+  }
+
+  function confirmarEncerramento() {
+    Alert.alert('Encerrar a ocorrência?', 'O voluntário deixa de ser esperado.', [
+      { text: 'Continuar esperando', style: 'cancel' },
+      { text: 'Já fui atendido, encerrar', style: 'destructive', onPress: () => void encerrarAtendido() },
     ]);
   }
 
@@ -272,10 +331,21 @@ function OcorrenciaDaVitima({ id }: { id: string }) {
           />
         ) : null}
 
+        {ocorrencia.estado === 'SOCORRO_A_CAMINHO' ? (
+          <Botao
+            titulo="Já fui atendido, encerrar"
+            variante="secundaria"
+            icone="checkmark-done"
+            aoPressionar={confirmarEncerramento}
+            carregando={encerrando}
+            accessibilityHint="Pede confirmação antes de encerrar. Use quando o SAMU ou outra ajuda já atendeu você."
+          />
+        ) : null}
+
         {!ativa ? (
           <Cartao titulo="Resumo">
             <Texto>{fraseResumo(ocorrencia)}</Texto>
-            <Botao titulo="Voltar ao turno" icone="arrow-back" aoPressionar={() => router.dismissTo('/turno')} />
+            <Botao titulo="Voltar ao início" icone="arrow-back" aoPressionar={() => router.dismissTo('/inicio')} />
           </Cartao>
         ) : null}
       </Tela>
@@ -296,7 +366,8 @@ function OcorrenciaDoVoluntario({ id }: { id: string }) {
   const segundos = useCronometro(ocorrencia?.cronometro ?? null, lidoEm);
   const [encerrando, setEncerrando] = useState(false);
   const [mensagem, setMensagem] = useState<MensagemTela | null>(null);
-  useAnunciarEstado(ocorrencia?.estado, STATUS_VOLUNTARIO);
+  const acaoPropria = useRef(false);
+  useAnunciarEstado(ocorrencia?.estado, STATUS_VOLUNTARIO, { ocorrenciaId: id, papel: 'VOLUNTARIO', acaoPropria });
 
   // Quando a ocorrência termina (encerrada aqui, ou cancelada pela vítima), a aba Chamados
   // deixa de mostrar o "Atendimento em andamento": relê o SQLite, que o useOcorrencia já atualizou.
@@ -338,6 +409,7 @@ function OcorrenciaDoVoluntario({ id }: { id: string }) {
     try {
       // 409 pode ser conflito com o escalonamento: repete até 3 vezes.
       const resposta = await repetirEmConflito(() => ocorrenciaServico.encerrar(id));
+      acaoPropria.current = true;
       await aplicar(resposta);
       setMensagem({ tipo: 'sucesso', texto: 'Atendimento encerrado. Obrigado por ajudar.' });
     } catch (e) {
