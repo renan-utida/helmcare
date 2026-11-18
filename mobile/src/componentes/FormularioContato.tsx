@@ -81,7 +81,7 @@ export function FormularioContato({ entregadorId, aoSalvar, aoPular, textoPular 
         setErros(errosDosCampos(erro.campos, CAMPOS));
         setMensagem(MENSAGEM_CONFIRA_CAMPOS);
       } else if (erro.tipo === 'nao-encontrado') {
-        setMensagem('Cadastro não encontrado na API. Confira o perfil em uso nos Ajustes.');
+        setMensagem('Cadastro não encontrado na API. Confira a conta em uso no menu da conta.');
       } else {
         setMensagem(mensagemComum(erro));
       }

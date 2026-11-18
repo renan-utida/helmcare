@@ -2,16 +2,16 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 
 import type { EstadoOcorrencia } from '@/tipos/contrato';
 
-/** Papel do perfil local na ocorrência: quem caiu ou quem foi ajudar. */
+/** Papel da conta na ocorrência: quem caiu ou quem foi ajudar. */
 export type PapelOcorrencia = 'VITIMA' | 'VOLUNTARIO';
 
 /**
- * Ocorrência vista pelo perfil local, para o histórico offline. Sem latitude e longitude:
+ * Ocorrência vista por uma conta do aparelho, para o histórico offline. Sem latitude e longitude:
  * a localização de pessoas nunca vai para o SQLite (CLAUDE.md, "Banco local").
  */
 export interface OcorrenciaLocal {
   id: string;
-  /** Entregador do perfil local que viu a ocorrência (vítima ou voluntário). */
+  /** Entregador da conta que viu a ocorrência (vítima ou voluntário). */
   entregadorId: string;
   papel: PapelOcorrencia;
   estado: EstadoOcorrencia;
@@ -61,7 +61,7 @@ export const ocorrenciaRepositorio = {
   /**
    * Grava a ocorrência do perfil (se ainda não existir para esse entregador) e atualiza o estado
    * em TODOS os registros locais com o mesmo id. Com um celular só, a vítima e o voluntário são
-   * dois perfis do aparelho (migração 2: um registro para cada); quando o voluntário encerra, o
+   * duas contas do aparelho (migração 2: um registro para cada); quando o voluntário encerra, o
    * registro da vítima também passa a ENCERRADA, e o histórico dos dois fica certo sem rede.
    */
   async salvar(db: SQLiteDatabase, ocorrencia: OcorrenciaLocal): Promise<void> {
@@ -110,7 +110,7 @@ export const ocorrenciaRepositorio = {
   /**
    * Ocorrência que o entregador aceitou como voluntário e que ainda está em andamento pelo
    * último estado salvo, a mais recente, ou `null`. Usada para reabrir o atendimento e para
-   * avisar antes da troca de perfil.
+   * avisar antes da troca de conta.
    */
   async obterAceitaEmAndamento(db: SQLiteDatabase, entregadorId: string): Promise<OcorrenciaLocal | null> {
     const linha = await db.getFirstAsync<LinhaOcorrencia>(

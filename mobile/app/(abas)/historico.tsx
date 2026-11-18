@@ -148,14 +148,15 @@ function ItemOcorrencia({ ocorrencia }: { ocorrencia: OcorrenciaLocal }) {
 }
 
 /**
- * Aba Histórico: lê só o SQLite do perfil ativo (funciona com a API desligada). No topo, o
+ * Aba Histórico: lê só o SQLite da conta ativa (funciona com a API desligada). No topo, o
  * resumo com o indicador de impacto do HelmCare (tempo médio até o aceite, meta de 2 minutos);
  * depois as seções Turnos, Alertas e Ocorrências. "Puxar para atualizar" relê o SQLite.
  */
 export default function Historico() {
   const { cores, espaco } = useTema();
-  const { perfilAtivo } = useSessao();
-  const { dados, recarregar } = useHistorico(perfilAtivo?.entregadorId ?? null);
+  // A conta ativa vem do secure-store: o histórico abre mesmo sem conexão.
+  const { contaAtiva } = useSessao();
+  const { dados, recarregar } = useHistorico(contaAtiva);
   const [atualizando, setAtualizando] = useState(false);
 
   // Relê o SQLite toda vez que a aba ganha foco (um turno ou uma ocorrência pode ter terminado).
@@ -171,11 +172,11 @@ export default function Historico() {
     setAtualizando(false);
   }
 
-  if (!perfilAtivo) {
+  if (!contaAtiva) {
     return (
       <Tela dentroDeAbas>
-        <EstadoVazio titulo="Nenhum perfil neste aparelho" icone="person-outline" />
-        <Botao titulo="Fazer cadastro" aoPressionar={() => router.push('/cadastro')} />
+        <EstadoVazio titulo="Nenhuma conta neste aparelho" icone="person-outline" />
+        <Botao titulo="Entrar" aoPressionar={() => router.replace('/login')} />
       </Tela>
     );
   }

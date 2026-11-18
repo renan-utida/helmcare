@@ -35,7 +35,7 @@ function opcional(texto: string): string | undefined {
  * A ficha devolvida fica só na memória desta tela: nada vai para o SQLite nem para o log.
  */
 export default function FichaMedica() {
-  const { perfilAtivo } = useSessao();
+  const { contaAtiva } = useSessao();
   const [tipoSanguineo, setTipoSanguineo] = useState<TipoSanguineo | null>(null);
   const [textos, setTextos] = useState<Record<CampoTexto, string>>({ alergias: '', condicoesCriticas: '', medicamentos: '' });
   const [erros, setErros] = useState<Partial<Record<CampoFicha, string>>>({});
@@ -43,14 +43,14 @@ export default function FichaMedica() {
   const [enviando, setEnviando] = useState(false);
   const [salva, setSalva] = useState<FichaMedicaResposta | null>(null);
 
-  if (!perfilAtivo) {
+  if (!contaAtiva) {
     return (
       <Tela>
-        <EstadoVazio titulo="Nenhum perfil neste aparelho" icone="person-outline" />
+        <EstadoVazio titulo="Nenhuma conta neste aparelho" icone="person-outline" />
       </Tela>
     );
   }
-  const entregadorId = perfilAtivo.entregadorId;
+  const entregadorId = contaAtiva;
 
   function mudar(campo: CampoTexto, valor: string) {
     setTextos((atual) => ({ ...atual, [campo]: valor }));
@@ -87,7 +87,7 @@ export default function FichaMedica() {
         setErros(errosDosCampos(erro.campos, CAMPOS));
         setMensagem(MENSAGEM_CONFIRA_CAMPOS);
       } else if (erro.tipo === 'nao-encontrado') {
-        setMensagem('Cadastro não encontrado. Confira o perfil em uso nos Ajustes.');
+        setMensagem('Cadastro não encontrado. Confira a conta em uso no menu da conta.');
       } else {
         setMensagem(mensagemComum(erro));
       }

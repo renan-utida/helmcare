@@ -24,27 +24,27 @@ import { mensagemComum } from '@/utils/mensagensErro';
 /** Mensagem de erro do Perfil para cada tipo de erro da API. */
 function mensagemDoErro(erro: ErroApi): string {
   if (erro.tipo === 'nao-encontrado') {
-    return 'Este cadastro não foi encontrado na API. Escolha outro perfil em Ajustes.';
+    return 'Este cadastro não foi encontrado na API. Troque de conta pelo menu da conta.';
   }
   return mensagemComum(erro);
 }
 
 /**
  * Perfil do entregador: dados do `GET /entregadores/{id}` como a API devolve (mascarados),
- * o capacete do perfil local, os contatos, se há ficha médica e a participação na rede de
+ * o capacete da sessão, os contatos, se há ficha médica e a participação na rede de
  * socorro (com o botão "Fazer parte da rede de socorro"). Recarrega ao voltar dos modais.
  */
 export default function Perfil() {
   const { cores, espaco } = useTema();
-  const { perfilAtivo } = useSessao();
+  const { contaAtiva, sessao } = useSessao();
   const { voluntarioId, rede } = useChamados();
-  const entregadorId = perfilAtivo?.entregadorId ?? null;
+  const entregadorId = contaAtiva;
   const [resposta, setResposta] = useState<EntregadorResposta | null>(null);
   // O erro guarda de qual entregador ele é, para não aparecer no perfil seguinte.
   const [falha, setFalha] = useState<{ entregadorId: string; erro: ErroApi } | null>(null);
   const [atualizando, setAtualizando] = useState(false);
 
-  // Só vale o que é do perfil em uso: ao trocar de perfil, a tela volta a "Carregando".
+  // Só vale o que é da conta em uso: ao trocar de conta, a tela volta a "Carregando".
   const dados = resposta && resposta.id === entregadorId ? resposta : null;
   const erro = falha && falha.entregadorId === entregadorId ? falha.erro : null;
 
@@ -74,11 +74,11 @@ export default function Perfil() {
     void carregar();
   }
 
-  if (!perfilAtivo) {
+  if (!entregadorId) {
     return (
       <Tela dentroDeAbas>
-        <EstadoVazio titulo="Nenhum perfil neste aparelho" icone="person-outline" />
-        <Botao titulo="Fazer cadastro" aoPressionar={() => router.push('/cadastro')} />
+        <EstadoVazio titulo="Nenhuma conta neste aparelho" icone="person-outline" />
+        <Botao titulo="Entrar" aoPressionar={() => router.replace('/login')} />
       </Tela>
     );
   }
@@ -91,14 +91,14 @@ export default function Perfil() {
     return (
       <Tela dentroDeAbas aoAtualizar={atualizar} atualizando={atualizando}>
         <EstadoErro mensagem={mensagemDoErro(erro)} aoTentarDeNovo={atualizar} tentando={atualizando} />
-        <Botao titulo="Abrir os Ajustes" variante="secundaria" aoPressionar={() => router.navigate('/ajustes')} />
+        <Botao titulo="Ver as contas" variante="secundaria" aoPressionar={() => router.push('/contas')} />
       </Tela>
     );
   }
 
   return (
     <Tela dentroDeAbas aoAtualizar={atualizar} atualizando={atualizando}>
-      <Texto variante="titulo">{perfilAtivo.apelido}</Texto>
+      <Texto variante="titulo">{dados?.nome ?? sessao?.nome ?? 'Seu perfil'}</Texto>
       {erro ? (
         <Texto variante="legenda" cor="erro" accessibilityLiveRegion="polite">
           {`Não foi possível atualizar. ${mensagemDoErro(erro)}`}
@@ -116,13 +116,15 @@ export default function Perfil() {
           </Cartao>
 
           <Cartao titulo="Capacete">
-            {perfilAtivo.codigoCapacete ? (
-              <LinhaInfo rotulo="Capacete vinculado" valor={perfilAtivo.codigoCapacete} />
+            {!sessao ? (
+              <Texto>Não deu para carregar o capacete agora. Puxe a tela para atualizar.</Texto>
+            ) : sessao.codigoDispositivo ? (
+              <LinhaInfo rotulo="Capacete vinculado" valor={sessao.codigoDispositivo} />
             ) : (
               <>
                 <Texto>Nenhum capacete vinculado. Vincule para ligar a proteção contra quedas no turno.</Texto>
                 <FormularioCapacete
-                  entregadorId={perfilAtivo.entregadorId}
+                  entregadorId={entregadorId}
                   aoVincular={(codigo) => AccessibilityInfo.announceForAccessibility(`Capacete ${codigo} vinculado`)}
                 />
               </>

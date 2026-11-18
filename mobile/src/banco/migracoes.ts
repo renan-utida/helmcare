@@ -80,7 +80,7 @@ CREATE TABLE trecho_cache (
 
 /**
  * Migração 2: a chave da `ocorrencia` passa a ser (id, entregador_id). Com um celular só, a
- * vítima e o voluntário são dois perfis do mesmo aparelho e veem a MESMA ocorrência: com a
+ * vítima e o voluntário são duas contas do mesmo aparelho e veem a MESMA ocorrência: com a
  * chave só no id, o registro do voluntário caía no da vítima e sumia do histórico dele.
  * O SQLite não troca a chave de uma tabela, então ela é recriada e os dados são copiados.
  */
@@ -109,10 +109,31 @@ ALTER TABLE ocorrencia_v2 RENAME TO ocorrencia;
 CREATE INDEX ix_ocorrencia_entregador_criada ON ocorrencia (entregador_id, criada_em);
 `;
 
+/**
+ * Migração 3 (login da API, contrato 1.15): a identidade passa a ser o token da conta, guardado no
+ * expo-secure-store, e não o perfil local.
+ * - A tabela `perfil` sai: o apelido deixa de existir (o nome vem da sessão, só em memória) e o
+ *   capacete e o voluntário vêm do `GET /entregadores/sessao`.
+ * - A preferência `perfil_ativo` sai; o tema e a URL manual continuam.
+ * - O histórico (turno, alerta e ocorrência) não muda: ele é ligado só pelo `entregador_id` (o
+ *   alerta pelo `turno_id`), sem chave estrangeira para o perfil, e volta quando a conta do mesmo
+ *   entregador entra.
+ * - A ocorrência ganha `encerrada_automaticamente` (0 ou 1), para o histórico mostrar quando a API
+ *   encerrou o SOS por tempo. Não é dado pessoal.
+ */
+const MIGRACAO_3 = `
+DROP TABLE IF EXISTS perfil;
+
+DELETE FROM preferencia WHERE chave = 'perfil_ativo';
+
+ALTER TABLE ocorrencia ADD COLUMN encerrada_automaticamente INTEGER NOT NULL DEFAULT 0;
+`;
+
 /** Lista de migrações, em ordem. A próxima entra no fim, com a versão seguinte. */
 const MIGRACOES: readonly Migracao[] = [
   { versao: 1, sql: MIGRACAO_1 },
   { versao: 2, sql: MIGRACAO_2 },
+  { versao: 3, sql: MIGRACAO_3 },
 ];
 
 /**

@@ -12,11 +12,11 @@ import { useSessao } from '@/contextos/SessaoContext';
  * Depois do 201, volta ao Perfil, que recarrega a lista ao ganhar foco.
  */
 export default function Contato() {
-  const { perfilAtivo } = useSessao();
-  if (!perfilAtivo) {
+  const { contaAtiva } = useSessao();
+  if (!contaAtiva) {
     return (
       <Tela>
-        <EstadoVazio titulo="Nenhum perfil neste aparelho" icone="person-outline" />
+        <EstadoVazio titulo="Nenhuma conta neste aparelho" icone="person-outline" />
       </Tela>
     );
   }
@@ -24,7 +24,7 @@ export default function Contato() {
     <Tela>
       <Texto>Quem devemos avisar se você cair? Essa pessoa recebe o aviso do SOS.</Texto>
       <FormularioContato
-        entregadorId={perfilAtivo.entregadorId}
+        entregadorId={contaAtiva}
         aoSalvar={() => {
           AccessibilityInfo.announceForAccessibility('Contato salvo');
           router.back();

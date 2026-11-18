@@ -34,11 +34,14 @@ function PilhaRaiz() {
         }}
       >
         <Stack.Screen name="index" options={{ headerShown: false }} />
+        {/* Login: sem cabeçalho na entrada; com cabeçalho e voltar ao adicionar conta ou ao
+            entrar de novo no meio de um alerta (a própria tela ajusta o título). */}
+        <Stack.Screen name="login" options={{ title: 'Entrar' }} />
         <Stack.Screen name="cadastro" options={{ title: 'Cadastro' }} />
         <Stack.Screen name="(abas)" options={{ headerShown: false }} />
         <Stack.Screen name="ficha-medica" options={{ presentation: 'modal', title: 'Ficha médica' }} />
         <Stack.Screen name="contato" options={{ presentation: 'modal', title: 'Contato de emergência' }} />
-        <Stack.Screen name="perfis" options={{ presentation: 'modal', title: 'Perfis neste aparelho' }} />
+        <Stack.Screen name="contas" options={{ presentation: 'modal', title: 'Contas neste aparelho' }} />
         {/* Alerta de queda: tela cheia, sem cabeçalho e sem gesto de fechar (o voltar do
             Android é bloqueado pela própria tela enquanto o alerta estiver em andamento). */}
         <Stack.Screen

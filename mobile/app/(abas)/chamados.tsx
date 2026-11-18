@@ -10,6 +10,7 @@ import { Chave } from '@/componentes/Chave';
 import { EstadoVazio } from '@/componentes/EstadoVazio';
 import { GrupoOpcoes } from '@/componentes/GrupoOpcoes';
 import { ParticiparRede } from '@/componentes/ParticiparRede';
+import { SessaoIndisponivel } from '@/componentes/SessaoIndisponivel';
 import { Tela } from '@/componentes/Tela';
 import { Texto } from '@/componentes/Texto';
 import { useChamados } from '@/contextos/ChamadosContext';
@@ -68,7 +69,7 @@ function leituraPosicao(id: IdPosicaoSimulada): string {
  */
 export default function Chamados() {
   const { cores, espaco } = useTema();
-  const { perfilAtivo } = useSessao();
+  const { contaAtiva, sessao } = useSessao();
   const {
     voluntarioId,
     rede,
@@ -86,13 +87,18 @@ export default function Chamados() {
   const [mensagem, setMensagem] = useState<MensagemTela | null>(null);
   const [atualizando, setAtualizando] = useState(false);
 
-  if (!perfilAtivo) {
+  if (!contaAtiva) {
     return (
       <Tela dentroDeAbas>
-        <EstadoVazio titulo="Nenhum perfil neste aparelho" icone="person-outline" />
-        <Botao titulo="Fazer cadastro" aoPressionar={() => router.push('/cadastro')} />
+        <EstadoVazio titulo="Nenhuma conta neste aparelho" icone="person-outline" />
+        <Botao titulo="Entrar" aoPressionar={() => router.replace('/login')} />
       </Tela>
     );
+  }
+
+  // Quem é voluntário vem da sessão: sem ela (carregando ou sem conexão), não dá para saber.
+  if (!sessao) {
+    return <SessaoIndisponivel />;
   }
 
   if (!voluntarioId) {
