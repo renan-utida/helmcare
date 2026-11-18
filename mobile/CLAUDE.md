@@ -17,7 +17,7 @@ Este arquivo orienta o Claude Code quando ele trabalha na pasta `mobile/` do mon
 
 ## Fonte da verdade
 
-1. `docs/contrato-integracao.md` (versão 1.14), principalmente as seções 2, 3, 4, 5, 7 e 9.
+1. `docs/contrato-integracao.md` (versão 1.17), principalmente as seções 2, 3, 4, 5, 7 e 9.
 2. A Ficha no `README.md` da raiz (seção "Mobile Development & IoT (/mobile)").
 3. Este arquivo.
 
@@ -39,7 +39,7 @@ Nunca renomeie campos, enums, rotas ou payloads do contrato. O app usa exatament
 | Banco | `expo-sqlite` (`SQLiteProvider` e `useSQLiteContext`) |
 | Ícones | `@expo/vector-icons` |
 | Logo e símbolo (SVG) | `react-native-svg` e, só no desenvolvimento, `react-native-svg-transformer` (configurado no `metro.config.js`) |
-| Token do login da API | `expo-secure-store` (`src/servicos/armazenamentoSeguro.ts`) |
+| Contas e tokens do login da API | `expo-secure-store` (`src/servicos/armazenamentoSeguro.ts`) |
 | Node | 22.13 ou mais novo |
 
 - Instale pacotes sempre com `npx expo install <pacote>`, para receber a versão compatível com o SDK.
@@ -53,34 +53,37 @@ mobile/
 ├── CLAUDE.md, README.md, app.json, package.json, tsconfig.json, eslint.config.js, .env.example
 ├── app/                       rotas do Expo Router (só telas e layouts)
 │   ├── _layout.tsx            pilha raiz e provedores (SQLite, Tema, Sessao, Turno e Chamados)
-│   ├── index.tsx              abertura com o logo; vai para o cadastro ou para as abas
-│   ├── cadastro.tsx           3 passos (dados, contato, capacete) e "Já tenho cadastro"
+│   ├── index.tsx              abertura com o logo; restaura a sessão e vai para o login ou as abas
+│   ├── login.tsx              e-mail e senha (entrar, adicionar conta ou entrar de novo)
+│   ├── cadastro.tsx           3 passos (dados e acesso, contato, capacete), com o login logo depois
 │   ├── (abas)/_layout.tsx     5 abas: Turno, Chamados, Histórico, Perfil e Ajustes;
 │   │                          no cabeçalho, só o botão do menu da conta
 │   ├── (abas)/turno.tsx       turno, Índice de Risco, estado do capacete, calor e trechos
 │   ├── (abas)/chamados.tsx    rede de voluntários: disponibilidade, posição e chamados
 │   ├── (abas)/historico.tsx   histórico offline (só SQLite) com o resumo do indicador
 │   ├── (abas)/perfil.tsx      dados mascarados, capacete, ficha, contatos e rede
-│   ├── (abas)/ajustes.tsx     conexão com a API, aparência e atalho para os perfis
-│   ├── ficha-medica.tsx, contato.tsx, perfis.tsx   modais
+│   ├── (abas)/ajustes.tsx     conexão com a API, aparência, atalho para as contas e a versão
+│   ├── ficha-medica.tsx, contato.tsx, contas.tsx   modais (contas: as contas do aparelho)
 │   ├── alerta.tsx             alerta de queda em tela cheia, sem gesto de fechar
 │   └── ocorrencia/[id].tsx    o SOS, para a vítima ou o voluntário (parâmetro papel)
 └── src/
     ├── config/        constantes.ts (seção 5 do contrato) e urlApi.ts
     ├── tipos/         contrato.ts (DTOs e enums das seções 4 e 7)
-    ├── servicos/      api.ts (instância única e interceptores), erros.ts,
-    │                  armazenamentoSeguro.ts e um serviço por recurso (entregador,
+    ├── servicos/      api.ts (instância única, Authorization e renovação), erros.ts,
+    │                  armazenamentoSeguro.ts (contas e tokens), autenticacaoServico.ts,
+    │                  testeSessaoDev.ts (só __DEV__) e um serviço por recurso (entregador,
     │                  dispositivo, turno, trecho, voluntario, ocorrencia e saude)
-    ├── banco/         migracoes.ts e um repositório por tabela
-    ├── contextos/     Sessao, Tema, Turno (alerta de queda) e Chamados (rede de voluntários)
+    ├── banco/         migracoes.ts e um repositório por tabela (sem tabela de perfil desde a migração 3)
+    ├── contextos/     Sessao (contas e sessão), Tema, Turno (alerta de queda) e Chamados (rede)
     ├── hooks/         usePolling, useContagemRegressiva, useCronometro, useOcorrencia,
-    │                  useHistorico, useNomeEntregador, useTrechosCriticos e useAberturaMinima
+    │                  useHistorico, useSessaoDaConta, useTrechosCriticos e useAberturaMinima
     ├── componentes/   componentes reutilizáveis; da rede e da ocorrência: Chave,
     │                  ParticiparRede, CartaoChamado, CartaoCronometro, BotaoLigar192
-    │                  e MenuConta (painel lateral da conta)
+    │                  e MenuConta (painel lateral da conta); do login: RegrasSenha,
+    │                  SessaoIndisponivel e FaixaSessaoTerminada
     ├── tema/          cores, tipografia e espaçamentos
     └── utils/         validacao, datas, dadosSimulados, posicoesSimuladas,
-                       mensagensErro e repetirEmConflito
+                       mensagensErro, repetirEmConflito e memoriaDoFluxo
 ```
 
 - Telas não chamam o Axios nem o SQLite direto: usam serviços, repositórios, hooks e contextos.
@@ -111,22 +114,28 @@ npx expo start           # o Renan escaneia o QR Code no Expo Go
 
 - **Só a API principal.** O app nunca chama o Serviço de Risco nem o broker MQTT.
 - **Datas:** envie ISO 8601 em UTC (`new Date().toISOString()`); mostre no horário do aparelho.
-- **Erros:** todos chegam em ProblemDetails. O app decide pelo status HTTP, nunca pelo texto do `title` ou do `detail`. `src/servicos/erros.ts` converte o erro do Axios num `ErroApi` com o tipo (`validacao` 400, `nao-encontrado` 404, `conflito` 409, `indisponivel` 503, `sem-conexao`, `desconhecido`), e cada tela escolhe a própria mensagem para cada tipo.
+- **Erros:** todos chegam em ProblemDetails. O app decide pelo status HTTP, nunca pelo texto do `title` ou do `detail`. `src/servicos/erros.ts` converte o erro do Axios num `ErroApi` com o tipo (`validacao` 400, `nao-autorizado` 401, `proibido` 403, `nao-encontrado` 404, `conflito` 409, `muitas-tentativas` 429, `indisponivel` 503, `sem-conexao`, `desconhecido`), e cada tela escolhe a própria mensagem para cada tipo. O `ErroApi` nunca leva a configuração da requisição (que tem o Authorization) nem os corpos.
+- **Autenticação (1.15):** toda rota que não é pública leva `Authorization: Bearer <accessToken>` da conta que fez a requisição (o interceptor grava essa conta na configuração, para a renovação e a repetição usarem sempre a mesma, mesmo com troca de conta no meio). No primeiro 401, uma renovação só por conta de cada vez (`POST /entregadores/renovar-token`; as chamadas que levam 401 juntas esperam a mesma) e a repetição da chamada uma vez. A sessão só termina com o 401 da renovação: os tokens dessa conta são apagados e o SessaoContext decide (no alerta e na ocorrência, a faixa "Entre de novo" e o 192 visível; nas outras telas, o login). Sem conexão, 429 ou 5xx na renovação, a conta continua salva. 401, 403, 404, 409 e 429 pelo status, nunca pelo texto (o login errado tem sempre o mesmo texto).
+- **Contas no aparelho:** até `MAXIMO_CONTAS_APARELHO` (3) contas logadas, no `expo-secure-store`, com troca rápida sem senha. Chaves: `helmcare.contas` (só a lista de ids), `helmcare.contaAtiva` e `helmcare.<entregadorId>.acesso` e `.renovacao` (uma chave por token, pelo limite de cerca de 2 KB por valor; os tokens têm 710 caracteres). A identidade é o token, não o SQLite. A sessão (nome, voluntário, capacete, turno e ocorrência ativos) vem do `GET /entregadores/sessao` e fica só em memória; sem conexão, o app abre com a conta salva, sem nome, e nunca apaga a conta por falta de rede. Sair apaga só os tokens dessa conta (o histórico local fica). Sem rota de logout no contrato, o refreshToken continua válido no servidor até vencer.
 - **409 no cancelar e no encerrar da ocorrência:** pode ser conflito com o escalonamento. Repita a chamada até 3 vezes, com uma pausa curta. Se continuar, releia a ocorrência e mostre o estado atual.
 - **503 nas rotas do turno** (iniciar com proteção, encerrar e cancelar o alerta): o comando não chegou ao capacete e nada foi gravado. Peça para tentar de novo.
+- **`POST /turnos`:** tempo limite próprio de `TEMPO_LIMITE_TURNO_MS` (15 s; o contrato pede pelo menos 10 s, porque a rota pode levar cerca de 6 s com a Open-Meteo e o Serviço de Risco lentos), com o carregamento na tela.
+- **Turno da sessão:** com `turnoAtivoId`, o app assume esse turno; se o SQLite tem outro turno aberto, ele é encerrado no histórico (a API manda). O `GET /turnos/{id}/risco` não traz os horários: um turno que o SQLite não tem fica só em memória, sem horários, e entra no histórico pelo 200 do encerrar. Com `ocorrenciaAtivaId`, o app abre a ocorrência como vítima.
+- **`GET /clima`:** fora do polling (ao abrir a aba Início e ao puxar para atualizar), comparando o número e escondendo o cartão no 503.
 - **Polling:** a cada `INTERVALO_POLLING_APP_S` (5 s), com `setTimeout` encadeado (a próxima consulta só começa depois que a anterior termina), pausado com o app em segundo plano (`AppState`) e cancelado ao desmontar.
 - **Contagem do alerta:** conte os 15 s (`CONTAGEM_CANCELAMENTO_S`) no relógio do app, a partir da primeira leitura com `estadoCapacete` = `CONTAGEM`. O `contagemTerminaEm` aparece só como informação. Quando a contagem do app zerar e o estado ainda for `CONTAGEM`, mostre "Enviando SOS..." até o estado mudar. O botão de cancelar fica habilitado enquanto o estado for `CONTAGEM`: quem decide é a API (202 ou 409).
 - **Calor:** sugira pausa quando o `indiceCalorC` for maior ou igual a `ALERTA_CALOR_C` (32).
 - **Cronômetro da ocorrência:** use o `cronometro.segundosDesdeQueda` de cada consulta e some 1 por segundo no relógio do app até a próxima. Com `parado` verdadeiro, pare. A meta é `META_TEMPO_ACEITE_S` (120).
 - **Localização:** antes do aceite, o voluntário só vê a localização aproximada e a `distanciaKm`. A exata só aparece quando a resposta traz `localizacaoExata` verdadeiro.
-- **Ficha médica:** o `GET /entregadores/{id}` só traz `possuiFichaMedica`. Para editar, o formulário começa vazio e envia a ficha completa no `PUT`. A resposta do `PUT` aparece só na tela, em memória.
-- **Capacete:** o `qrToken` e a `urlCofre` só existem na resposta do `POST /dispositivos`. Não guarde nenhum dos dois.
+- **Ficha médica:** o `GET /entregadores/{id}` só traz `possuiFichaMedica`; a ficha completa vem do `GET /entregadores/{id}/ficha-medica` (404 sem ficha) e da resposta do `PUT`, as duas com `no-store`. Ela fica só em memória, na tela, e some ao sair.
+- **E-mail:** sempre mascarado, como a API devolve (`r***@exemplo.com`).
+- **Capacete:** o `qrToken` e a `urlCofre` só existem na resposta do `POST /dispositivos`, e o QR do capacete só aparece logo depois dela. Não guarde nenhum dos dois.
 
 ## Banco local (SQLite)
 
 - Migrações em `src/banco/migracoes.ts`, controladas por `PRAGMA user_version`, executadas no `onInit` do `SQLiteProvider`. Nunca altere uma migração já publicada: crie a próxima.
-- Tabelas: `perfil`, `preferencia`, `turno`, `alerta`, `ocorrencia` e `trecho_cache` (o pedido de cada etapa detalha as colunas).
-- **Nunca grave no SQLite:** nome (nem simulado), CPF, CNH, telefones, contatos de emergência, ficha médica, localização de pessoas (da vítima, da ocorrência e do voluntário), `qrToken` e `urlCofre`. As coordenadas dos trechos críticos são dado público e podem ficar no cache. O perfil local usa só ids, o código do capacete e um apelido neutro ("Entregador com capacete" ou "Voluntário").
+- Tabelas: `preferencia` (tema e URL manual), `turno`, `alerta`, `ocorrencia` e `trecho_cache` (o pedido de cada etapa detalha as colunas). A tabela `perfil` saiu na migração 3: a identidade é o token. O histórico é ligado só pelo `entregador_id` (o alerta pelo `turno_id`).
+- **Nunca grave no SQLite:** nome (nem simulado), e-mail, CPF, CNH, telefones, contatos de emergência, ficha médica, localização de pessoas (da vítima, da ocorrência e do voluntário), senha, `accessToken`, `refreshToken`, `qrToken` e `urlCofre`. As coordenadas dos trechos críticos são dado público e podem ficar no cache.
 - Consultas sempre com parâmetros (`?`), nunca com texto concatenado.
 
 ## Dados pessoais
@@ -134,7 +143,9 @@ npx expo start           # o Renan escaneia o QR Code no Expo Go
 - Todos os dados de cadastro são simulados (`src/utils/dadosSimulados.ts` gera nome, CPF, CNH e telefones fictícios).
 - Nunca use `console.log` com dados pessoais, ficha médica, coordenadas ou corpos de requisição e resposta. Logs, quando existirem, levam só ids e status HTTP.
 - As telas mostram os dados mascarados que a API devolve, sem desmascarar.
-- O token de acesso do login da API fica só no `expo-secure-store` (`src/servicos/armazenamentoSeguro.ts`). Nunca no SQLite, em log, em URL, em parâmetro de rota ou na tela. Ele só sai do armazenamento seguro para o cabeçalho `Authorization` da instância do Axios.
+- **Credenciais (seção 9):** a senha, o `accessToken`, o `refreshToken`, o `qrToken` e a `urlCofre` nunca vão para o SQLite, para log, para URL do app nem para parâmetro de rota. Os tokens ficam só no `expo-secure-store` (`src/servicos/armazenamentoSeguro.ts`) e só saem dele para o cabeçalho `Authorization` e para o corpo da renovação. A senha só existe no estado da tela de login e do cadastro e some depois de cada tentativa.
+- Dado que não pode ir na rota (por exemplo, o e-mail que preenche o login depois do cadastro) passa pela memória do fluxo (`src/utils/memoriaDoFluxo.ts`), lido uma vez e apagado.
+- No secure-store, só ids e tokens: nada de nome, e-mail ou senha.
 
 ## Acessibilidade (critério da nota)
 
@@ -148,7 +159,7 @@ npx expo start           # o Renan escaneia o QR Code no Expo Go
 
 ## Rede
 
-- `src/config/urlApi.ts` resolve a URL base, nesta ordem: a URL salva na tela Configurações; `EXPO_PUBLIC_API_URL`; o IP do computador pelo `hostUri` do Metro (`Constants.expoConfig?.hostUri`), montando `http://<ip>:5000/api/v1`; e, por último, `http://10.0.2.2:5000/api/v1` (emulador Android).
+- `src/config/urlApi.ts` resolve a URL base, nesta ordem: a URL salva na aba Ajustes; `EXPO_PUBLIC_API_URL`; o IP do computador pelo `hostUri` do Metro (`Constants.expoConfig?.hostUri`), montando `http://<ip>:5000/api/v1`; e, por último, `http://10.0.2.2:5000/api/v1` (emulador Android).
 - `GET /api/v1/saude` responde texto (`Healthy`), não JSON.
 - Para testar as rotas a partir do computador, use `http://localhost:5000/api/v1` com `curl`. Quem sobe a API e o Serviço de Risco é o Renan.
 
