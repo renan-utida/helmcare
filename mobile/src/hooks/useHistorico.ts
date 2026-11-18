@@ -5,9 +5,9 @@ import { alertaRepositorio, type AlertaLocal } from '@/banco/alertaRepositorio';
 import { ocorrenciaRepositorio, type OcorrenciaLocal } from '@/banco/ocorrenciaRepositorio';
 import { turnoRepositorio, type TurnoLocal } from '@/banco/turnoRepositorio';
 
-/** Dados do histórico de um perfil, todos lidos do SQLite. */
+/** Dados do histórico de uma conta, todos lidos do SQLite. */
 export interface DadosHistorico {
-  /** De qual entregador são os dados (a troca de perfil nunca mostra o histórico de outro). */
+  /** De qual entregador são os dados (a troca de conta nunca mostra o histórico de outro). */
   entregadorId: string;
   turnos: TurnoLocal[];
   alertas: AlertaLocal[];
@@ -33,7 +33,7 @@ export interface EstadoHistorico {
 }
 
 /**
- * Histórico offline do perfil: turnos, mudanças de estado do capacete e ocorrências, lidos só
+ * Histórico offline da conta: turnos, mudanças de estado do capacete e ocorrências, lidos só
  * do SQLite (funciona sem rede). Nenhuma linha tem localização ou dado pessoal.
  */
 export function useHistorico(entregadorId: string | null): EstadoHistorico {

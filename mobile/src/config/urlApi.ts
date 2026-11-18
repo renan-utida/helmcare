@@ -66,3 +66,21 @@ export function resolverUrlApi(urlManual: string | null): UrlApiResolvida {
   }
   return { url: URL_EMULADOR, origem: 'emulador' };
 }
+
+/**
+ * Completa um caminho relativo da API (como a `urlCofre`, que vem "/cofre/{qrToken}", sem host)
+ * com a origem da URL base em uso: o esquema, o host e a porta, sem o "/api/v1". Por exemplo,
+ * "http://192.168.15.2:5000/api/v1" e "/cofre/abc" dão "http://192.168.15.2:5000/cofre/abc".
+ *
+ * É só completar um caminho relativo, não reescrever o endereço: se a API um dia devolver o
+ * endereço completo (com "http://" ou "https://"), ele volta como veio. Função pura, sem estado.
+ * O resultado leva o `qrToken` e segue as mesmas regras dele: só em memória, nunca em log.
+ */
+export function completarCaminhoDaApi(caminho: string, urlBaseApi: string): string {
+  if (/^https?:\/\//i.test(caminho)) {
+    return caminho;
+  }
+  // A origem é tudo até a primeira barra depois do "//" (sem depender da classe URL do Hermes).
+  const origem = urlBaseApi.match(/^(https?:\/\/[^/]+)/i)?.[1] ?? normalizarUrl(urlBaseApi);
+  return `${origem}${caminho.startsWith('/') ? '' : '/'}${caminho}`;
+}

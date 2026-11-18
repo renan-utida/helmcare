@@ -12,7 +12,7 @@ import { INTERVALO_POLLING_APP_S } from '@/config/constantes';
  *
  * `chave` identifica de quem é o polling (por exemplo, o `voluntarioId` do perfil ativo). Quando
  * ela muda, o polling anterior é cancelado (inclusive a próxima consulta agendada) e um novo
- * começa na hora: assim, na troca de perfil, nenhuma consulta do perfil antigo continua rodando.
+ * começa na hora: assim, na troca de conta, nenhuma consulta da conta antiga continua rodando.
  */
 export function usePolling(
   tarefa: () => Promise<void>,

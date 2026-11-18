@@ -10,10 +10,11 @@ import { Carregando } from '@/componentes/Carregando';
 import { Cartao } from '@/componentes/Cartao';
 import { CartaoCronometro, situacaoDaMeta, TEXTO_META } from '@/componentes/CartaoCronometro';
 import { EstadoErro } from '@/componentes/EstadoErro';
+import { FaixaSessaoTerminada } from '@/componentes/FaixaSessaoTerminada';
 import { Icone, type NomeIcone } from '@/componentes/Icone';
 import { Tela } from '@/componentes/Tela';
 import { Texto } from '@/componentes/Texto';
-import { RAIO_CAMADA_1_KM } from '@/config/constantes';
+import { RAIO_CAMADA_1_KM, TEMPO_ENCERRAMENTO_AUTOMATICO_MIN } from '@/config/constantes';
 import { useChamados } from '@/contextos/ChamadosContext';
 import { useTema } from '@/contextos/TemaContext';
 import { useCronometro } from '@/hooks/useCronometro';
@@ -21,7 +22,7 @@ import { ESTADOS_FINAIS, useOcorrencia } from '@/hooks/useOcorrencia';
 import { converterErro, type ErroApi } from '@/servicos/erros';
 import { ocorrenciaServico } from '@/servicos/ocorrenciaServico';
 import type { EstadoOcorrencia, OcorrenciaResposta } from '@/tipos/contrato';
-import { duracaoFalada, formatarDecimal, formatarMinutosSegundos } from '@/utils/datas';
+import { duracaoFalada, formatarDecimal, formatarMinutosSegundos, textoEncerramentoAutomatico } from '@/utils/datas';
 import { MENSAGEM_SEM_CONEXAO, mensagemComum } from '@/utils/mensagensErro';
 import { repetirEmConflito } from '@/utils/repetirEmConflito';
 
@@ -148,12 +149,45 @@ function CabecalhoStatus({ status, ativa }: { status: StatusTela; ativa: boolean
 
 /** Frase do resumo com o tempo até o aceite e a situação da meta. */
 function fraseResumo(ocorrencia: OcorrenciaResposta): string {
+  // A API encerrou o SOS por tempo (`encerradaAutomaticamente`, seção 7).
+  const automatica = ocorrencia.encerradaAutomaticamente
+    ? ` ${textoEncerramentoAutomatico(TEMPO_ENCERRAMENTO_AUTOMATICO_MIN)}.`
+    : '';
   const tempo = ocorrencia.tempoAteAceiteSegundos;
   if (tempo === null) {
-    return 'Tempo até o aceite: sem aceite.';
+    return `Tempo até o aceite: sem aceite.${automatica}`;
   }
   const meta = TEXTO_META[situacaoDaMeta(tempo, ocorrencia.cronometro.metaSegundos)].toLowerCase();
-  return `Tempo até o aceite: ${formatarMinutosSegundos(tempo)} (${duracaoFalada(tempo)}), ${meta}.`;
+  return `Tempo até o aceite: ${formatarMinutosSegundos(tempo)} (${duracaoFalada(tempo)}), ${meta}.${automatica}`;
+}
+
+/**
+ * Distância do voluntário que aceitou, para a vítima: "Voluntário a 0,6 km" (1 casa, vírgula),
+ * atualizada a cada consulta e anunciada uma vez quando aparece. Só a distância: a posição do
+ * voluntário nunca sai da API (seção 9). Sem `distanciaVoluntarioKm`, nada aparece.
+ */
+function DistanciaVoluntario({ km }: { km: number | null }) {
+  const { cores, espaco } = useTema();
+  const anunciada = useRef(false);
+  useEffect(() => {
+    if (km !== null && !anunciada.current) {
+      anunciada.current = true;
+      AccessibilityInfo.announceForAccessibility(`Voluntário a ${formatarDecimal(km)} quilômetros`);
+    }
+  }, [km]);
+  if (km === null) {
+    return null;
+  }
+  return (
+    <View
+      accessible
+      accessibilityLabel={`Voluntário a ${formatarDecimal(km)} quilômetros`}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: espaco.pequeno }}
+    >
+      <Icone nome="walk" cor={cores.aviso.sucesso.icone} tamanho={32} />
+      <Texto variante="subtitulo" style={{ flex: 1 }}>{`Voluntário a ${formatarDecimal(km)} km`}</Texto>
+    </View>
+  );
 }
 
 /** Tela da vítima: status, cronômetro, Ligar 192 e "Estou bem, cancelar o SOS". */
@@ -208,38 +242,44 @@ function OcorrenciaDaVitima({ id }: { id: string }) {
   }
 
   return (
-    <Tela aoAtualizar={() => void recarregar()} atualizando={false}>
-      <CabecalhoStatus status={STATUS_VITIMA[ocorrencia.estado]} ativa={ativa} />
+    // A faixa do fim da sessão fica fixa em cima, fora da rolagem; o 192 continua na tela.
+    <View style={{ flex: 1 }}>
+      <FaixaSessaoTerminada />
+      <Tela aoAtualizar={() => void recarregar()} atualizando={false}>
+        <CabecalhoStatus status={STATUS_VITIMA[ocorrencia.estado]} ativa={ativa} />
 
-      <Aviso tipo="informacao" mensagem="Seu contato de emergência foi avisado." />
-      {erro?.tipo === 'sem-conexao' ? (
-        <Aviso tipo="atencao" mensagem="Sem conexão: o status pode estar desatualizado." />
-      ) : null}
+        {ocorrencia.estado === 'SOCORRO_A_CAMINHO' ? <DistanciaVoluntario km={ocorrencia.distanciaVoluntarioKm} /> : null}
 
-      <CartaoCronometro ocorrencia={ocorrencia} segundos={segundos} papel="VITIMA" />
+        <Aviso tipo="informacao" mensagem="Seu contato de emergência foi avisado." />
+        {erro?.tipo === 'sem-conexao' ? (
+          <Aviso tipo="atencao" mensagem="Sem conexão: o status pode estar desatualizado." />
+        ) : null}
 
-      {ativa ? <BotaoLigar192 /> : null}
+        <CartaoCronometro ocorrencia={ocorrencia} segundos={segundos} papel="VITIMA" />
 
-      {mensagem ? <Aviso tipo={mensagem.tipo} mensagem={mensagem.texto} /> : null}
+        {ativa ? <BotaoLigar192 /> : null}
 
-      {ESTADOS_CANCELAVEIS.includes(ocorrencia.estado) ? (
-        <Botao
-          titulo="Estou bem, cancelar o SOS"
-          variante="secundaria"
-          icone="hand-left"
-          aoPressionar={confirmarCancelamento}
-          carregando={cancelando}
-          accessibilityHint="Pede confirmação antes de cancelar o pedido de socorro"
-        />
-      ) : null}
+        {mensagem ? <Aviso tipo={mensagem.tipo} mensagem={mensagem.texto} /> : null}
 
-      {!ativa ? (
-        <Cartao titulo="Resumo">
-          <Texto>{fraseResumo(ocorrencia)}</Texto>
-          <Botao titulo="Voltar ao turno" icone="arrow-back" aoPressionar={() => router.dismissTo('/turno')} />
-        </Cartao>
-      ) : null}
-    </Tela>
+        {ESTADOS_CANCELAVEIS.includes(ocorrencia.estado) ? (
+          <Botao
+            titulo="Estou bem, cancelar o SOS"
+            variante="secundaria"
+            icone="hand-left"
+            aoPressionar={confirmarCancelamento}
+            carregando={cancelando}
+            accessibilityHint="Pede confirmação antes de cancelar o pedido de socorro"
+          />
+        ) : null}
+
+        {!ativa ? (
+          <Cartao titulo="Resumo">
+            <Texto>{fraseResumo(ocorrencia)}</Texto>
+            <Botao titulo="Voltar ao turno" icone="arrow-back" aoPressionar={() => router.dismissTo('/turno')} />
+          </Cartao>
+        ) : null}
+      </Tela>
+    </View>
   );
 }
 
@@ -329,64 +369,68 @@ function OcorrenciaDoVoluntario({ id }: { id: string }) {
   }
 
   return (
-    <Tela aoAtualizar={() => void recarregar()} atualizando={false}>
-      <CabecalhoStatus status={STATUS_VOLUNTARIO[ocorrencia.estado]} ativa={ativa} />
+    // A faixa do fim da sessão fica fixa em cima, fora da rolagem; o 192 continua na tela.
+    <View style={{ flex: 1 }}>
+      <FaixaSessaoTerminada />
+      <Tela aoAtualizar={() => void recarregar()} atualizando={false}>
+        <CabecalhoStatus status={STATUS_VOLUNTARIO[ocorrencia.estado]} ativa={ativa} />
 
-      {erro?.tipo === 'sem-conexao' ? (
-        <Aviso tipo="atencao" mensagem="Sem conexão: o status pode estar desatualizado." />
-      ) : null}
+        {erro?.tipo === 'sem-conexao' ? (
+          <Aviso tipo="atencao" mensagem="Sem conexão: o status pode estar desatualizado." />
+        ) : null}
 
-      {ativa ? (
-        <Cartao titulo="Onde está o entregador">
-          {ocorrencia.localizacaoExata ? (
-            <>
-              <View
-                accessible
-                accessibilityLabel="Localização exata liberada"
-                style={{ flexDirection: 'row', alignItems: 'center', gap: espaco.pequeno }}
-              >
-                <Icone nome="location" cor={cores.aviso.sucesso.icone} />
-                <Texto variante="rotulo" style={{ flex: 1 }}>
-                  Localização exata liberada
-                </Texto>
-              </View>
-              <Botao
-                titulo="Abrir no mapa"
-                icone="map"
-                aoPressionar={() => void abrirMapa(ocorrencia)}
-                accessibilityHint="Abre o app de mapas com o ponto onde o entregador caiu"
-              />
-            </>
-          ) : (
-            <Texto>A localização exata aparece aqui depois do seu aceite.</Texto>
-          )}
-          {distancia !== null ? (
-            <Texto cor="textoSecundario">{`Cerca de ${formatarDecimal(distancia)} km de você (distância aproximada).`}</Texto>
-          ) : null}
-        </Cartao>
-      ) : null}
+        {ativa ? (
+          <Cartao titulo="Onde está o entregador">
+            {ocorrencia.localizacaoExata ? (
+              <>
+                <View
+                  accessible
+                  accessibilityLabel="Localização exata liberada"
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: espaco.pequeno }}
+                >
+                  <Icone nome="location" cor={cores.aviso.sucesso.icone} />
+                  <Texto variante="rotulo" style={{ flex: 1 }}>
+                    Localização exata liberada
+                  </Texto>
+                </View>
+                <Botao
+                  titulo="Abrir no mapa"
+                  icone="map"
+                  aoPressionar={() => void abrirMapa(ocorrencia)}
+                  accessibilityHint="Abre o app de mapas com o ponto onde o entregador caiu"
+                />
+              </>
+            ) : (
+              <Texto>A localização exata aparece aqui depois do seu aceite.</Texto>
+            )}
+            {distancia !== null ? (
+              <Texto cor="textoSecundario">{`Cerca de ${formatarDecimal(distancia)} km de você (distância aproximada).`}</Texto>
+            ) : null}
+          </Cartao>
+        ) : null}
 
-      <CartaoCronometro ocorrencia={ocorrencia} segundos={segundos} papel="VOLUNTARIO" />
+        <CartaoCronometro ocorrencia={ocorrencia} segundos={segundos} papel="VOLUNTARIO" />
 
-      {ativa ? <BotaoLigar192 /> : null}
+        {ativa ? <BotaoLigar192 /> : null}
 
-      {mensagem ? <Aviso tipo={mensagem.tipo} mensagem={mensagem.texto} /> : null}
+        {mensagem ? <Aviso tipo={mensagem.tipo} mensagem={mensagem.texto} /> : null}
 
-      {ativa ? (
-        <Botao
-          titulo="Encerrar atendimento"
-          variante="secundaria"
-          icone="checkmark-done"
-          aoPressionar={confirmarEncerrar}
-          carregando={encerrando}
-          accessibilityHint="Pede confirmação antes de encerrar"
-        />
-      ) : (
-        <Cartao titulo="Resumo">
-          <Texto>{fraseResumo(ocorrencia)}</Texto>
-          <Botao titulo="Voltar aos chamados" icone="arrow-back" aoPressionar={() => router.dismissTo('/chamados')} />
-        </Cartao>
-      )}
-    </Tela>
+        {ativa ? (
+          <Botao
+            titulo="Encerrar atendimento"
+            variante="secundaria"
+            icone="checkmark-done"
+            aoPressionar={confirmarEncerrar}
+            carregando={encerrando}
+            accessibilityHint="Pede confirmação antes de encerrar"
+          />
+        ) : (
+          <Cartao titulo="Resumo">
+            <Texto>{fraseResumo(ocorrencia)}</Texto>
+            <Botao titulo="Voltar aos chamados" icone="arrow-back" aoPressionar={() => router.dismissTo('/chamados')} />
+          </Cartao>
+        )}
+      </Tela>
+    </View>
   );
 }

@@ -76,7 +76,7 @@ const ChamadosContext = createContext<ValorChamados | null>(null);
 const REDE_INICIAL: EstadoRede = { disponivel: false, posicao: null };
 
 /**
- * Rede de voluntários do perfil ativo (seção 7, "Regras da rede de voluntários"). Fica na raiz
+ * Rede de voluntários da conta ativa (seção 7, "Regras da rede de voluntários"). Fica na raiz
  * do app: com o perfil voluntário e disponível, consulta os chamados próximos a cada 5 s
  * (um polling só, usado pela aba Chamados e pelo número no ícone da aba) e, quando aparece um
  * chamado novo, vibra e anuncia. A posição simulada e a disponibilidade ficam só em memória,
@@ -84,16 +84,17 @@ const REDE_INICIAL: EstadoRede = { disponivel: false, posicao: null };
  */
 export function ChamadosProvider({ children }: { children: ReactNode }) {
   const db = useSQLiteContext();
-  const { perfilAtivo, definirVoluntario } = useSessao();
-  const entregadorId = perfilAtivo?.entregadorId ?? null;
-  const voluntarioId = perfilAtivo?.voluntarioId ?? null;
+  const { contaAtiva, sessao, recarregarSessao } = useSessao();
+  const entregadorId = contaAtiva;
+  // O voluntarioId vem da sessão da conta ativa (contrato 1.15).
+  const voluntarioId = sessao && sessao.entregadorId === entregadorId ? sessao.voluntarioId : null;
 
-  // Disponibilidade por entregador: ao trocar de perfil e voltar, a escolha anterior continua
+  // Disponibilidade por entregador: ao trocar de conta e voltar, a escolha anterior continua
   // (a API também continua com o último PUT). Só em memória: some ao fechar o app.
   const [redes, setRedes] = useState<Record<string, EstadoRede>>({});
   const rede = (entregadorId ? redes[entregadorId] : undefined) ?? REDE_INICIAL;
 
-  // Cada leitura guarda de qual voluntário ela é, para a troca de perfil nunca mostrar a lista de outro.
+  // Cada leitura guarda de qual voluntário ela é, para a troca de conta nunca mostrar a lista de outro.
   const [leitura, setLeitura] = useState<{
     voluntarioId: string;
     lista: OcorrenciaProximaResposta[];
@@ -101,7 +102,7 @@ export function ChamadosProvider({ children }: { children: ReactNode }) {
   } | null>(null);
   const [falha, setFalha] = useState<{ voluntarioId: string; erro: ErroApi } | null>(null);
 
-  // Voluntário ativo numa ref: uma resposta que chega depois da troca de perfil é descartada.
+  // Voluntário ativo numa ref: uma resposta que chega depois da troca de conta é descartada.
   const voluntarioAtual = useRef(voluntarioId);
   useLayoutEffect(() => {
     voluntarioAtual.current = voluntarioId;
@@ -147,8 +148,8 @@ export function ChamadosProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Um polling só, com o perfil voluntário e disponível. A `chave` é o voluntarioId: na troca
-  // de perfil, o polling do perfil anterior é cancelado e o do novo começa (Etapa 4).
+  // Um polling só, com a conta voluntária e disponível. A `chave` é o voluntarioId: na troca
+  // de conta, o polling da conta anterior é cancelado e o da nova começa.
   usePolling(consultarChamados, voluntarioId !== null && rede.disponivel, voluntarioId);
 
   const chamados =
@@ -189,11 +190,19 @@ export function ChamadosProvider({ children }: { children: ReactNode }) {
     if (!entregadorId) {
       return;
     }
-    const resposta = await voluntarioServico.cadastrar(entregadorId);
-    await definirVoluntario(entregadorId, resposta.voluntarioId);
+    try {
+      await voluntarioServico.cadastrar(entregadorId);
+    } catch (e) {
+      // 409: já é voluntário. Com o login, o id vem na sessão: basta reler, sem erro na tela.
+      if (converterErro(e).tipo !== 'conflito') {
+        throw converterErro(e);
+      }
+    }
+    // O 201 (ou o 409) muda a sessão: o voluntarioId passa a vir no GET /entregadores/sessao.
+    await recarregarSessao();
     // A API cria o voluntário indisponível e sem posição: o app começa igual.
     guardarRede(entregadorId, REDE_INICIAL);
-  }, [entregadorId, definirVoluntario, guardarRede]);
+  }, [entregadorId, recarregarSessao, guardarRede]);
 
   const definirDisponivel = useCallback(
     async (disponivel: boolean): Promise<ResultadoDisponibilidade> => {
@@ -252,6 +261,7 @@ export function ChamadosProvider({ children }: { children: ReactNode }) {
         aceitaEm: resposta.aceitaEm,
         encerradaEm: resposta.encerradaEm,
         tempoAteAceiteSegundos: resposta.tempoAteAceiteSegundos,
+        encerradaAutomaticamente: resposta.encerradaAutomaticamente,
         atualizadoEm: agoraIso(),
       };
       // Sem latitude e longitude: a localização exata fica só na tela do atendimento.

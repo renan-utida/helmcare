@@ -13,11 +13,8 @@ import { Texto } from './Texto';
 /** Mensagem de cada erro do `POST /voluntarios`, decidida pelo status HTTP. */
 function mensagemDoErro(erro: ErroApi): string {
   switch (erro.tipo) {
-    case 'conflito':
-      // A API não tem rota para recuperar o voluntarioId (limitação documentada: o login resolve).
-      return 'Este cadastro já é voluntário, mas o id não está neste aparelho. Por enquanto, não dá para recuperar a participação neste celular. Isso muda quando o app tiver login.';
     case 'nao-encontrado':
-      return 'Este cadastro não foi encontrado na API. Confira o perfil nos Ajustes.';
+      return 'Este cadastro não foi encontrado na API. Confira a conta em uso no menu da conta.';
     default:
       return mensagemComum(erro);
   }
@@ -25,7 +22,8 @@ function mensagemDoErro(erro: ErroApi): string {
 
 /**
  * Explicação simples da rede de socorro e o botão "Fazer parte da rede de socorro"
- * (`POST /voluntarios`, tipo ENTREGADOR). No 201, o `voluntarioId` vai para o perfil local.
+ * (`POST /voluntarios`, tipo ENTREGADOR). Depois do 201 (ou do 409 de quem já é voluntário), o
+ * app relê a sessão, que passa a trazer o `voluntarioId`.
  * Usado na aba Chamados e no Perfil.
  */
 export function ParticiparRede() {

@@ -22,6 +22,11 @@ export const PARENTESCOS = ['Mãe', 'Pai', 'Cônjuge', 'Irmão ou irmã', 'Amigo
 /** Um dos parentescos oferecidos em botões. */
 export type Parentesco = (typeof PARENTESCOS)[number];
 
+/** Confere se um texto é um dos parentescos dos botões (o contato editado pode ter outro). */
+export function ehParentesco(valor: string): valor is Parentesco {
+  return PARENTESCOS.some((parentesco) => parentesco === valor);
+}
+
 /** Inteiro aleatório de 0 até `maximo - 1`. */
 function sortear(maximo: number): number {
   return Math.floor(Math.random() * maximo);
@@ -78,8 +83,11 @@ function celularSimulado(): string {
   return `(11) 9${n.slice(0, 4)}-${n.slice(4)}`;
 }
 
-/** Gera os dados simulados do entregador para o `POST /entregadores`. */
-export function gerarEntregadorSimulado(): CriarEntregadorRequisicao {
+/**
+ * Gera os dados pessoais simulados do entregador para o `POST /entregadores`. O e-mail e a senha
+ * ficam de fora: a pessoa digita os dela, porque vai usá-los para entrar.
+ */
+export function gerarEntregadorSimulado(): Omit<CriarEntregadorRequisicao, 'email' | 'senha'> {
   return {
     nome: nomeSimulado(),
     cpf: cpfSimulado(),

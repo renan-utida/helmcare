@@ -5,7 +5,7 @@ import { useTema } from '@/contextos/TemaContext';
 import { entregadorServico } from '@/servicos/entregadorServico';
 import { converterErro } from '@/servicos/erros';
 import type { ContatoResposta } from '@/tipos/contrato';
-import { gerarContatoSimulado, PARENTESCOS, type Parentesco } from '@/utils/dadosSimulados';
+import { ehParentesco, gerarContatoSimulado, PARENTESCOS, type Parentesco } from '@/utils/dadosSimulados';
 import { errosDosCampos, MENSAGEM_CONFIRA_CAMPOS, mensagemComum } from '@/utils/mensagensErro';
 import { validarNome, validarParentesco, validarTelefone } from '@/utils/validacao';
 
@@ -27,17 +27,34 @@ export interface FormularioContatoProps {
   /** Ação do botão secundário (ex.: "Adicionar depois"). Sem ela, o botão não aparece. */
   aoPular?: () => void;
   textoPular?: string;
+  /** Contato que está sendo editado (`PUT`). Sem ele, o formulário adiciona um novo (`POST`). */
+  contatoId?: string;
+  /** Nome e parentesco atuais do contato editado. O telefone começa vazio (a API só o devolve mascarado). */
+  inicial?: { nome: string; parentesco: string };
 }
 
 /**
- * Formulário do contato de emergência, usado no passo 2 do cadastro e no modal "Adicionar contato".
- * Envia o `POST /entregadores/{id}/contatos`. Os dados ficam só na API, nunca no SQLite.
+ * Formulário do contato de emergência, usado no passo 2 do cadastro e no modal do contato.
+ * Sem `contatoId`, adiciona (`POST /entregadores/{id}/contatos`); com ele, edita
+ * (`PUT .../contatos/{contatoId}`, com o corpo inteiro). Os dados ficam só na API, nunca no SQLite.
  */
-export function FormularioContato({ entregadorId, aoSalvar, aoPular, textoPular = 'Adicionar depois' }: FormularioContatoProps) {
+export function FormularioContato({
+  entregadorId,
+  aoSalvar,
+  aoPular,
+  textoPular = 'Adicionar depois',
+  contatoId,
+  inicial,
+}: FormularioContatoProps) {
   const { espaco } = useTema();
-  const [nome, setNome] = useState('');
+  const editando = contatoId !== undefined;
+  const [nome, setNome] = useState(inicial?.nome ?? '');
+  // O telefone nunca vem preenchido: a API só devolve o número mascarado, e o PUT pede o número inteiro.
   const [telefone, setTelefone] = useState('');
-  const [parentesco, setParentesco] = useState<Parentesco | null>(null);
+  // Parentesco fora da lista de botões (cadastrado por outra via) fica sem escolha, para a pessoa marcar.
+  const [parentesco, setParentesco] = useState<Parentesco | null>(
+    inicial && ehParentesco(inicial.parentesco) ? inicial.parentesco : null,
+  );
   const [erros, setErros] = useState<Partial<Record<CampoContato, string>>>({});
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -69,11 +86,10 @@ export function FormularioContato({ entregadorId, aoSalvar, aoPular, textoPular 
     setEnviando(true);
     setMensagem(null);
     try {
-      const contato = await entregadorServico.adicionarContato(entregadorId, {
-        nome: nome.trim(),
-        telefone,
-        parentesco: parentesco ?? '',
-      });
+      const corpo = { nome: nome.trim(), telefone, parentesco: parentesco ?? '' };
+      const contato = contatoId
+        ? await entregadorServico.editarContato(entregadorId, contatoId, corpo)
+        : await entregadorServico.adicionarContato(entregadorId, corpo);
       aoSalvar(contato);
     } catch (e) {
       const erro = converterErro(e);
@@ -81,7 +97,11 @@ export function FormularioContato({ entregadorId, aoSalvar, aoPular, textoPular 
         setErros(errosDosCampos(erro.campos, CAMPOS));
         setMensagem(MENSAGEM_CONFIRA_CAMPOS);
       } else if (erro.tipo === 'nao-encontrado') {
-        setMensagem('Cadastro não encontrado na API. Confira o perfil em uso nos Ajustes.');
+        setMensagem(
+          editando
+            ? 'Este contato não existe mais. Volte ao Perfil para ver a lista atualizada.'
+            : 'Cadastro não encontrado na API. Confira a conta em uso no menu da conta.',
+        );
       } else {
         setMensagem(mensagemComum(erro));
       }
@@ -92,13 +112,20 @@ export function FormularioContato({ entregadorId, aoSalvar, aoPular, textoPular 
 
   return (
     <View style={{ gap: espaco.grande }}>
-      <Botao
-        titulo="Preencher com dados simulados"
-        variante="secundaria"
-        icone="shuffle"
-        aoPressionar={preencherSimulado}
-        accessibilityHint="Preenche o contato com dados fictícios, como pede o projeto"
-      />
+      {editando ? (
+        <Aviso
+          tipo="informacao"
+          mensagem="Por segurança, o telefone aparece mascarado. Digite o telefone completo de novo."
+        />
+      ) : (
+        <Botao
+          titulo="Preencher com dados simulados"
+          variante="secundaria"
+          icone="shuffle"
+          aoPressionar={preencherSimulado}
+          accessibilityHint="Preenche o contato com dados fictícios, como pede o projeto"
+        />
+      )}
       <Campo rotulo="Nome do contato" valor={nome} aoMudar={setNome} erro={erros.nome} maxLength={120} />
       <Campo
         rotulo="Telefone do contato"
@@ -117,7 +144,12 @@ export function FormularioContato({ entregadorId, aoSalvar, aoPular, textoPular 
         erro={erros.parentesco}
       />
       {mensagem ? <Aviso tipo="erro" mensagem={mensagem} /> : null}
-      <Botao titulo="Salvar contato" icone="person-add" aoPressionar={salvar} carregando={enviando} />
+      <Botao
+        titulo={editando ? 'Salvar alterações' : 'Salvar contato'}
+        icone={editando ? 'save' : 'person-add'}
+        aoPressionar={salvar}
+        carregando={enviando}
+      />
       {aoPular ? <Botao titulo={textoPular} variante="secundaria" aoPressionar={aoPular} desabilitado={enviando} /> : null}
     </View>
   );

@@ -1,11 +1,12 @@
-import { router } from 'expo-router';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AccessibilityInfo } from 'react-native';
 
 import { Aviso } from '@/componentes/Aviso';
 import { Botao } from '@/componentes/Botao';
 import { Campo } from '@/componentes/Campo';
+import { Carregando } from '@/componentes/Carregando';
 import { Cartao } from '@/componentes/Cartao';
+import { EstadoErro } from '@/componentes/EstadoErro';
 import { EstadoVazio } from '@/componentes/EstadoVazio';
 import { GrupoOpcoes } from '@/componentes/GrupoOpcoes';
 import { LinhaInfo } from '@/componentes/LinhaInfo';
@@ -13,10 +14,15 @@ import { Tela } from '@/componentes/Tela';
 import { Texto } from '@/componentes/Texto';
 import { useSessao } from '@/contextos/SessaoContext';
 import { entregadorServico } from '@/servicos/entregadorServico';
-import { converterErro } from '@/servicos/erros';
+import { converterErro, type ErroApi } from '@/servicos/erros';
 import { TIPOS_SANGUINEOS, type FichaMedicaResposta, type TipoSanguineo } from '@/tipos/contrato';
-import { errosDosCampos, MENSAGEM_CONFIRA_CAMPOS, mensagemComum } from '@/utils/mensagensErro';
-import { TAMANHO_MAXIMO_TEXTO_FICHA, validarTextoFicha, validarTipoSanguineo } from '@/utils/validacao';
+import { errosDosCampos, MENSAGEM_CONFIRA_CAMPOS, MENSAGEM_SEM_CONEXAO, mensagemComum } from '@/utils/mensagensErro';
+import {
+  ehTipoSanguineo,
+  TAMANHO_MAXIMO_TEXTO_FICHA,
+  validarTextoFicha,
+  validarTipoSanguineo,
+} from '@/utils/validacao';
 
 /** Campos da ficha, com os nomes do JSON do contrato. */
 const CAMPOS = ['tipoSanguineo', 'alergias', 'condicoesCriticas', 'medicamentos'] as const;
@@ -29,28 +35,167 @@ function opcional(texto: string): string | undefined {
   return limpo === '' ? undefined : limpo;
 }
 
+/** Como o leitor de tela fala o tipo sanguíneo ("A+" vira "A positivo"). */
+function tipoFalado(tipo: string): string {
+  return tipo.replace('+', ' positivo').replace('-', ' negativo');
+}
+
 /**
- * Ficha médica (`PUT /entregadores/{id}/ficha-medica`). O `GET` do entregador só diz se a ficha
- * existe, então o formulário começa sempre vazio e o `PUT` envia a ficha completa.
- * A ficha devolvida fica só na memória desta tela: nada vai para o SQLite nem para o log.
+ * Situação da tela: carregando o `GET`, sem ficha (404), erro, lendo a ficha ou editando.
+ * A ficha fica SÓ neste estado da tela (o `GET` e o `PUT` respondem com `no-store`): nada vai
+ * para o SQLite, para log ou para a rota, e tudo some ao sair da tela.
+ */
+type Situacao =
+  | { tipo: 'carregando' }
+  | { tipo: 'sem-ficha' }
+  | { tipo: 'erro'; erro: ErroApi }
+  | { tipo: 'ver'; ficha: FichaMedicaResposta; salvaAgora: boolean }
+  | { tipo: 'editar'; inicial: FichaMedicaResposta | null };
+
+/**
+ * Ficha médica (seção 7): abre lendo a ficha do `GET /entregadores/{id}/ficha-medica`, com
+ * "Editar ficha" para o formulário já preenchido. Sem ficha (404): "Cadastrar ficha", com o
+ * formulário vazio. O `PUT` envia a ficha inteira, e a tela mostra a ficha devolvida.
  */
 export default function FichaMedica() {
-  const { perfilAtivo } = useSessao();
-  const [tipoSanguineo, setTipoSanguineo] = useState<TipoSanguineo | null>(null);
-  const [textos, setTextos] = useState<Record<CampoTexto, string>>({ alergias: '', condicoesCriticas: '', medicamentos: '' });
-  const [erros, setErros] = useState<Partial<Record<CampoFicha, string>>>({});
-  const [mensagem, setMensagem] = useState<string | null>(null);
-  const [enviando, setEnviando] = useState(false);
-  const [salva, setSalva] = useState<FichaMedicaResposta | null>(null);
+  const { contaAtiva } = useSessao();
+  const [situacao, setSituacao] = useState<Situacao>({ tipo: 'carregando' });
 
-  if (!perfilAtivo) {
+  const carregar = useCallback(async () => {
+    if (!contaAtiva) {
+      return;
+    }
+    try {
+      const ficha = await entregadorServico.obterFichaMedica(contaAtiva);
+      setSituacao({ tipo: 'ver', ficha, salvaAgora: false });
+    } catch (e) {
+      const erro = converterErro(e);
+      setSituacao(erro.tipo === 'nao-encontrado' ? { tipo: 'sem-ficha' } : { tipo: 'erro', erro });
+    }
+  }, [contaAtiva]);
+
+  // Carrega ao abrir a tela.
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      // Espera um passo antes de mexer no estado (regra react-hooks/set-state-in-effect).
+      await Promise.resolve();
+      if (vivo) {
+        await carregar();
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [carregar]);
+
+  if (!contaAtiva) {
     return (
       <Tela>
-        <EstadoVazio titulo="Nenhum perfil neste aparelho" icone="person-outline" />
+        <EstadoVazio titulo="Nenhuma conta neste aparelho" icone="person-outline" />
       </Tela>
     );
   }
-  const entregadorId = perfilAtivo.entregadorId;
+
+  switch (situacao.tipo) {
+    case 'carregando':
+      return <Carregando mensagem="Abrindo sua ficha médica..." />;
+    case 'erro':
+      return (
+        <Tela>
+          <EstadoErro
+            mensagem={situacao.erro.tipo === 'sem-conexao' ? MENSAGEM_SEM_CONEXAO : mensagemComum(situacao.erro)}
+            aoTentarDeNovo={() => {
+              setSituacao({ tipo: 'carregando' });
+              void carregar();
+            }}
+          />
+        </Tela>
+      );
+    case 'sem-ficha':
+      return (
+        <Tela>
+          <EstadoVazio
+            titulo="Você ainda não cadastrou sua ficha médica."
+            mensagem="Ela ajuda o socorro a cuidar de você numa emergência."
+            icone="medkit-outline"
+          />
+          <Botao titulo="Cadastrar ficha" icone="add-circle" aoPressionar={() => setSituacao({ tipo: 'editar', inicial: null })} />
+        </Tela>
+      );
+    case 'ver':
+      return (
+        <VerFicha
+          ficha={situacao.ficha}
+          salvaAgora={situacao.salvaAgora}
+          aoEditar={() => setSituacao({ tipo: 'editar', inicial: situacao.ficha })}
+        />
+      );
+    case 'editar':
+      return (
+        <FormularioFicha
+          entregadorId={contaAtiva}
+          inicial={situacao.inicial}
+          aoSalvar={(ficha) => setSituacao({ tipo: 'ver', ficha, salvaAgora: true })}
+          aoCancelar={() =>
+            setSituacao(situacao.inicial ? { tipo: 'ver', ficha: situacao.inicial, salvaAgora: false } : { tipo: 'sem-ficha' })
+          }
+        />
+      );
+  }
+}
+
+/** Leitura da ficha, com o botão "Editar ficha". */
+function VerFicha({
+  ficha,
+  salvaAgora,
+  aoEditar,
+}: {
+  ficha: FichaMedicaResposta;
+  salvaAgora: boolean;
+  aoEditar: () => void;
+}) {
+  return (
+    <Tela>
+      {salvaAgora ? (
+        <Aviso tipo="sucesso" titulo="Ficha médica salva" mensagem="Esta é a ficha que ficou guardada." />
+      ) : null}
+      <Texto>
+        Só um socorrista verificado vê o tipo sanguíneo, as alergias e as condições críticas, e só durante uma
+        emergência. Os medicamentos ficam só com você.
+      </Texto>
+      <Cartao titulo="Sua ficha médica">
+        <LinhaInfo rotulo="Tipo sanguíneo" valor={ficha.tipoSanguineo} leitura={tipoFalado(ficha.tipoSanguineo)} />
+        <LinhaInfo rotulo="Alergias" valor={ficha.alergias || 'Nenhuma informada'} />
+        <LinhaInfo rotulo="Condições críticas" valor={ficha.condicoesCriticas || 'Nenhuma informada'} />
+        <LinhaInfo rotulo="Medicamentos (só você vê)" valor={ficha.medicamentos || 'Nenhum informado'} />
+      </Cartao>
+      <Botao titulo="Editar ficha" icone="create" aoPressionar={aoEditar} />
+    </Tela>
+  );
+}
+
+/** Props do formulário da ficha. */
+interface FormularioFichaProps {
+  entregadorId: string;
+  /** Ficha atual (para editar) ou `null` (para cadastrar, com tudo vazio). */
+  inicial: FichaMedicaResposta | null;
+  aoSalvar: (ficha: FichaMedicaResposta) => void;
+  aoCancelar: () => void;
+}
+
+/** Formulário da ficha (`PUT /entregadores/{id}/ficha-medica`), que substitui a ficha inteira. */
+function FormularioFicha({ entregadorId, inicial, aoSalvar, aoCancelar }: FormularioFichaProps) {
+  const tipoInicial = inicial && ehTipoSanguineo(inicial.tipoSanguineo) ? inicial.tipoSanguineo : null;
+  const [tipoSanguineo, setTipoSanguineo] = useState<TipoSanguineo | null>(tipoInicial);
+  const [textos, setTextos] = useState<Record<CampoTexto, string>>({
+    alergias: inicial?.alergias ?? '',
+    condicoesCriticas: inicial?.condicoesCriticas ?? '',
+    medicamentos: inicial?.medicamentos ?? '',
+  });
+  const [erros, setErros] = useState<Partial<Record<CampoFicha, string>>>({});
+  const [mensagem, setMensagem] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
 
   function mudar(campo: CampoTexto, valor: string) {
     setTextos((atual) => ({ ...atual, [campo]: valor }));
@@ -79,15 +224,15 @@ export default function FichaMedica() {
         condicoesCriticas: opcional(textos.condicoesCriticas),
         medicamentos: opcional(textos.medicamentos),
       });
-      setSalva(ficha);
       AccessibilityInfo.announceForAccessibility('Ficha médica salva');
+      aoSalvar(ficha);
     } catch (e) {
       const erro = converterErro(e);
       if (erro.tipo === 'validacao') {
         setErros(errosDosCampos(erro.campos, CAMPOS));
         setMensagem(MENSAGEM_CONFIRA_CAMPOS);
       } else if (erro.tipo === 'nao-encontrado') {
-        setMensagem('Cadastro não encontrado. Confira o perfil em uso nos Ajustes.');
+        setMensagem('Cadastro não encontrado. Confira a conta em uso no menu da conta.');
       } else {
         setMensagem(mensagemComum(erro));
       }
@@ -96,36 +241,16 @@ export default function FichaMedica() {
     }
   }
 
-  // Depois do 200: mostra a ficha que a API devolveu (só em memória) e o botão de voltar.
-  if (salva) {
-    return (
-      <Tela>
-        <Aviso tipo="sucesso" titulo="Ficha médica salva" mensagem="Esta é a ficha que ficou guardada." />
-        <Cartao titulo="Sua ficha médica">
-          <LinhaInfo rotulo="Tipo sanguíneo" valor={salva.tipoSanguineo} />
-          <LinhaInfo rotulo="Alergias" valor={salva.alergias || 'Nenhuma informada'} />
-          <LinhaInfo rotulo="Condições críticas" valor={salva.condicoesCriticas || 'Nenhuma informada'} />
-          <LinhaInfo rotulo="Medicamentos (só você vê)" valor={salva.medicamentos || 'Nenhum informado'} />
-        </Cartao>
-        <Botao titulo="Voltar" icone="arrow-back" aoPressionar={() => router.back()} />
-      </Tela>
-    );
-  }
-
   return (
     <Tela>
-      <Aviso tipo="informacao" mensagem="Para atualizar, preencha a ficha completa de novo." />
-      <Texto>
-        Só um socorrista verificado vê o tipo sanguíneo, as alergias e as condições críticas, e só durante uma
-        emergência. Os medicamentos ficam só com você.
-      </Texto>
+      <Aviso tipo="informacao" mensagem="Ao salvar, a ficha inteira é trocada por esta." />
       <GrupoOpcoes
         rotulo="Tipo sanguíneo"
         opcoes={TIPOS_SANGUINEOS}
         selecionada={tipoSanguineo}
         aoSelecionar={setTipoSanguineo}
         erro={erros.tipoSanguineo}
-        leituraDe={(tipo) => tipo.replace('+', ' positivo').replace('-', ' negativo')}
+        leituraDe={tipoFalado}
         colunas={4}
       />
       <Campo
@@ -159,7 +284,8 @@ export default function FichaMedica() {
         multilinha
       />
       {mensagem ? <Aviso tipo="erro" mensagem={mensagem} /> : null}
-      <Botao titulo="Salvar ficha" icone="save" aoPressionar={salvar} carregando={enviando} />
+      <Botao titulo="Salvar ficha" icone="save" aoPressionar={() => void salvar()} carregando={enviando} />
+      <Botao titulo="Cancelar" variante="secundaria" aoPressionar={aoCancelar} desabilitado={enviando} />
     </Tela>
   );
 }

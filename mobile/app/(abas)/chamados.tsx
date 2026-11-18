@@ -10,12 +10,14 @@ import { Chave } from '@/componentes/Chave';
 import { EstadoVazio } from '@/componentes/EstadoVazio';
 import { GrupoOpcoes } from '@/componentes/GrupoOpcoes';
 import { ParticiparRede } from '@/componentes/ParticiparRede';
+import { SessaoIndisponivel } from '@/componentes/SessaoIndisponivel';
 import { Tela } from '@/componentes/Tela';
 import { Texto } from '@/componentes/Texto';
 import { useChamados } from '@/contextos/ChamadosContext';
 import { useSessao } from '@/contextos/SessaoContext';
 import { useTema } from '@/contextos/TemaContext';
 import { converterErro, type ErroApi } from '@/servicos/erros';
+import { comecarPilhaEm } from '@/utils/navegacao';
 import { formatarDecimal } from '@/utils/datas';
 import { MENSAGEM_SEM_CONEXAO, mensagemComum } from '@/utils/mensagensErro';
 import { IDS_POSICOES, posicaoSimulada, type IdPosicaoSimulada } from '@/utils/posicoesSimuladas';
@@ -68,7 +70,7 @@ function leituraPosicao(id: IdPosicaoSimulada): string {
  */
 export default function Chamados() {
   const { cores, espaco } = useTema();
-  const { perfilAtivo } = useSessao();
+  const { contaAtiva, sessao } = useSessao();
   const {
     voluntarioId,
     rede,
@@ -86,13 +88,18 @@ export default function Chamados() {
   const [mensagem, setMensagem] = useState<MensagemTela | null>(null);
   const [atualizando, setAtualizando] = useState(false);
 
-  if (!perfilAtivo) {
+  if (!contaAtiva) {
     return (
       <Tela dentroDeAbas>
-        <EstadoVazio titulo="Nenhum perfil neste aparelho" icone="person-outline" />
-        <Botao titulo="Fazer cadastro" aoPressionar={() => router.push('/cadastro')} />
+        <EstadoVazio titulo="Nenhuma conta neste aparelho" icone="person-outline" />
+        <Botao titulo="Entrar" aoPressionar={() => comecarPilhaEm('/login')} />
       </Tela>
     );
+  }
+
+  // Quem é voluntário vem da sessão: sem ela (carregando ou sem conexão), não dá para saber.
+  if (!sessao) {
+    return <SessaoIndisponivel />;
   }
 
   if (!voluntarioId) {

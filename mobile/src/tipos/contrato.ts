@@ -1,6 +1,7 @@
 /**
- * Tipos do contrato de integração (docs/contrato-integracao.md, versão 1.14).
- * Enums da seção 4 e DTOs da seção 7, com os nomes exatos do JSON (camelCase).
+ * Tipos do contrato de integração (docs/contrato-integracao.md, versão 1.17).
+ * Enums da seção 4 e DTOs da seção 7, com os nomes exatos do JSON (camelCase), conferidos
+ * com os DTOs da API (api/src/HelmCare.Api/Contratos) onde o contrato só descreve em texto.
  * Datas chegam como texto ISO 8601 em UTC; ids são GUIDs em texto.
  */
 
@@ -43,6 +44,9 @@ export type TipoVoluntario = 'ENTREGADOR' | 'VIGIA_MOTO';
 /** Origem de um acesso ao Cofre médico. */
 export type OrigemAcessoCofre = 'SOS_ATIVO' | 'EMERGENCIA_MANUAL';
 
+/** Motivo de uma tentativa negada no Cofre (`null` quando o acesso foi concedido). */
+export type MotivoNegacaoCofre = 'SOCORRISTA_NAO_VERIFICADO' | 'ACESSO_EXPIRADO';
+
 /** Tipo de evento MQTT do capacete (o app não usa MQTT; fica só como referência do contrato). */
 export type TipoEventoMqtt =
   | 'IMPACTO_DETECTADO'
@@ -81,12 +85,59 @@ export interface ProblemDetails {
 // Entregador, contatos e ficha médica
 // ---------------------------------------------------------------------------
 
-/** Corpo do `POST /entregadores`. Os dados são sempre simulados (seção 2). */
+/**
+ * Corpo do `POST /entregadores` (desde a 1.15, com `email` e `senha`). Os dados pessoais são
+ * sempre simulados (seção 2). A senha segue a seção 3 (8 a 64 caracteres, com maiúscula,
+ * minúscula e número) e nunca é guardada pelo app: só vai neste corpo e no do login.
+ */
 export interface CriarEntregadorRequisicao {
   nome: string;
   cpf: string;
   cnh: string;
   telefone: string;
+  email: string;
+  senha: string;
+}
+
+// ---------------------------------------------------------------------------
+// Identidade (1.15): login, renovação e sessão
+// ---------------------------------------------------------------------------
+
+/** Corpo do `POST /entregadores/login`. Nunca vai para log nem para o `converterErro`. */
+export interface LoginRequisicao {
+  email: string;
+  senha: string;
+}
+
+/** Corpo do `POST /entregadores/renovar-token`. */
+export interface RenovarTokenRequisicao {
+  refreshToken: string;
+}
+
+/**
+ * Resposta do `GET /entregadores/sessao`: quem é o dono do token e o que ele tem aberto.
+ * Os quatro últimos campos vêm `null` quando não existem. `ocorrenciaAtivaId` é a ocorrência
+ * do entregador como vítima ainda aberta (SOS_CAMADA_1, SOS_CAMADA_2 ou SOCORRO_A_CAMINHO).
+ */
+export interface SessaoEntregadorResposta {
+  entregadorId: string;
+  nome: string;
+  voluntarioId: string | null;
+  codigoDispositivo: string | null;
+  turnoAtivoId: string | null;
+  ocorrenciaAtivaId: string | null;
+}
+
+/**
+ * Resposta do login e da renovação: a sessão mais os tokens. Os tokens vão direto para o
+ * `expo-secure-store` e nunca para o SQLite, log, URL, parâmetro de rota ou tela (seção 9).
+ */
+export interface LoginEntregadorResposta extends SessaoEntregadorResposta {
+  tokenType: string;
+  accessToken: string;
+  /** Validade do `accessToken`, em segundos (3600). */
+  expiresIn: number;
+  refreshToken: string;
 }
 
 /** Contato de emergência devolvido pela API, com o telefone mascarado. */
@@ -97,7 +148,7 @@ export interface ContatoResposta {
   parentesco: string;
 }
 
-/** Corpo do `POST /entregadores/{id}/contatos`. */
+/** Corpo do `POST /entregadores/{id}/contatos` e do `PUT .../contatos/{contatoId}` (o corpo inteiro). */
 export interface ContatoRequisicao {
   nome: string;
   telefone: string;
@@ -105,8 +156,9 @@ export interface ContatoRequisicao {
 }
 
 /**
- * Resposta do `POST /entregadores` e do `GET /entregadores/{id}`.
- * CPF, CNH e telefone chegam mascarados (seção 9). Da ficha médica, só `possuiFichaMedica`.
+ * Resposta do `POST /entregadores`, do `GET /entregadores/{id}` e do `PUT .../telefone`.
+ * CPF, CNH, telefone e e-mail chegam mascarados (seção 9; e-mail como `r***@exemplo.com`).
+ * O `email` vem `null` só num entregador antigo sem conta. Da ficha médica, só `possuiFichaMedica`.
  */
 export interface EntregadorResposta {
   id: string;
@@ -114,6 +166,7 @@ export interface EntregadorResposta {
   cpf: string;
   cnh: string;
   telefone: string;
+  email: string | null;
   criadoEm: string;
   possuiFichaMedica: boolean;
   contatos: ContatoResposta[];
@@ -127,7 +180,10 @@ export interface FichaMedicaRequisicao {
   medicamentos?: string;
 }
 
-/** Ficha completa devolvida só pelo `PUT`. Fica só na memória da tela, nunca no SQLite. */
+/**
+ * Ficha completa do `GET` e do `PUT /entregadores/{id}/ficha-medica` (as duas com `no-store`).
+ * Campo não informado vem como texto vazio. Fica só na memória da tela, nunca no SQLite.
+ */
 export interface FichaMedicaResposta {
   tipoSanguineo: TipoSanguineo;
   alergias: string;
@@ -139,6 +195,11 @@ export interface FichaMedicaResposta {
 // Capacete
 // ---------------------------------------------------------------------------
 
+/** Corpo do `PUT /entregadores/{id}/telefone`. */
+export interface TelefoneRequisicao {
+  telefone: string;
+}
+
 /** Corpo do `POST /dispositivos`. O código segue o formato HC-0000. */
 export interface VincularDispositivoRequisicao {
   codigo: string;
@@ -146,8 +207,8 @@ export interface VincularDispositivoRequisicao {
 }
 
 /**
- * Resposta do `POST /dispositivos`. O `qrToken` e a `urlCofre` só existem aqui,
- * e o app não guarda nenhum dos dois.
+ * Resposta do `POST /dispositivos`. O `qrToken` e a `urlCofre` só existem aqui, e o app não
+ * guarda nenhum dos dois (são credenciais, seção 9). A `urlCofre` vem relativa ("/cofre/{qrToken}").
  */
 export interface DispositivoResposta {
   id: string;
@@ -284,9 +345,17 @@ export interface OcorrenciaResposta {
   aceitaEm: string | null;
   encerradaEm: string | null;
   tempoAteAceiteSegundos: number | null;
+  /** Verdadeiro quando a API encerrou a ocorrência por tempo (`TEMPO_ENCERRAMENTO_AUTOMATICO_MIN`). */
+  encerradaAutomaticamente: boolean;
   latitude: number;
   longitude: number;
   localizacaoExata: boolean;
+  /**
+   * Só para a vítima, depois do aceite: distância (km, 1 casa) do voluntário que aceitou até a
+   * queda. `null` para os outros, antes do aceite ou se o voluntário ficou indisponível.
+   * A posição do voluntário nunca vem.
+   */
+  distanciaVoluntarioKm: number | null;
   cronometro: CronometroResposta;
 }
 
@@ -300,4 +369,46 @@ export interface OcorrenciaProximaResposta {
   longitude: number;
   distanciaKm: number;
   cronometro: CronometroResposta;
+}
+
+// ---------------------------------------------------------------------------
+// Cofre médico: auditoria (só para o próprio entregador)
+// ---------------------------------------------------------------------------
+
+/** Socorrista de uma tentativa de acesso, como vem na auditoria. */
+export interface SocorristaAuditoriaResposta {
+  nome: string;
+  organizacao: string;
+}
+
+/**
+ * Um item do `GET /cofre/auditoria/{entregadorId}`: uma tentativa de acesso à ficha, concedida
+ * ou negada. Sem dados de saúde e sem o ip. Fica só na memória da tela, nunca no SQLite.
+ */
+export interface ItemAuditoriaCofreResposta {
+  acessadoEm: string;
+  /** Fim da janela (concedido), fechamento (expirado) ou o próprio `acessadoEm` (não verificado). */
+  expiraEm: string;
+  origem: OrigemAcessoCofre;
+  concedido: boolean;
+  motivo: MotivoNegacaoCofre | null;
+  socorrista: SocorristaAuditoriaResposta;
+}
+
+// ---------------------------------------------------------------------------
+// Clima (1.17): cartão da aba Início, na E5
+// ---------------------------------------------------------------------------
+
+/** Resposta do `GET /clima`: condições atuais da cidade pela Open-Meteo. `503` sem a fonte. */
+export interface ClimaResposta {
+  temperaturaC: number;
+  umidadePct: number;
+  chuvaMmHora: number;
+  /** Índice de calor (fórmula da seção 6.1), com 1 casa. */
+  indiceCalorC: number;
+  /** Verdadeiro quando o `indiceCalorC` arredondado é maior ou igual a `ALERTA_CALOR_C`. */
+  alertaCalor: boolean;
+  atualizadoEm: string;
+  /** Crédito da licença: o cartão mostra "Dados: Open-Meteo". */
+  fonte: string;
 }

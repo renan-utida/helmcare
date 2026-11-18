@@ -10,19 +10,17 @@ import { Texto } from '@/componentes/Texto';
 import { useChamados } from '@/contextos/ChamadosContext';
 import { useSessao } from '@/contextos/SessaoContext';
 import { useTema } from '@/contextos/TemaContext';
-import { useNomeEntregador } from '@/hooks/useNomeEntregador';
 
 /**
  * Único botão do lado direito do cabeçalho: o ícone de pessoa, que abre o menu da conta
- * (painel lateral). O nome vem do `GET /entregadores/{id}`, só em memória; enquanto não
- * chega (ou sem conexão), o rótulo usa o apelido.
+ * (painel lateral). O nome vem da sessão, só em memória; enquanto não chega (ou sem conexão),
+ * o rótulo diz "Conta salva".
  */
 function BotaoConta() {
   const { cores, medidas } = useTema();
-  const { perfilAtivo } = useSessao();
-  const dadosNome = useNomeEntregador(perfilAtivo?.entregadorId ?? null);
+  const { contaAtiva, sessao } = useSessao();
   const [aberto, setAberto] = useState(false);
-  if (!perfilAtivo) {
+  if (!contaAtiva) {
     return null;
   }
   return (
@@ -30,7 +28,7 @@ function BotaoConta() {
       <Pressable
         onPress={() => setAberto(true)}
         accessibilityRole="button"
-        accessibilityLabel={`Menu da conta: ${dadosNome.nome ?? perfilAtivo.apelido}`}
+        accessibilityLabel={`Menu da conta: ${sessao?.nome ?? 'Conta salva'}`}
         accessibilityHint="Abre seus dados, a troca de conta e os códigos para suporte"
         hitSlop={8}
         style={{
@@ -42,7 +40,7 @@ function BotaoConta() {
       >
         <Icone nome="person-circle-outline" cor={cores.texto} tamanho={32} />
       </Pressable>
-      <MenuConta visivel={aberto} aoFechar={() => setAberto(false)} dadosNome={dadosNome} />
+      <MenuConta visivel={aberto} aoFechar={() => setAberto(false)} />
     </>
   );
 }

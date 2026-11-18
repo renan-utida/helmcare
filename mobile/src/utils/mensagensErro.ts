@@ -7,6 +7,9 @@ export const MENSAGEM_SEM_CONEXAO =
 /** Mensagem do 401: o login acabou ou não vale mais (preparação para o login da API). */
 export const MENSAGEM_NAO_AUTORIZADO = 'Sua sessão terminou. Entre de novo na sua conta.';
 
+/** Mensagem do 429: logins ou renovações demais em pouco tempo. */
+export const MENSAGEM_MUITAS_TENTATIVAS = 'Muitas tentativas. Espere um minuto e tente de novo.';
+
 /** Mensagem do 403: a conta não tem permissão para esta ação. */
 export const MENSAGEM_PROIBIDO = 'Sua conta não tem permissão para fazer isso.';
 
@@ -17,7 +20,7 @@ export const MENSAGEM_ERRO_GENERICO = 'Algo deu errado. Tente de novo em alguns 
 export const MENSAGEM_CONFIRA_CAMPOS = 'Confira os campos marcados.';
 
 /**
- * Mensagem dos erros que todas as telas tratam igual (sem conexão, 401, 403 e desconhecido).
+ * Mensagem dos erros que todas as telas tratam igual (sem conexão, 401, 403, 429 e desconhecido).
  * Os demais tipos (400, 404, 409, 503) cada tela decide, pelo status, com o próprio texto.
  */
 export function mensagemComum(erro: ErroApi): string {
@@ -28,6 +31,8 @@ export function mensagemComum(erro: ErroApi): string {
       return MENSAGEM_NAO_AUTORIZADO;
     case 'proibido':
       return MENSAGEM_PROIBIDO;
+    case 'muitas-tentativas':
+      return MENSAGEM_MUITAS_TENTATIVAS;
     default:
       return MENSAGEM_ERRO_GENERICO;
   }

@@ -2,16 +2,16 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 
 import type { EstadoOcorrencia } from '@/tipos/contrato';
 
-/** Papel do perfil local na ocorrência: quem caiu ou quem foi ajudar. */
+/** Papel da conta na ocorrência: quem caiu ou quem foi ajudar. */
 export type PapelOcorrencia = 'VITIMA' | 'VOLUNTARIO';
 
 /**
- * Ocorrência vista pelo perfil local, para o histórico offline. Sem latitude e longitude:
+ * Ocorrência vista por uma conta do aparelho, para o histórico offline. Sem latitude e longitude:
  * a localização de pessoas nunca vai para o SQLite (CLAUDE.md, "Banco local").
  */
 export interface OcorrenciaLocal {
   id: string;
-  /** Entregador do perfil local que viu a ocorrência (vítima ou voluntário). */
+  /** Entregador da conta que viu a ocorrência (vítima ou voluntário). */
   entregadorId: string;
   papel: PapelOcorrencia;
   estado: EstadoOcorrencia;
@@ -20,6 +20,8 @@ export interface OcorrenciaLocal {
   aceitaEm: string | null;
   encerradaEm: string | null;
   tempoAteAceiteSegundos: number | null;
+  /** Verdadeiro quando a API encerrou o SOS por tempo (migração 3; não é dado pessoal). */
+  encerradaAutomaticamente: boolean;
   atualizadoEm: string;
 }
 
@@ -34,6 +36,7 @@ interface LinhaOcorrencia {
   aceita_em: string | null;
   encerrada_em: string | null;
   tempo_ate_aceite_segundos: number | null;
+  encerrada_automaticamente: number;
   atualizado_em: string;
 }
 
@@ -49,6 +52,7 @@ function paraOcorrencia(linha: LinhaOcorrencia): OcorrenciaLocal {
     aceitaEm: linha.aceita_em,
     encerradaEm: linha.encerrada_em,
     tempoAteAceiteSegundos: linha.tempo_ate_aceite_segundos,
+    encerradaAutomaticamente: linha.encerrada_automaticamente === 1,
     atualizadoEm: linha.atualizado_em,
   };
 }
@@ -61,7 +65,7 @@ export const ocorrenciaRepositorio = {
   /**
    * Grava a ocorrência do perfil (se ainda não existir para esse entregador) e atualiza o estado
    * em TODOS os registros locais com o mesmo id. Com um celular só, a vítima e o voluntário são
-   * dois perfis do aparelho (migração 2: um registro para cada); quando o voluntário encerra, o
+   * duas contas do aparelho (migração 2: um registro para cada); quando o voluntário encerra, o
    * registro da vítima também passa a ENCERRADA, e o histórico dos dois fica certo sem rede.
    */
   async salvar(db: SQLiteDatabase, ocorrencia: OcorrenciaLocal): Promise<void> {
@@ -70,8 +74,8 @@ export const ocorrenciaRepositorio = {
     // então, se o UPDATE falhar, nenhum registro fica com um estado misturado.
     await db.runAsync(
       `INSERT INTO ocorrencia (id, entregador_id, papel, estado, camada, criada_em, aceita_em,
-         encerrada_em, tempo_ate_aceite_segundos, atualizado_em)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         encerrada_em, tempo_ate_aceite_segundos, encerrada_automaticamente, atualizado_em)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (id, entregador_id) DO NOTHING`,
       ocorrencia.id,
       ocorrencia.entregadorId,
@@ -82,17 +86,19 @@ export const ocorrenciaRepositorio = {
       ocorrencia.aceitaEm,
       ocorrencia.encerradaEm,
       ocorrencia.tempoAteAceiteSegundos,
+      ocorrencia.encerradaAutomaticamente ? 1 : 0,
       ocorrencia.atualizadoEm,
     );
     await db.runAsync(
       `UPDATE ocorrencia SET estado = ?, camada = ?, aceita_em = ?, encerrada_em = ?,
-         tempo_ate_aceite_segundos = ?, atualizado_em = ?
+         tempo_ate_aceite_segundos = ?, encerrada_automaticamente = ?, atualizado_em = ?
        WHERE id = ?`,
       ocorrencia.estado,
       ocorrencia.camada,
       ocorrencia.aceitaEm,
       ocorrencia.encerradaEm,
       ocorrencia.tempoAteAceiteSegundos,
+      ocorrencia.encerradaAutomaticamente ? 1 : 0,
       ocorrencia.atualizadoEm,
       ocorrencia.id,
     );
@@ -110,7 +116,7 @@ export const ocorrenciaRepositorio = {
   /**
    * Ocorrência que o entregador aceitou como voluntário e que ainda está em andamento pelo
    * último estado salvo, a mais recente, ou `null`. Usada para reabrir o atendimento e para
-   * avisar antes da troca de perfil.
+   * avisar antes da troca de conta.
    */
   async obterAceitaEmAndamento(db: SQLiteDatabase, entregadorId: string): Promise<OcorrenciaLocal | null> {
     const linha = await db.getFirstAsync<LinhaOcorrencia>(

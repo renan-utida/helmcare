@@ -1,12 +1,12 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { AccessibilityInfo, Animated, Modal, Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
+import { AccessibilityInfo, Alert, Animated, Modal, Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useChamados } from '@/contextos/ChamadosContext';
 import { useSessao } from '@/contextos/SessaoContext';
 import { useTema } from '@/contextos/TemaContext';
-import type { NomeEntregador } from '@/hooks/useNomeEntregador';
+import { comecarPilhaEm } from '@/utils/navegacao';
 
 import { Botao } from './Botao';
 import { Icone } from './Icone';
@@ -22,19 +22,27 @@ const LARGURA_MAXIMA = 340;
 export interface MenuContaProps {
   visivel: boolean;
   aoFechar: () => void;
-  /** Nome do entregador ativo (só em memória), vindo do `useNomeEntregador`. */
-  dadosNome: NomeEntregador;
+}
+
+/** Subtítulo da conta pela sessão: "Capacete HC-0001", "Voluntário da rede" ou os dois. */
+export function tipoDaConta(codigoDispositivo: string | null, voluntarioId: string | null): string {
+  const partes = [
+    codigoDispositivo ? `Capacete ${codigoDispositivo}` : null,
+    voluntarioId ? 'Voluntário da rede' : null,
+  ].filter((parte) => parte !== null);
+  return partes.length > 0 ? partes.join(' e ') : 'Sem capacete';
 }
 
 /**
  * Painel lateral da conta, entrando pela direita (Modal transparente com Animated, sem
  * biblioteca nova). Fecha pelo X, pelo toque fora do painel e pelo voltar do Android.
- * Mostra o nome, o tipo do perfil, a participação na rede, "Trocar de conta" (por enquanto,
- * a tela de perfis; com o login da API, vira sair e entrar) e os códigos para suporte.
+ * Mostra o nome (da sessão, só em memória), o tipo da conta, a participação na rede,
+ * "Trocar de conta" (as contas salvas no aparelho), "Ver meu perfil", "Sair" (com confirmação)
+ * e os códigos para suporte.
  */
-export function MenuConta({ visivel, aoFechar, dadosNome }: MenuContaProps) {
+export function MenuConta({ visivel, aoFechar }: MenuContaProps) {
   const { cores, espaco, raio, medidas } = useTema();
-  const { perfilAtivo } = useSessao();
+  const { contaAtiva, sessao, estadoSessao, sair } = useSessao();
   const { voluntarioId, rede } = useChamados();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -52,22 +60,43 @@ export function MenuConta({ visivel, aoFechar, dadosNome }: MenuContaProps) {
     AccessibilityInfo.announceForAccessibility('Menu da conta aberto');
   }, [visivel, largura, deslocamento]);
 
-  if (!perfilAtivo) {
+  if (!contaAtiva) {
     return null;
   }
 
-  const { nome, erro } = dadosNome;
-  const tipo = perfilAtivo.codigoCapacete ? `Entregador com capacete ${perfilAtivo.codigoCapacete}` : 'Voluntário';
+  const tipo = sessao ? tipoDaConta(sessao.codigoDispositivo, sessao.voluntarioId) : null;
   // Disponibilidade da rede neste aparelho (ChamadosContext): ao abrir o app, começa indisponível.
   const situacaoRede = voluntarioId ? (rede.disponivel ? 'disponível' : 'indisponível') : 'não participa';
 
-  function irPara(destino: '/perfis' | '/perfil') {
+  function irPara(destino: '/contas' | '/perfil') {
     aoFechar();
-    if (destino === '/perfis') {
-      router.push('/perfis');
+    if (destino === '/contas') {
+      router.push('/contas');
     } else {
       router.navigate('/perfil');
     }
+  }
+
+  async function sairDaConta(entregadorId: string) {
+    aoFechar();
+    const proxima = await sair(entregadorId);
+    AccessibilityInfo.announceForAccessibility('Você saiu da conta');
+    if (proxima) {
+      router.dismissTo('/turno');
+    } else {
+      comecarPilhaEm('/login');
+    }
+  }
+
+  function confirmarSair(entregadorId: string) {
+    Alert.alert(
+      'Sair desta conta?',
+      'A conta sai deste celular. O histórico salvo aqui continua e volta quando você entrar de novo.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Sair', style: 'destructive', onPress: () => void sairDaConta(entregadorId) },
+      ],
+    );
   }
 
   return (
@@ -116,13 +145,13 @@ export function MenuConta({ visivel, aoFechar, dadosNome }: MenuContaProps) {
             </View>
 
             <View style={{ gap: espaco.pequeno }}>
-              <Texto variante="titulo">{nome ?? perfilAtivo.apelido}</Texto>
-              <Texto cor="textoSecundario">{tipo}</Texto>
-              {erro === 'sem-conexao' ? (
+              <Texto variante="titulo">{sessao?.nome ?? 'Conta salva'}</Texto>
+              {tipo ? <Texto cor="textoSecundario">{tipo}</Texto> : null}
+              {estadoSessao === 'sem-conexao' ? (
                 <Texto variante="legenda" cor="erro" accessibilityLiveRegion="polite">
                   Sem conexão: não deu para carregar seus dados.
                 </Texto>
-              ) : erro ? (
+              ) : estadoSessao === 'erro' ? (
                 <Texto variante="legenda" cor="erro" accessibilityLiveRegion="polite">
                   Não deu para carregar seus dados agora.
                 </Texto>
@@ -135,21 +164,28 @@ export function MenuConta({ visivel, aoFechar, dadosNome }: MenuContaProps) {
               <Botao
                 titulo="Trocar de conta"
                 icone="swap-horizontal"
-                aoPressionar={() => irPara('/perfis')}
-                accessibilityHint="Abre os perfis deste aparelho"
+                aoPressionar={() => irPara('/contas')}
+                accessibilityHint="Abre as contas salvas neste celular"
               />
               <Botao titulo="Ver meu perfil" variante="secundaria" icone="person" aoPressionar={() => irPara('/perfil')} />
+              <Botao
+                titulo="Sair"
+                variante="secundaria"
+                icone="log-out"
+                aoPressionar={() => confirmarSair(contaAtiva)}
+                accessibilityHint="Pede confirmação antes de tirar a conta deste celular"
+              />
             </View>
 
             <View style={{ gap: espaco.pequeno, borderTopWidth: 1, borderTopColor: cores.trilha, paddingTop: espaco.medio }}>
               <Texto variante="rotulo" accessibilityRole="header">
                 Para suporte
               </Texto>
-              <Texto variante="legenda" selectable accessibilityLabel={`Código do cadastro: ${perfilAtivo.entregadorId}`}>
-                {`Código do cadastro: ${perfilAtivo.entregadorId}`}
+              <Texto variante="legenda" selectable accessibilityLabel={`Código do cadastro: ${contaAtiva}`}>
+                {`Código do cadastro: ${contaAtiva}`}
               </Texto>
               <Texto variante="legenda">
-                {`Código do capacete: ${perfilAtivo.codigoCapacete ?? 'sem capacete'}`}
+                {`Código do capacete: ${sessao ? (sessao.codigoDispositivo ?? 'sem capacete') : 'não carregado'}`}
               </Texto>
             </View>
           </ScrollView>

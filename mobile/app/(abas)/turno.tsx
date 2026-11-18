@@ -18,12 +18,12 @@ import { TrechosCriticos } from '@/componentes/TrechosCriticos';
 import { ALERTA_CALOR_C } from '@/config/constantes';
 import { useSessao } from '@/contextos/SessaoContext';
 import { useTema } from '@/contextos/TemaContext';
-import { useTurno } from '@/contextos/TurnoContext';
-import type { TurnoLocal } from '@/banco/turnoRepositorio';
+import { useTurno, type TurnoAtual } from '@/contextos/TurnoContext';
 import { useTrechosCriticos } from '@/hooks/useTrechosCriticos';
 import { converterErro, type ErroApi } from '@/servicos/erros';
 import { formatarDecimal, formatarDiaHora, jaPassou } from '@/utils/datas';
 import { MENSAGEM_SEM_CONEXAO, mensagemComum } from '@/utils/mensagensErro';
+import { comecarPilhaEm } from '@/utils/navegacao';
 
 /** Durações oferecidas em botões (em horas). O contrato aceita até 24 h. */
 const DURACOES = ['4', '8', '12'] as const;
@@ -33,7 +33,7 @@ type Duracao = (typeof DURACOES)[number];
 const MENSAGEM_CAPACETE_NAO_RESPONDEU = 'O capacete não respondeu. Confira se ele está ligado e tente de novo.';
 
 /**
- * Id da última troca de perfil já avisada nesta aba. Fica fora do componente para valer
+ * Id da última troca de conta já avisada nesta aba. Fica fora do componente para valer
  * mesmo se a aba for recriada; só guarda um número de controle, nenhum dado pessoal.
  */
 let ultimaTrocaMostrada: string | null = null;
@@ -44,8 +44,8 @@ interface AvisoTela {
   mensagem: string;
 }
 
-/** Converte o turno salvo no formato que o componente do Índice usa. */
-function dadosDoIndice(turno: TurnoLocal): DadosIndiceRisco {
+/** Converte o turno no formato que o componente do Índice usa. */
+function dadosDoIndice(turno: TurnoAtual): DadosIndiceRisco {
   return {
     indiceRisco: turno.indiceRisco,
     faixaRisco: turno.faixaRisco,
@@ -64,32 +64,38 @@ function dadosDoIndice(turno: TurnoLocal): DadosIndiceRisco {
  * `GET /turnos/{id}/risco` (ou o último salvo, sem conexão) e o botão de encerrar.
  */
 export default function Turno() {
-  const { perfilAtivo } = useSessao();
+  const { contaAtiva, sessao } = useSessao();
   const { turno, carregando } = useTurno();
   // Aviso que sobrevive à troca de estado (ex.: "Turno encerrado" ao voltar para o início).
   const [avisoFinal, setAvisoFinal] = useState<AvisoTela | null>(null);
-  // Apelido do perfil recém-escolhido na tela Perfis e o id único daquela troca (pela rota).
-  const { perfilTrocado, troca } = useLocalSearchParams<{ perfilTrocado?: string; troca?: string }>();
-  const [avisoTroca, setAvisoTroca] = useState<string | null>(null);
+  // Id único da troca de conta feita em Contas (pela rota). Nenhum dado pessoal vai na rota.
+  const { troca } = useLocalSearchParams<{ troca?: string }>();
+  const [trocaVisivel, setTrocaVisivel] = useState(false);
+  // O nome vem da sessão da conta nova, que pode chegar um pouco depois do aviso.
+  const avisoTroca = trocaVisivel
+    ? sessao
+      ? `Você está usando a conta de ${sessao.nome}`
+      : 'Você trocou de conta.'
+    : null;
 
   // O aviso aparece uma vez por troca: ao ganhar o foco, mostra se aquela troca ainda não foi
   // mostrada e marca como mostrada; ao sair da aba, some. Ao voltar, o parâmetro antigo continua
   // na rota, mas a troca já está marcada e o aviso não reaparece.
   useFocusEffect(
     useCallback(() => {
-      if (perfilTrocado && troca && troca !== ultimaTrocaMostrada) {
+      if (troca && troca !== ultimaTrocaMostrada) {
         ultimaTrocaMostrada = troca;
-        setAvisoTroca(`Você está usando o perfil ${perfilTrocado}`);
+        setTrocaVisivel(true);
       }
-      return () => setAvisoTroca(null);
-    }, [perfilTrocado, troca]),
+      return () => setTrocaVisivel(false);
+    }, [troca]),
   );
 
-  if (!perfilAtivo) {
+  if (!contaAtiva) {
     return (
       <Tela dentroDeAbas>
-        <EstadoVazio titulo="Nenhum perfil neste aparelho" icone="person-outline" />
-        <Botao titulo="Fazer cadastro" aoPressionar={() => router.push('/cadastro')} />
+        <EstadoVazio titulo="Nenhuma conta neste aparelho" icone="person-outline" />
+        <Botao titulo="Entrar" aoPressionar={() => comecarPilhaEm('/login')} />
       </Tela>
     );
   }
@@ -99,12 +105,13 @@ export default function Turno() {
   if (turno) {
     return <TurnoAtivo turno={turno} aoEncerrar={setAvisoFinal} avisoTroca={avisoTroca} />;
   }
-  const temCapacete = perfilAtivo.codigoCapacete !== null;
+  // O capacete vem da sessão (contrato 1.15). Sem sessão (sem conexão), a proteção fica desligada.
+  const temCapacete = sessao?.codigoDispositivo != null;
   return (
     <NovoTurno
-      // A `key` recria o formulário quando o perfil ou o capacete mudam, e a chave de
+      // A `key` recria o formulário quando a conta ou o capacete mudam, e a chave de
       // proteção volta ao padrão (ligada com capacete, desligada sem).
-      key={`${perfilAtivo.entregadorId}-${temCapacete}`}
+      key={`${contaAtiva}-${temCapacete}`}
       temCapacete={temCapacete}
       avisoFinal={avisoFinal}
       limparAvisoFinal={() => setAvisoFinal(null)}
@@ -162,7 +169,7 @@ function NovoTurno({
       } else if (erro.tipo === 'validacao') {
         setAviso({ tipo: 'erro', mensagem: 'A duração do turno não foi aceita. Escolha 4, 8 ou 12 horas.' });
       } else if (erro.tipo === 'nao-encontrado') {
-        setAviso({ tipo: 'erro', mensagem: 'Cadastro não encontrado na API. Confira o perfil nos Ajustes.' });
+        setAviso({ tipo: 'erro', mensagem: 'Cadastro não encontrado na API. Confira a conta em uso no menu da conta.' });
       } else {
         setAviso({ tipo: 'erro', mensagem: mensagemComum(erro) });
       }
@@ -225,7 +232,7 @@ function TurnoAtivo({
   aoEncerrar,
   avisoTroca,
 }: {
-  turno: TurnoLocal;
+  turno: TurnoAtual;
   aoEncerrar: (aviso: AvisoTela) => void;
   avisoTroca: string | null;
 }) {
@@ -322,7 +329,7 @@ function TurnoAtivo({
   }
 
   const dados = dadosDoIndice(turno);
-  const horarioTerminou = jaPassou(turno.fimPrevisto);
+  const horarioTerminou = turno.fimPrevisto !== null && jaPassou(turno.fimPrevisto);
 
   /** Abre a tela da emergência em andamento (alerta ou ocorrência da vítima). */
   function abrirEmergencia() {
@@ -371,19 +378,33 @@ function TurnoAtivo({
         <Aviso tipo="atencao" mensagem="O horário previsto terminou. Encerre o turno quando parar de rodar." />
       ) : null}
 
+      {/* Turno restaurado pela sessão (aberto em outro aparelho ou antes do login): a API não
+          devolve os horários, então o cartão mostra só que o turno está em andamento. */}
       <Cartao>
-        <LinhaInfo rotulo="Começou" valor={formatarDiaHora(turno.inicio)} />
-        <LinhaInfo rotulo="Fim previsto" valor={formatarDiaHora(turno.fimPrevisto)} />
-        <LinhaInfo rotulo="Proteção contra quedas" valor={turno.protecaoAtiva ? 'Ligada' : 'Desligada'} />
+        {turno.inicio !== null && turno.fimPrevisto !== null ? (
+          <>
+            <LinhaInfo rotulo="Começou" valor={formatarDiaHora(turno.inicio)} />
+            <LinhaInfo rotulo="Fim previsto" valor={formatarDiaHora(turno.fimPrevisto)} />
+          </>
+        ) : (
+          <Texto>Turno em andamento, aberto antes neste ou em outro celular. Os horários aparecem no histórico depois de encerrar.</Texto>
+        )}
+        {turno.protecaoAtiva !== null ? (
+          <LinhaInfo rotulo="Proteção contra quedas" valor={turno.protecaoAtiva ? 'Ligada' : 'Desligada'} />
+        ) : null}
       </Cartao>
 
       <EstadoCapacete
-        estado={turno.protecaoAtiva ? (alerta?.estadoCapacete ?? null) : null}
-        semConexao={turno.protecaoAtiva && alertaSemConexao}
+        estado={turno.protecaoAtiva !== false ? (alerta?.estadoCapacete ?? null) : null}
+        semConexao={turno.protecaoAtiva !== false && alertaSemConexao}
       />
 
       <Cartao>
-        <IndiceRisco dados={dados} anunciarMudancas />
+        {turno.indiceDisponivel ? (
+          <IndiceRisco dados={dados} anunciarMudancas />
+        ) : (
+          <Texto>O Índice de Risco deste turno não carregou agora.</Texto>
+        )}
         <Texto variante="legenda">Puxe a tela para baixo para atualizar o Índice.</Texto>
       </Cartao>
 

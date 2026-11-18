@@ -4,8 +4,9 @@ import type { ProblemDetails } from '@/tipos/contrato';
 
 /**
  * Tipo do erro, decidido só pelo status HTTP (seção 7 do contrato):
- * 400 validação, 401 sem login válido, 403 sem permissão, 404 não encontrado,
- * 409 conflito, 503 indisponível, sem resposta (rede ou tempo esgotado) e qualquer outro caso.
+ * 400 validação, 401 sem login válido, 403 sem permissão, 404 não encontrado, 409 conflito,
+ * 429 muitas tentativas (login e renovação acima do limite), 503 indisponível, sem resposta
+ * (rede ou tempo esgotado) e qualquer outro caso.
  */
 export type TipoErroApi =
   | 'validacao'
@@ -13,6 +14,7 @@ export type TipoErroApi =
   | 'proibido'
   | 'nao-encontrado'
   | 'conflito'
+  | 'muitas-tentativas'
   | 'indisponivel'
   | 'sem-conexao'
   | 'desconhecido';
@@ -51,6 +53,8 @@ function tipoPeloStatus(status: number): TipoErroApi {
       return 'nao-encontrado';
     case 409:
       return 'conflito';
+    case 429:
+      return 'muitas-tentativas';
     case 503:
       return 'indisponivel';
     default:
@@ -74,7 +78,11 @@ function camposInvalidos(corpo: unknown): string[] {
   return Object.keys(errors).map((chave) => chave.replace(/^\$\./, ''));
 }
 
-/** Converte qualquer erro (do Axios ou não) em `ErroApi`. */
+/**
+ * Converte qualquer erro (do Axios ou não) em `ErroApi`. Só o status e as chaves do `errors` saem
+ * daqui: a configuração da requisição (que tem o Authorization), o corpo enviado (senha do login
+ * e do cadastro) e o corpo da resposta (tokens) nunca entram no `ErroApi`.
+ */
 export function converterErro(erro: unknown): ErroApi {
   if (erro instanceof ErroApi) {
     return erro;

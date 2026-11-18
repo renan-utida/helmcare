@@ -1,5 +1,5 @@
 import { useSQLiteContext } from 'expo-sqlite';
-import { useCallback, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 
 import { ocorrenciaRepositorio, type PapelOcorrencia } from '@/banco/ocorrenciaRepositorio';
 import { useSessao } from '@/contextos/SessaoContext';
@@ -26,7 +26,7 @@ export interface EstadoOcorrenciaTela {
 }
 
 /**
- * Ocorrência vista pelo perfil local: `GET /ocorrencias/{id}` a cada 5 s (usePolling) até ela
+ * Ocorrência vista pela conta ativa: `GET /ocorrencias/{id}` a cada 5 s (usePolling) até ela
  * terminar, e cada leitura atualiza a tabela `ocorrencia` (sem latitude e longitude). A vítima
  * consulta sem `voluntarioId` (localização aproximada, que a tela nem mostra). O voluntário manda
  * o próprio `voluntarioId`, e a localização vem exata se foi ele quem aceitou (seção 7): ela fica
@@ -34,9 +34,15 @@ export interface EstadoOcorrenciaTela {
  */
 export function useOcorrencia(id: string, papel: PapelOcorrencia): EstadoOcorrenciaTela {
   const db = useSQLiteContext();
-  const { perfilAtivo } = useSessao();
-  const entregadorId = perfilAtivo?.entregadorId ?? null;
-  const voluntarioId = papel === 'VOLUNTARIO' ? (perfilAtivo?.voluntarioId ?? undefined) : undefined;
+  const { contaAtiva, sessao } = useSessao();
+  const entregadorId = contaAtiva;
+  const voluntarioDaSessao = sessao && sessao.entregadorId === contaAtiva ? sessao.voluntarioId : null;
+  const voluntarioId = papel === 'VOLUNTARIO' ? (voluntarioDaSessao ?? undefined) : undefined;
+  // Conta em uso numa ref: uma resposta que chega depois da troca de conta é ignorada.
+  const contaAtual = useRef(contaAtiva);
+  useLayoutEffect(() => {
+    contaAtual.current = contaAtiva;
+  }, [contaAtiva]);
   const [ocorrencia, setOcorrencia] = useState<OcorrenciaResposta | null>(null);
   const [lidoEm, setLidoEm] = useState<number | null>(null);
   const [erro, setErro] = useState<ErroApi | null>(null);
@@ -57,6 +63,7 @@ export function useOcorrencia(id: string, papel: PapelOcorrencia): EstadoOcorren
           aceitaEm: resposta.aceitaEm,
           encerradaEm: resposta.encerradaEm,
           tempoAteAceiteSegundos: resposta.tempoAteAceiteSegundos,
+          encerradaAutomaticamente: resposta.encerradaAutomaticamente,
           atualizadoEm: new Date().toISOString(),
         });
       }
@@ -66,14 +73,20 @@ export function useOcorrencia(id: string, papel: PapelOcorrencia): EstadoOcorren
 
   const recarregar = useCallback(async () => {
     try {
-      await aplicar(await ocorrenciaServico.obter(id, voluntarioId));
+      const conta = contaAtual.current;
+      const resposta = await ocorrenciaServico.obter(id, voluntarioId);
+      if (contaAtual.current !== conta) {
+        return;
+      }
+      await aplicar(resposta);
     } catch (e) {
       setErro(converterErro(e));
     }
   }, [aplicar, id, voluntarioId]);
 
   const terminou = ocorrencia !== null && ESTADOS_FINAIS.includes(ocorrencia.estado);
-  usePolling(recarregar, !terminou, `${id}:${voluntarioId ?? 'vitima'}`);
+  // A chave junta a conta, a ocorrência e o papel: na troca de conta, o polling anterior para.
+  usePolling(recarregar, !terminou && entregadorId !== null, `${entregadorId ?? ''}:${id}:${voluntarioId ?? 'vitima'}`);
 
   return { ocorrencia, lidoEm, erro, recarregar, aplicar };
 }

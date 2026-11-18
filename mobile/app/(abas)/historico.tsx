@@ -1,4 +1,4 @@
-import { router, useFocusEffect } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { View } from 'react-native';
 
@@ -14,10 +14,11 @@ import { FaixaRisco, TEXTO_FAIXA } from '@/componentes/FaixaRisco';
 import { Icone, type NomeIcone } from '@/componentes/Icone';
 import { Tela } from '@/componentes/Tela';
 import { Texto } from '@/componentes/Texto';
-import { META_TEMPO_ACEITE_S } from '@/config/constantes';
+import { META_TEMPO_ACEITE_S, TEMPO_ENCERRAMENTO_AUTOMATICO_MIN } from '@/config/constantes';
 import { useSessao } from '@/contextos/SessaoContext';
 import { useTema } from '@/contextos/TemaContext';
 import { resumirHistorico, useHistorico } from '@/hooks/useHistorico';
+import { comecarPilhaEm } from '@/utils/navegacao';
 import type { EstadoDispositivo, EstadoOcorrencia } from '@/tipos/contrato';
 import {
   duracaoFalada,
@@ -26,6 +27,7 @@ import {
   formatarDuracaoEntre,
   formatarHora,
   formatarMinutosSegundos,
+  textoEncerramentoAutomatico,
 } from '@/utils/datas';
 
 /** Quantos itens cada seção mostra (os mais recentes). */
@@ -124,7 +126,10 @@ function ItemAlerta({ alerta }: { alerta: AlertaLocal }) {
 function ItemOcorrencia({ ocorrencia }: { ocorrencia: OcorrenciaLocal }) {
   const { cores, espaco } = useTema();
   const papel = ocorrencia.papel === 'VITIMA' ? 'Você pediu socorro' : 'Você ajudou';
-  const estado = TEXTO_ESTADO_OCORRENCIA[ocorrencia.estado];
+  // Encerrada pela API por tempo: o mesmo texto da tela da ocorrência.
+  const estado = ocorrencia.encerradaAutomaticamente
+    ? textoEncerramentoAutomatico(TEMPO_ENCERRAMENTO_AUTOMATICO_MIN)
+    : TEXTO_ESTADO_OCORRENCIA[ocorrencia.estado];
   const tempo = tempoAteAceite(ocorrencia.tempoAteAceiteSegundos);
   return (
     <Cartao>
@@ -148,14 +153,15 @@ function ItemOcorrencia({ ocorrencia }: { ocorrencia: OcorrenciaLocal }) {
 }
 
 /**
- * Aba Histórico: lê só o SQLite do perfil ativo (funciona com a API desligada). No topo, o
+ * Aba Histórico: lê só o SQLite da conta ativa (funciona com a API desligada). No topo, o
  * resumo com o indicador de impacto do HelmCare (tempo médio até o aceite, meta de 2 minutos);
  * depois as seções Turnos, Alertas e Ocorrências. "Puxar para atualizar" relê o SQLite.
  */
 export default function Historico() {
   const { cores, espaco } = useTema();
-  const { perfilAtivo } = useSessao();
-  const { dados, recarregar } = useHistorico(perfilAtivo?.entregadorId ?? null);
+  // A conta ativa vem do secure-store: o histórico abre mesmo sem conexão.
+  const { contaAtiva } = useSessao();
+  const { dados, recarregar } = useHistorico(contaAtiva);
   const [atualizando, setAtualizando] = useState(false);
 
   // Relê o SQLite toda vez que a aba ganha foco (um turno ou uma ocorrência pode ter terminado).
@@ -171,11 +177,11 @@ export default function Historico() {
     setAtualizando(false);
   }
 
-  if (!perfilAtivo) {
+  if (!contaAtiva) {
     return (
       <Tela dentroDeAbas>
-        <EstadoVazio titulo="Nenhum perfil neste aparelho" icone="person-outline" />
-        <Botao titulo="Fazer cadastro" aoPressionar={() => router.push('/cadastro')} />
+        <EstadoVazio titulo="Nenhuma conta neste aparelho" icone="person-outline" />
+        <Botao titulo="Entrar" aoPressionar={() => comecarPilhaEm('/login')} />
       </Tela>
     );
   }

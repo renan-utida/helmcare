@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Aviso, type TipoAviso } from '@/componentes/Aviso';
 import { Botao } from '@/componentes/Botao';
+import { FaixaSessaoTerminada } from '@/componentes/FaixaSessaoTerminada';
 import { Icone } from '@/componentes/Icone';
 import { Texto } from '@/componentes/Texto';
 import { CONTAGEM_CANCELAMENTO_S } from '@/config/constantes';
@@ -177,118 +178,122 @@ export default function Alerta() {
   const corTexto = corAviso.texto;
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: terminou ? cores.fundo : fundo }}
-      contentContainerStyle={{
-        flexGrow: 1,
-        justifyContent: 'center',
-        gap: espaco.grande,
-        paddingTop: insets.top + espaco.grande,
-        paddingBottom: insets.bottom + espaco.grande,
-        paddingHorizontal: espaco.medio,
-      }}
-    >
-      {alerta === null ? (
-        <Texto centralizado accessibilityRole="progressbar" accessibilityLiveRegion="polite">
-          Carregando o alerta...
-        </Texto>
-      ) : terminou ? (
-        <View style={{ alignItems: 'center', gap: espaco.medio }}>
-          <Icone nome="checkmark-circle" cor={cores.aviso.sucesso.icone} tamanho={72} />
-          <Texto variante="titulo" centralizado accessibilityLiveRegion="polite">
-            {cancelou || estado === 'CANCELADO'
-              ? 'Alerta cancelado. Que bom que você está bem.'
-              : estado === 'FALSO_POSITIVO'
-                ? 'Alarme falso: você voltou a pilotar. Tudo certo.'
-                : 'O alerta terminou. Tudo certo.'}
+    // A faixa do fim da sessão fica fixa em cima, fora da rolagem, com o 192 sempre visível.
+    <View style={{ flex: 1, backgroundColor: terminou ? cores.fundo : fundo }}>
+      <FaixaSessaoTerminada mostrar192 espacoTopo={insets.top} />
+      <ScrollView
+        style={{ flex: 1, backgroundColor: terminou ? cores.fundo : fundo }}
+        contentContainerStyle={{
+          flexGrow: 1,
+          justifyContent: 'center',
+          gap: espaco.grande,
+          paddingTop: insets.top + espaco.grande,
+          paddingBottom: insets.bottom + espaco.grande,
+          paddingHorizontal: espaco.medio,
+        }}
+      >
+        {alerta === null ? (
+          <Texto centralizado accessibilityRole="progressbar" accessibilityLiveRegion="polite">
+            Carregando o alerta...
           </Texto>
-          <Texto cor="textoSecundario" centralizado>
-            Esta tela fecha sozinha.
-          </Texto>
-        </View>
-      ) : (
-        <>
+        ) : terminou ? (
           <View style={{ alignItems: 'center', gap: espaco.medio }}>
-            <Icone nome={emContagem ? 'timer' : sosEnviado ? 'medkit' : 'alert-circle'} cor={corAviso.icone} tamanho={72} />
-            <Texto variante="titulo" centralizado corPersonalizada={corTexto}>
-              {sosEnviado ? 'SOS enviado' : 'Alerta de queda'}
+            <Icone nome="checkmark-circle" cor={cores.aviso.sucesso.icone} tamanho={72} />
+            <Texto variante="titulo" centralizado accessibilityLiveRegion="polite">
+              {cancelou || estado === 'CANCELADO'
+                ? 'Alerta cancelado. Que bom que você está bem.'
+                : estado === 'FALSO_POSITIVO'
+                  ? 'Alarme falso: você voltou a pilotar. Tudo certo.'
+                  : 'O alerta terminou. Tudo certo.'}
+            </Texto>
+            <Texto cor="textoSecundario" centralizado>
+              Esta tela fecha sozinha.
             </Texto>
           </View>
-
-          {emVerificacao ? (
-            <Texto variante="subtitulo" centralizado corPersonalizada={corTexto} accessibilityLiveRegion="polite">
-              Detectamos um impacto. Estamos verificando se você está bem.
-            </Texto>
-          ) : null}
-
-          {emContagem && restante !== null ? (
-            <View style={{ alignItems: 'center', gap: espaco.pequeno }}>
-              {enviandoSos ? (
-                <Texto variante="titulo" centralizado corPersonalizada={corTexto} accessibilityLiveRegion="assertive">
-                  Enviando SOS...
-                </Texto>
-              ) : (
-                <>
-                  <Texto
-                    variante="contagem"
-                    corPersonalizada={corTexto}
-                    centralizado
-                    // Sem região viva: ela fazia o TalkBack ler todos os segundos e cortar os
-                    // anúncios. O número é lido quando a pessoa toca nele.
-                    accessibilityLabel={`${restante} segundos para cancelar`}
-                  >
-                    {restante}
-                  </Texto>
-                  <Texto variante="subtitulo" centralizado corPersonalizada={corTexto}>
-                    segundos para cancelar
-                  </Texto>
-                </>
-              )}
-              {alerta.contagemTerminaEm ? (
-                <Texto variante="legenda" centralizado corPersonalizada={corTexto}>
-                  {`No relógio do capacete, a contagem termina às ${formatarHoraComSegundos(alerta.contagemTerminaEm)}.`}
-                </Texto>
-              ) : null}
+        ) : (
+          <>
+            <View style={{ alignItems: 'center', gap: espaco.medio }}>
+              <Icone nome={emContagem ? 'timer' : sosEnviado ? 'medkit' : 'alert-circle'} cor={corAviso.icone} tamanho={72} />
+              <Texto variante="titulo" centralizado corPersonalizada={corTexto}>
+                {sosEnviado ? 'SOS enviado' : 'Alerta de queda'}
+              </Texto>
             </View>
-          ) : null}
 
-          {sosEnviado ? (
-            <Texto variante="subtitulo" centralizado corPersonalizada={corTexto} accessibilityLiveRegion="assertive">
-              Pedido de socorro enviado. Abrindo a ocorrência...
-            </Texto>
-          ) : null}
+            {emVerificacao ? (
+              <Texto variante="subtitulo" centralizado corPersonalizada={corTexto} accessibilityLiveRegion="polite">
+                Detectamos um impacto. Estamos verificando se você está bem.
+              </Texto>
+            ) : null}
 
-          {alertaSemConexao ? (
-            <Aviso tipo="atencao" mensagem="Sem conexão: o estado do alerta pode estar desatualizado." />
-          ) : null}
-          {mensagem ? <Aviso tipo={mensagem.tipo} mensagem={mensagem.texto} /> : null}
+            {emContagem && restante !== null ? (
+              <View style={{ alignItems: 'center', gap: espaco.pequeno }}>
+                {enviandoSos ? (
+                  <Texto variante="titulo" centralizado corPersonalizada={corTexto} accessibilityLiveRegion="assertive">
+                    Enviando SOS...
+                  </Texto>
+                ) : (
+                  <>
+                    <Texto
+                      variante="contagem"
+                      corPersonalizada={corTexto}
+                      centralizado
+                      // Sem região viva: ela fazia o TalkBack ler todos os segundos e cortar os
+                      // anúncios. O número é lido quando a pessoa toca nele.
+                      accessibilityLabel={`${restante} segundos para cancelar`}
+                    >
+                      {restante}
+                    </Texto>
+                    <Texto variante="subtitulo" centralizado corPersonalizada={corTexto}>
+                      segundos para cancelar
+                    </Texto>
+                  </>
+                )}
+                {alerta.contagemTerminaEm ? (
+                  <Texto variante="legenda" centralizado corPersonalizada={corTexto}>
+                    {`No relógio do capacete, a contagem termina às ${formatarHoraComSegundos(alerta.contagemTerminaEm)}.`}
+                  </Texto>
+                ) : null}
+              </View>
+            ) : null}
 
-          {!sosEnviado ? (
-            <View style={{ gap: espaco.pequeno }}>
-              <Botao
-                titulo="Estou bem, cancelar alerta"
-                icone="hand-left"
-                alturaMinima={72}
-                aoPressionar={cancelar}
-                carregando={cancelando}
-                // Habilitado enquanto o estado for CONTAGEM, mesmo depois de um 202: se o comando
-                // se perder, dá para tentar de novo. Quem decide é a API (202 ou 409).
-                desabilitado={!emContagem}
-                accessibilityHint={
-                  emContagem
-                    ? 'Cancela o pedido de socorro. Toque só se você está bem.'
-                    : 'Você poderá cancelar quando a contagem começar'
-                }
-              />
-              {emVerificacao ? (
-                <Texto variante="legenda" centralizado corPersonalizada={corTexto}>
-                  Você poderá cancelar quando a contagem começar.
-                </Texto>
-              ) : null}
-            </View>
-          ) : null}
-        </>
-      )}
-    </ScrollView>
+            {sosEnviado ? (
+              <Texto variante="subtitulo" centralizado corPersonalizada={corTexto} accessibilityLiveRegion="assertive">
+                Pedido de socorro enviado. Abrindo a ocorrência...
+              </Texto>
+            ) : null}
+
+            {alertaSemConexao ? (
+              <Aviso tipo="atencao" mensagem="Sem conexão: o estado do alerta pode estar desatualizado." />
+            ) : null}
+            {mensagem ? <Aviso tipo={mensagem.tipo} mensagem={mensagem.texto} /> : null}
+
+            {!sosEnviado ? (
+              <View style={{ gap: espaco.pequeno }}>
+                <Botao
+                  titulo="Estou bem, cancelar alerta"
+                  icone="hand-left"
+                  alturaMinima={72}
+                  aoPressionar={cancelar}
+                  carregando={cancelando}
+                  // Habilitado enquanto o estado for CONTAGEM, mesmo depois de um 202: se o comando
+                  // se perder, dá para tentar de novo. Quem decide é a API (202 ou 409).
+                  desabilitado={!emContagem}
+                  accessibilityHint={
+                    emContagem
+                      ? 'Cancela o pedido de socorro. Toque só se você está bem.'
+                      : 'Você poderá cancelar quando a contagem começar'
+                  }
+                />
+                {emVerificacao ? (
+                  <Texto variante="legenda" centralizado corPersonalizada={corTexto}>
+                    Você poderá cancelar quando a contagem começar.
+                  </Texto>
+                ) : null}
+              </View>
+            ) : null}
+          </>
+        )}
+      </ScrollView>
+    </View>
   );
 }

@@ -93,3 +93,44 @@ export function validarUrlApi(url: string): string | null {
     ? null
     : 'O endereço começa com http:// e tem o IP do computador, como http://192.168.0.10:5000/api/v1';
 }
+
+/** Tamanho máximo do e-mail (seção 3). */
+export const TAMANHO_MAXIMO_EMAIL = 254;
+/** Tamanho mínimo e máximo da senha (seção 3). */
+export const TAMANHO_MINIMO_SENHA = 8;
+export const TAMANHO_MAXIMO_SENHA = 64;
+
+/** E-mail obrigatório, com formato simples de e-mail e até 254 caracteres (seção 3). */
+export function validarEmail(email: string): string | null {
+  const limpo = email.trim();
+  if (limpo === '') return 'Digite o e-mail.';
+  if (limpo.length > TAMANHO_MAXIMO_EMAIL) return `Use até ${TAMANHO_MAXIMO_EMAIL} caracteres.`;
+  // Algo antes do @, um domínio com ponto e nenhum espaço. A API confere de novo.
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(limpo)) return 'Confira o e-mail, como nome@exemplo.com.';
+  return null;
+}
+
+/** Uma regra da senha, com o texto mostrado na lista e se ela já está atendida. */
+export interface RegraSenha {
+  texto: string;
+  atendida: boolean;
+}
+
+/** As regras da senha da seção 3, conferidas enquanto a pessoa digita (símbolo não é exigido). */
+export function regrasDaSenha(senha: string): RegraSenha[] {
+  return [
+    {
+      texto: `De ${TAMANHO_MINIMO_SENHA} a ${TAMANHO_MAXIMO_SENHA} caracteres`,
+      atendida: senha.length >= TAMANHO_MINIMO_SENHA && senha.length <= TAMANHO_MAXIMO_SENHA,
+    },
+    { texto: 'Uma letra maiúscula', atendida: /[A-Z]/.test(senha) },
+    { texto: 'Uma letra minúscula', atendida: /[a-z]/.test(senha) },
+    { texto: 'Um número', atendida: /[0-9]/.test(senha) },
+  ];
+}
+
+/** Senha do cadastro: todas as regras da seção 3 atendidas. */
+export function validarSenha(senha: string): string | null {
+  if (senha === '') return 'Crie uma senha.';
+  return regrasDaSenha(senha).every((regra) => regra.atendida) ? null : 'A senha ainda não segue todas as regras.';
+}
