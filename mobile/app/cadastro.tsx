@@ -10,24 +10,19 @@ import { FormularioContato } from '@/componentes/FormularioContato';
 import { LogoHorizontal } from '@/componentes/Marca';
 import { Tela } from '@/componentes/Tela';
 import { Texto } from '@/componentes/Texto';
-import { APELIDO_COM_CAPACETE, APELIDO_SEM_CAPACETE, useSessao } from '@/contextos/SessaoContext';
+import { RegrasSenha } from '@/componentes/RegrasSenha';
+import { useSessao } from '@/contextos/SessaoContext';
 import { useTema } from '@/contextos/TemaContext';
+import { autenticacaoServico } from '@/servicos/autenticacaoServico';
 import { entregadorServico } from '@/servicos/entregadorServico';
 import { converterErro } from '@/servicos/erros';
 import { gerarEntregadorSimulado } from '@/utils/dadosSimulados';
+import { guardarParaProximaTela } from '@/utils/memoriaDoFluxo';
 import { errosDosCampos, MENSAGEM_CONFIRA_CAMPOS, mensagemComum } from '@/utils/mensagensErro';
-import {
-  normalizarCodigoCapacete,
-  validarCnh,
-  validarCodigoCapacete,
-  validarCpf,
-  validarGuid,
-  validarNome,
-  validarTelefone,
-} from '@/utils/validacao';
+import { validarCnh, validarCpf, validarEmail, validarNome, validarSenha, validarTelefone } from '@/utils/validacao';
 
-/** Etapas da tela: os 3 passos, a conclusão e o atalho "Já tenho cadastro". */
-type Passo = 'dados' | 'contato' | 'capacete' | 'pronto' | 'existente';
+/** Etapas da tela: os 3 passos e a conclusão. */
+type Passo = 'dados' | 'contato' | 'capacete' | 'pronto';
 
 /** Número e título de cada passo numerado, para o indicador "Passo 1 de 3". */
 const PASSOS_NUMERADOS: Partial<Record<Passo, { numero: number; titulo: string }>> = {
@@ -37,9 +32,10 @@ const PASSOS_NUMERADOS: Partial<Record<Passo, { numero: number; titulo: string }
 };
 
 /**
- * Cadastro do entregador em 3 passos: dados (`POST /entregadores`), contato de emergência
- * (`POST /entregadores/{id}/contatos`) e capacete (`POST /dispositivos`). O perfil local é
- * gravado logo depois do 201 do passo 1, para o id não se perder se o app fechar.
+ * Cadastro do entregador em 3 passos: dados e acesso (`POST /entregadores` e o login logo
+ * depois), contato de emergência (`POST /entregadores/{id}/contatos`) e capacete
+ * (`POST /dispositivos`). A conta é salva no secure-store logo depois do login do passo 1, para
+ * não se perder se o app fechar.
  */
 export default function Cadastro() {
   const { espaco } = useTema();
@@ -77,7 +73,6 @@ export default function Cadastro() {
             setEntregadorId(id);
             setPasso('contato');
           }}
-          aoJaTenhoCadastro={() => setPasso('existente')}
         />
       ) : null}
 
@@ -105,47 +100,73 @@ export default function Cadastro() {
 
       {passo === 'pronto' ? <Pronto comCapacete={comCapacete} /> : null}
 
-      {passo === 'existente' ? <PassoExistente aoVoltar={() => setPasso('dados')} /> : null}
     </Tela>
   );
 }
 
 /** Campos do passo 1, com os nomes do JSON do contrato. */
-const CAMPOS_DADOS = ['nome', 'cpf', 'cnh', 'telefone'] as const;
+const CAMPOS_DADOS = ['nome', 'cpf', 'cnh', 'telefone', 'email', 'senha'] as const;
 type CampoDados = (typeof CAMPOS_DADOS)[number];
 
-/** Passo 1: dados pessoais simulados e `POST /entregadores`. */
-function PassoDados({ aoCriar, aoJaTenhoCadastro }: { aoCriar: (id: string) => void; aoJaTenhoCadastro: () => void }) {
-  const { salvarPerfil, escolherApelido } = useSessao();
-  const [valores, setValores] = useState<Record<CampoDados, string>>({ nome: '', cpf: '', cnh: '', telefone: '' });
-  const [erros, setErros] = useState<Partial<Record<CampoDados, string>>>({});
+/** Volta para o login (de onde o cadastro costuma ser aberto) ou abre o login. */
+function irParaLogin(motivo?: 'conta-criada') {
+  if (!motivo && router.canGoBack()) {
+    router.back();
+    return;
+  }
+  router.replace(motivo ? { pathname: '/login', params: { motivo } } : '/login');
+}
+
+/**
+ * Passo 1: dados pessoais simulados e o acesso (e-mail e senha), `POST /entregadores`. O cadastro
+ * não devolve token: logo depois, o app faz o `POST /entregadores/login` com o mesmo e-mail e a
+ * mesma senha, e os tokens vão para o secure-store. Só então seguem o contato e o capacete.
+ */
+function PassoDados({ aoCriar }: { aoCriar: (id: string) => void }) {
+  const { espaco } = useTema();
+  const { adicionarConta, podeAdicionarConta, contas } = useSessao();
+  const [valores, setValores] = useState<Record<Exclude<CampoDados, 'senha'>, string>>({
+    nome: '',
+    cpf: '',
+    cnh: '',
+    telefone: '',
+    email: '',
+  });
+  const [senha, setSenha] = useState('');
+  const [confirmacao, setConfirmacao] = useState('');
+  const [erros, setErros] = useState<Partial<Record<CampoDados | 'confirmacao', string>>>({});
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const cheio = !podeAdicionarConta();
 
-  function mudar(campo: CampoDados, valor: string) {
+  function mudar(campo: Exclude<CampoDados, 'senha'>, valor: string) {
     setValores((atual) => ({ ...atual, [campo]: valor }));
   }
 
-  /** Preenche com dados fictícios: o contrato não aceita dados de pessoas reais. */
+  /** Preenche os dados pessoais com dados fictícios: o contrato não aceita dados de pessoas reais. */
   function preencherSimulado() {
-    setValores(gerarEntregadorSimulado());
+    setValores((atual) => ({ ...atual, ...gerarEntregadorSimulado() }));
     setErros({});
     setMensagem(null);
   }
 
   async function continuar() {
     // Validação local com as regras da seção 3, antes de gastar uma chamada à API.
-    const novosErros: Partial<Record<CampoDados, string>> = {};
-    const validadores: Record<CampoDados, (v: string) => string | null> = {
+    const novosErros: Partial<Record<CampoDados | 'confirmacao', string>> = {};
+    const validadores: Record<Exclude<CampoDados, 'senha'>, (v: string) => string | null> = {
       nome: validarNome,
       cpf: validarCpf,
       cnh: validarCnh,
       telefone: validarTelefone,
+      email: validarEmail,
     };
-    for (const campo of CAMPOS_DADOS) {
+    for (const campo of Object.keys(validadores) as (keyof typeof validadores)[]) {
       const erro = validadores[campo](valores[campo]);
       if (erro) novosErros[campo] = erro;
     }
+    const erroSenha = validarSenha(senha);
+    if (erroSenha) novosErros.senha = erroSenha;
+    if (confirmacao !== senha) novosErros.confirmacao = 'As duas senhas estão diferentes.';
     setErros(novosErros);
     if (Object.keys(novosErros).length > 0) {
       setMensagem(MENSAGEM_CONFIRA_CAMPOS);
@@ -154,24 +175,27 @@ function PassoDados({ aoCriar, aoJaTenhoCadastro }: { aoCriar: (id: string) => v
 
     setEnviando(true);
     setMensagem(null);
+    const email = valores.email.trim();
+    let criado = false;
     try {
-      const entregador = await entregadorServico.criar({ ...valores, nome: valores.nome.trim() });
-      // Grava já o perfil local (só id e apelido neutro) e o deixa ativo.
-      await salvarPerfil(
-        {
-          entregadorId: entregador.id,
-          apelido: escolherApelido(APELIDO_SEM_CAPACETE, entregador.id),
-          codigoCapacete: null,
-          voluntarioId: null,
-          criadoEm: new Date().toISOString(),
-        },
-        { ativar: true },
-      );
-      aoCriar(entregador.id);
+      await entregadorServico.criar({ ...valores, nome: valores.nome.trim(), email, senha });
+      criado = true;
+      // Login logo depois, com o mesmo e-mail e a mesma senha (o cadastro não devolve token).
+      const login = await autenticacaoServico.entrar({ email, senha });
+      await adicionarConta(login);
+      setSenha('');
+      setConfirmacao('');
+      aoCriar(login.entregadorId);
     } catch (e) {
       const erro = converterErro(e);
-      if (erro.tipo === 'conflito') {
-        setMensagem('Este CPF já tem cadastro. Gere outros dados simulados ou use Já tenho cadastro.');
+      if (criado) {
+        // A conta existe, mas o login automático falhou (por exemplo, sem conexão): leva ao
+        // login com o e-mail preenchido pela memória do fluxo (nunca pela rota).
+        guardarParaProximaTela('emailLogin', email);
+        irParaLogin('conta-criada');
+      } else if (erro.tipo === 'conflito') {
+        // O app não lê o texto da API para saber qual campo repetiu.
+        setMensagem('CPF, CNH, telefone ou e-mail já usado em outro cadastro.');
       } else if (erro.tipo === 'validacao') {
         setErros(errosDosCampos(erro.campos, CAMPOS_DADOS));
         setMensagem(MENSAGEM_CONFIRA_CAMPOS);
@@ -185,6 +209,12 @@ function PassoDados({ aoCriar, aoJaTenhoCadastro }: { aoCriar: (id: string) => v
 
   return (
     <>
+      {cheio ? (
+        <Aviso
+          tipo="atencao"
+          mensagem={`Este celular já tem ${contas.length} contas, o máximo. Saia de uma delas em Contas para criar outra.`}
+        />
+      ) : null}
       <Texto>Use dados simulados: o HelmCare é um protótipo e não guarda dados de pessoas reais.</Texto>
       <Botao
         titulo="Preencher com dados simulados"
@@ -221,14 +251,55 @@ function PassoDados({ aoCriar, aoJaTenhoCadastro }: { aoCriar: (id: string) => v
         erro={erros.telefone}
         maxLength={20}
       />
+
+      <View style={{ gap: espaco.medio }}>
+        <Texto variante="subtitulo">Acesso</Texto>
+        <Texto cor="textoSecundario">Você entra no app com este e-mail e esta senha.</Texto>
+        <Campo
+          rotulo="E-mail"
+          valor={valores.email}
+          aoMudar={(v) => mudar('email', v)}
+          tipo="email"
+          erro={erros.email}
+          maxLength={254}
+          exemplo="nome@exemplo.com"
+        />
+        <Campo
+          rotulo="Senha"
+          valor={senha}
+          aoMudar={setSenha}
+          tipo="senha"
+          autoComplete="new-password"
+          erro={erros.senha}
+          maxLength={64}
+        />
+        <RegrasSenha senha={senha} />
+        <Campo
+          rotulo="Confirmar senha"
+          valor={confirmacao}
+          aoMudar={setConfirmacao}
+          tipo="senha"
+          autoComplete="new-password"
+          erro={erros.confirmacao}
+          maxLength={64}
+        />
+      </View>
+
       {mensagem ? <Aviso tipo="erro" mensagem={mensagem} /> : null}
-      <Botao titulo="Continuar" icone="arrow-forward" aoPressionar={continuar} carregando={enviando} />
       <Botao
-        titulo="Já tenho cadastro"
+        titulo="Continuar"
+        icone="arrow-forward"
+        aoPressionar={() => void continuar()}
+        carregando={enviando}
+        desabilitado={cheio}
+      />
+      <Botao
+        titulo="Já tenho conta"
         variante="secundaria"
-        aoPressionar={aoJaTenhoCadastro}
+        icone="log-in"
+        aoPressionar={() => irParaLogin()}
         desabilitado={enviando}
-        accessibilityHint="Entra com o código de um cadastro que já existe"
+        accessibilityHint="Abre o login com e-mail e senha"
       />
     </>
   );
@@ -271,86 +342,6 @@ function Pronto({ comCapacete }: { comCapacete: boolean }) {
         aoPressionar={() => router.push('/ficha-medica')}
       />
       <Botao titulo="Ir para o turno" icone="arrow-forward" aoPressionar={() => router.dismissTo('/turno')} />
-    </>
-  );
-}
-
-/** Atalho "Já tenho cadastro": entra com o id de um entregador criado antes (`GET /entregadores/{id}`). */
-function PassoExistente({ aoVoltar }: { aoVoltar: () => void }) {
-  const { salvarPerfil, escolherApelido } = useSessao();
-  const [id, setId] = useState('');
-  const [codigo, setCodigo] = useState('');
-  const [erroId, setErroId] = useState<string | null>(null);
-  const [erroCodigo, setErroCodigo] = useState<string | null>(null);
-  const [mensagem, setMensagem] = useState<string | null>(null);
-  const [enviando, setEnviando] = useState(false);
-
-  async function entrar() {
-    const novoErroId = validarGuid(id);
-    // O código é opcional: só é conferido quando foi preenchido.
-    const novoErroCodigo = codigo.trim() === '' ? null : validarCodigoCapacete(codigo);
-    setErroId(novoErroId);
-    setErroCodigo(novoErroCodigo);
-    if (novoErroId || novoErroCodigo) {
-      setMensagem(MENSAGEM_CONFIRA_CAMPOS);
-      return;
-    }
-    setEnviando(true);
-    setMensagem(null);
-    try {
-      const entregador = await entregadorServico.obter(id.trim());
-      const codigoCapacete = codigo.trim() === '' ? null : normalizarCodigoCapacete(codigo);
-      await salvarPerfil(
-        {
-          entregadorId: entregador.id,
-          apelido: escolherApelido(codigoCapacete ? APELIDO_COM_CAPACETE : APELIDO_SEM_CAPACETE, entregador.id),
-          codigoCapacete,
-          voluntarioId: null,
-          criadoEm: new Date().toISOString(),
-        },
-        { ativar: true },
-      );
-      router.dismissTo('/turno');
-    } catch (e) {
-      const erro = converterErro(e);
-      if (erro.tipo === 'nao-encontrado') {
-        setMensagem('Cadastro não encontrado.');
-      } else if (erro.tipo === 'validacao') {
-        setErroId('Confira o código do cadastro.');
-      } else {
-        setMensagem(mensagemComum(erro));
-      }
-    } finally {
-      setEnviando(false);
-    }
-  }
-
-  return (
-    <>
-      <Texto variante="titulo">Já tenho cadastro</Texto>
-      <Texto>Digite o código do seu cadastro. Ele aparece quando o cadastro é feito pela API.</Texto>
-      <Campo
-        rotulo="Código do cadastro"
-        dica="36 caracteres, como 3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90"
-        valor={id}
-        aoMudar={setId}
-        tipo="codigo"
-        erro={erroId}
-        maxLength={36}
-      />
-      <Campo
-        rotulo="Código do capacete (opcional)"
-        dica="Deixe em branco se você não tem capacete"
-        valor={codigo}
-        aoMudar={setCodigo}
-        tipo="codigo"
-        autoCapitalize="characters"
-        erro={erroCodigo}
-        maxLength={7}
-      />
-      {mensagem ? <Aviso tipo="erro" mensagem={mensagem} /> : null}
-      <Botao titulo="Entrar" icone="log-in" aoPressionar={entrar} carregando={enviando} />
-      <Botao titulo="Voltar ao cadastro" variante="secundaria" aoPressionar={aoVoltar} desabilitado={enviando} />
     </>
   );
 }
