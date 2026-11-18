@@ -3,13 +3,22 @@
  * histórico de navegação (parâmetros de rota ficam guardados pelo Expo Router e aparecem em log
  * de navegação). Cada valor é lido uma vez e apagado na leitura, e tudo some ao fechar o app.
  *
- * Usos: o e-mail que preenche o login depois de um cadastro cujo login automático falhou.
+ * Usos: o e-mail que preenche o login depois de um cadastro cujo login automático falhou; os
+ * dados devolvidos pela troca de telefone, para o Perfil não consultar de novo; e o QR Code do
+ * capacete logo depois do `POST /dispositivos` (o `urlCofre` leva o `qrToken`, que é credencial:
+ * ele nunca vai para a rota, para o SQLite nem para log, e some quando a tela do QR fecha).
  */
+
+import type { EntregadorResposta } from '@/tipos/contrato';
 
 /** O que cada chave leva. */
 interface ValoresDoFluxo {
   /** E-mail digitado no cadastro, para preencher o login (dado pessoal: nunca na rota). */
   emailLogin: string;
+  /** Corpo do 200 do `PUT /entregadores/{id}/telefone` (dados mascarados). */
+  entregadorAtualizado: EntregadorResposta;
+  /** Código do capacete e o endereço completo da página do Cofre, para a tela do QR. */
+  qrCapacete: { codigo: string; urlCofreCompleta: string };
 }
 
 /** Chave de um valor do fluxo. */
