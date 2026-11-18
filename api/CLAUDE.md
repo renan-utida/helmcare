@@ -16,7 +16,7 @@ Este arquivo orienta o Claude Code quando ele trabalha na pasta `api/` do monore
 
 ## Fonte da verdade
 
-1. `docs/contrato-integracao.md` (versão 1.16).
+1. `docs/contrato-integracao.md` (versão 1.17).
 2. Este arquivo.
 
 Nunca renomeie entidades, campos, enums, rotas, payloads ou tópicos MQTT do contrato. Se algo do contrato parecer impossível ou contraditório, pare e me avise, explicando o motivo, sem improvisar.
@@ -173,6 +173,15 @@ Use estas versões (as mesmas dos templates do professor). Se uma versão não r
 - **Rota de dev `POST /api/v1/dev/socorristas`:** cria o socorrista e a conta (papel `SOCORRISTA`) numa transação só; `201` com o e-mail mascarado; e-mail repetido, `409`.
 - **Página `GET /cofre/{qrToken}`:** sempre o mesmo HTML estático (exista o `qrToken` ou não), sem nenhum dado no HTML, com `wwwroot/cofre/index.html`, `assets/cofre.js` e `assets/cofre.css`, sem CDN e sem script inline. O token fica só numa variável do JavaScript. Cabeçalhos na página e nos assets: `Content-Security-Policy: default-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`, `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` e `Cache-Control: no-store`.
 - **`qrToken` é credencial (seção 9):** só no QR Code, no endereço da página e no `POST /dispositivos`; nunca em log, mensagem de erro, ProblemDetails (o `instance` sai com `{qrToken}`), auditoria ou outra resposta.
+
+## Previsão do tempo e clima (contrato 1.17)
+
+- A previsão vem da Open-Meteo (`https://api.open-meteo.com/v1/forecast`, sem chave, dados CC BY 4.0 com crédito da fonte), por um HttpClient tipado em `Integracoes/OpenMeteo`, no padrão do Serviço de Risco: URL base, coordenada fixa da cidade (padrão `-23.5641`, `-46.6525`), tempo limite de 3 s sem novas tentativas e cache do clima de 10 min, todos na seção `OpenMeteo` da configuração.
+- **`POST /turnos`:** as horas cheias UTC que se sobrepõem ao turno (as mesmas do Serviço de Risco); `chuvaMmHora` é a maior precipitação; `temperaturaC` e `umidadePct` são os da hora de maior índice de calor (`IndiceCalor`, empate na primeira hora); chuva e temperatura com 1 casa, umidade inteira, nas faixas da seção 8.
+- **Reserva:** falha de rede ou status fora de 2xx, mais de 3 s, resposta inválida ou horas do turno não cobertas levam à `PrevisaoTempoSimulada` (7 mm/h, 24 °C e 85%), com aviso no log só com o motivo e o tempo. O turno nunca falha por causa do tempo; o cancelamento do cliente propaga.
+- **Previsão simulada forçada** (`HelmCare:PrevisaoSimuladaForcada`): o `POST /turnos` usa a simulada sem chamar a Open-Meteo (testes e demonstração com o índice 60). Não vale para o `GET /clima`.
+- **`GET /clima`:** só o papel `ENTREGADOR`; condições atuais (`current`), `indiceCalorC` com 1 casa e `alertaCalor` pelo índice já arredondado contra `ALERTA_CALOR_C`; cache de 10 min na memória; sem a Open-Meteo e sem cache válido, `503` "Previsão do tempo indisponível", sem valor simulado.
+- Nenhuma coordenada nem corpo da Open-Meteo vai para o log (o log do HttpClient, que leva a URL com a coordenada, fica em `Warning`).
 
 ## Dados pessoais (seção 9 do contrato)
 

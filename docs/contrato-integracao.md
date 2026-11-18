@@ -1,6 +1,6 @@
 # HelmCare - Contrato de Integração
 
-**Versão 1.16 - 17/11/2026**
+**Versão 1.17 - 17/11/2026**
 
 Este documento define como as partes do HelmCare conversam entre si: nomes, tópicos MQTT, endpoints, payloads, estados e regras. **Todas as disciplinas seguem este contrato.** Mudanças só entram por meio da conversa central de coordenação, que gera uma nova versão.
 
@@ -29,6 +29,8 @@ Este documento define como as partes do HelmCare conversam entre si: nomes, tóp
 **Identidade (1.15):** o login usa o ASP.NET Core Identity da API, com o token bearer do próprio Identity (`AddIdentityApiEndpoints`). O token é opaco, protegido pelo Data Protection da API, e não existe chave de JWT em arquivo. Duas regras de implantação valem para a Infra:
 - as chaves do Data Protection ficam num diretório persistente configurado, fora da pasta publicada da aplicação. Sem isso, cada reinício da API (inclusive o teste de falha do systemd) invalida todos os tokens, e os usuários são jogados para o login;
 - atrás do nginx, a API lê o IP do cliente pelos cabeçalhos encaminhados (`X-Forwarded-For`), senão o limite de logins por IP (seção 7) passa a valer para todos os usuários juntos.
+
+**Previsão do tempo (1.17):** a API busca a previsão na Open-Meteo (`https://api.open-meteo.com/v1/forecast`, gratuita para uso não comercial, sem chave e com os dados sob a licença CC BY 4.0, que exige o crédito da fonte). Por isso, a Infra libera o HTTPS de saída da VM para `api.open-meteo.com`. A URL base, a coordenada da cidade, o tempo limite de 3 s e o cache de 10 min são configurações internas da API, fora da seção 5. A regra de arquitetura continua: o app nunca chama a Open-Meteo direto.
 
 ---
 
@@ -114,7 +116,7 @@ Todas configuráveis (arquivo de configuração ou variável de ambiente), com e
 | `TTL_ACESSO_COFRE_MIN` | 60 | API |
 | `META_TEMPO_ACEITE_S` | 120 | API, app e pitch |
 | `INTERVALO_TELEMETRIA_S` | 10 | ESP32 (telemetria e reenvio do SOS) |
-| `ALERTA_CALOR_C` | 32 (índice de calor, em °C). O aviso vale quando o índice é **maior ou igual** a 32 °C | ESP32 (aviso no OLED) e app (sugestão de pausa) |
+| `ALERTA_CALOR_C` | 32 (índice de calor, em °C). O aviso vale quando o índice é **maior ou igual** a 32 °C | ESP32 (aviso no OLED), app (sugestão de pausa) e API (`alertaCalor` do `GET /clima`) |
 | `INTERVALO_POLLING_APP_S` | 5 | App (consulta de chamados, status e alerta) |
 | Coordenadas simuladas do capacete | `-23.5641`, `-46.6525` (região da Av. Paulista) | ESP32 |
 
@@ -235,6 +237,7 @@ Tópico `helmcare-rdu/v1/HC-0001/comando`:
 | GET | `/turnos/{id}/alerta` | Estado do alerta de queda do capacete no turno (tela de alerta do app) |
 | POST | `/turnos/{id}/alerta/cancelar` | Cancela o alerta durante a contagem (a API publica o comando `CANCELAR`) |
 | GET | `/trechos-criticos?limite=10` | Repassa a lista do Serviço de Risco, com o mesmo parâmetro `limite` |
+| GET | `/clima` | Condições atuais do tempo na cidade, da Open-Meteo, para o cartão "Clima" do app. Sem a Open-Meteo, `503` |
 | POST | `/voluntarios` | Torna um entregador cadastrado voluntário da rede (começa indisponível) |
 | PUT | `/voluntarios/{id}/disponibilidade` | Atualiza a disponibilidade e a posição do voluntário |
 | GET | `/ocorrencias/proximas?voluntarioId=` | Chamados que o voluntário pode atender, pela disponibilidade e pela posição do último `PUT /voluntarios/{id}/disponibilidade` (localização aproximada) |
@@ -266,6 +269,7 @@ A página web do Cofre fica **fora** do `/api/v1`, em `GET /cofre/{qrToken}` (HT
 | Logins e renovações de token acima do limite | `429 Too Many Requests` |
 | Comando ao capacete que não chegou ao broker, nas rotas do turno (`POST /turnos` com `protecaoAtiva`, `POST /turnos/{id}/encerrar` e `POST /turnos/{id}/alerta/cancelar`) | `503 Service Unavailable`, e nada é gravado. O app pede para tentar de novo |
 | Serviço de Risco fora no `GET /trechos-criticos` (qualquer falha da seção 8, "Na API principal") | `503 Service Unavailable`, com o título "Serviço de Risco indisponível". Não há lista simulada. O `POST /turnos` nunca responde esse `503`: usa a versão simulada |
+| Open-Meteo fora no `GET /clima` (falha, tempo esgotado ou resposta inválida, com o cache vencido) | `503 Service Unavailable`, com o título "Previsão do tempo indisponível". Não há valor simulado. O `POST /turnos` nunca responde esse `503`: usa a previsão simulada |
 
 Todos os erros saem em ProblemDetails. O app decide pelo status HTTP, nunca pelo texto do `title` ou do `detail`, que pode variar para o mesmo código (por exemplo, o `409` de um aceite atrasado e o de um aceite simultâneo).
 
@@ -298,6 +302,7 @@ Todos os erros saem em ProblemDetails. O app decide pelo status HTTP, nunca pelo
 |---|---|
 | `GET /entregadores/{id}`, `GET` e `PUT /entregadores/{id}/ficha-medica`, `PUT /entregadores/{id}/telefone`, `POST`, `PUT` e `DELETE` dos contatos, `GET /cofre/auditoria/{entregadorId}` | Só o próprio entregador |
 | `POST /dispositivos`, `POST /voluntarios` e `POST /turnos` | Só o próprio entregador: o `entregadorId` do corpo precisa ser o do token |
+| `GET /clima` | Qualquer entregador logado (papel `ENTREGADOR`). Token de socorrista, `403` |
 | `/turnos/{id}/...` (risco, alerta, cancelar alerta e encerrar) | Só o dono do turno |
 | `PUT /voluntarios/{id}/disponibilidade`, `GET /ocorrencias/proximas?voluntarioId=` e `POST /ocorrencias/{id}/aceites` | Só o voluntário do próprio entregador: o `voluntarioId` continua na rota, no parâmetro e no corpo, com o mesmo nome, e precisa ser o do token |
 | `GET /ocorrencias/{id}?voluntarioId=` | A vítima ou qualquer entregador que seja voluntário. O `voluntarioId`, se vier, precisa ser o do token. A localização exata continua só para o voluntário que aceitou |
@@ -324,6 +329,37 @@ Todos os erros saem em ProblemDetails. O app decide pelo status HTTP, nunca pelo
 - **Encerrar:** o `200` do `POST /turnos/{id}/encerrar` traz `turnoId`, `entregadorId`, `inicio`, `fimPrevisto`, `fim`, `protecaoAtiva` e o risco no mesmo formato do `POST /turnos`.
 
 **Trechos críticos:** o `limite` é opcional, com padrão 10 e valores aceitos de 1 a 50 (fora disso, `400`). A lista vem em ordem decrescente de quantidade de sinistros graves.
+
+**Previsão do tempo (1.17):**
+
+- **Local:** a API usa uma coordenada fixa e configurável da cidade, com padrão nas coordenadas simuladas da seção 5 (`-23.5641`, `-46.6525`). O app não envia a posição do entregador, e nenhuma posição vai para a Open-Meteo nem para o log (seção 9).
+- **No `POST /turnos`:** a API pede a previsão horária da Open-Meteo (`temperature_2m`, `relative_humidity_2m` e `precipitation`, com os horários em GMT, que já são UTC) e usa as horas cheias que se sobrepõem ao turno, como o Serviço de Risco (seção 8.1). A `previsao` enviada ao `POST /indice-turno` não muda de formato:
+  - `chuvaMmHora`: a maior precipitação horária do turno, porque o pior momento é o que importa para a segurança;
+  - `temperaturaC` e `umidadePct`: os da hora de maior índice de calor do turno (fórmula da seção 6.1; no empate, a primeira hora);
+  - a chuva e a temperatura com 1 casa decimal, a umidade inteira, e os três limitados às faixas da seção 8.
+- **Reserva:** se a Open-Meteo falhar, passar de 3 s (sem novas tentativas), responder algo inválido ou não cobrir todas as horas do turno, a API usa a previsão simulada (7 mm/h, 24 °C e 85%), registra um aviso no log (só o motivo e o tempo) e cria o turno normalmente. O `POST /turnos` nunca falha por causa do tempo. A versão simulada do Índice (seção 8, "Na API principal") usa a previsão que a API obteve, real ou simulada.
+- **Previsão simulada forçada:** uma configuração interna da API faz o `POST /turnos` usar sempre a previsão simulada, sem chamar a Open-Meteo. Ela serve para os testes automatizados e para uma demonstração com o resultado de referência (índice 60, seção 7).
+- **Tempo de resposta:** no pior caso (Open-Meteo e Serviço de Risco esgotando o tempo), o `POST /turnos` leva cerca de 6 s. O app mostra o carregamento e não usa tempo limite menor que 10 s nessa rota.
+- **`GET /clima`:** sem parâmetros (o local é a coordenada fixa). Resposta `200`:
+
+```json
+{
+  "temperaturaC": 29.0,
+  "umidadePct": 55,
+  "chuvaMmHora": 0.0,
+  "indiceCalorC": 30.3,
+  "alertaCalor": false,
+  "atualizadoEm": "2026-11-18T18:00:00Z",
+  "fonte": "Open-Meteo"
+}
+```
+
+  - `temperaturaC`, `umidadePct` e `chuvaMmHora`: as condições atuais da Open-Meteo (`current`), com os nomes que o contrato já usa na `previsao`;
+  - `indiceCalorC`: a fórmula da seção 6.1, com 1 casa decimal (29,0 °C com 55% dão 30,3 °C);
+  - `alertaCalor`: verdadeiro quando o `indiceCalorC` já arredondado é maior ou igual a `ALERTA_CALOR_C`, para o cartão nunca mostrar 32,0 °C sem o alerta;
+  - `atualizadoEm`: o horário da medição da Open-Meteo, em UTC;
+  - `fonte`: o crédito exigido pela licença. O cartão mostra "Dados: Open-Meteo".
+- **Cache do `GET /clima`:** a API guarda a última resposta boa por 10 min, na memória, e os pedidos dentro desse tempo não chamam a Open-Meteo. Com o cache vencido e a Open-Meteo fora, a resposta é o `503` do quadro de códigos, nunca um valor velho como se fosse atual nem um valor simulado. O app esconde o cartão no `503`. O app consulta o `GET /clima` ao abrir a aba Início e ao puxar para atualizar, fora do polling de `INTERVALO_POLLING_APP_S`.
 
 **Regras da rede de voluntários:**
 
@@ -371,7 +407,7 @@ Resposta:
 }
 ```
 
-É o resultado real desse turno (quinta-feira, das 17h às 21h no horário local) com a previsão do exemplo da seção 8 (7 mm/h, 24 °C e 85%), que a API repassa ao Serviço de Risco. A conta da fórmula com 80, 70 e 30 dando 65 continua como exemplo de arredondamento na seção 8.
+É o resultado real desse turno (quinta-feira, das 17h às 21h no horário local) com a previsão simulada do exemplo da seção 8 (7 mm/h, 24 °C e 85%), que a API usa na reserva e com a previsão simulada forçada ("Previsão do tempo", acima). Com a previsão real da Open-Meteo, os componentes `chuva` e `calor` mudam conforme o tempo do dia. A conta da fórmula com 80, 70 e 30 dando 65 continua como exemplo de arredondamento na seção 8.
 
 **Exemplo: `GET /turnos/{id}/alerta`**
 
@@ -541,7 +577,7 @@ Gerados pelo notebook de ML na pasta `ml/modelo/` e carregados pelo Serviço de 
 |---|---|---|---|
 | PII sensível (saúde) | Todos os campos de `FichaMedica` | Telas do próprio entregador. Na resposta de `POST /cofre/{qrToken}/acesso`, só `tipoSanguineo`, `alergias` e `condicoesCriticas`, para socorrista verificado e dentro do TTL (seção 7) | Logs, MQTT, notificações, respostas para voluntários, auditoria, telas de outros usuários |
 | PII | `cpf`, `cnh`, `telefone`, `nome`, `email`, contatos de emergência | Telas do próprio entregador (o `email` sempre mascarado nas respostas). Os contatos de emergência também saem na resposta do Cofre para o socorrista verificado, com o telefone completo para a ligação. O nome, o CPF e a CNH do entregador nunca saem no Cofre | Logs, MQTT, respostas para voluntários |
-| Localização | `latitude`, `longitude` | Exata: contato de emergência e voluntário que **aceitou**. Aproximada (arredondada para 2 casas decimais, cerca de 1 km): voluntários antes do aceite. A posição do voluntário nunca sai da API; a vítima recebe só a `distanciaVoluntarioKm` | Logs em texto aberto, MQTT com identificação pessoal |
+| Localização | `latitude`, `longitude` | Exata: contato de emergência e voluntário que **aceitou**. Aproximada (arredondada para 2 casas decimais, cerca de 1 km): voluntários antes do aceite. A posição do voluntário nunca sai da API; a vítima recebe só a `distanciaVoluntarioKm`. A previsão do tempo usa só a coordenada fixa da cidade, nunca a posição de um entregador | Logs em texto aberto, MQTT com identificação pessoal |
 | Credenciais | Senhas, `accessToken`, `refreshToken` e o `qrToken` do capacete | A senha só como hash no Identity; os tokens só na resposta do login e da renovação e, no app, só no `expo-secure-store` (na página do Cofre, só na memória); o `qrToken` só no QR Code, no endereço da página e na resposta do `POST /dispositivos` | Logs, SQLite do app, MQTT, outras URLs e qualquer outra saída |
 
 Máscaras padrão: CPF `***.***.***-12`, CNH `*******8900`, celular `(11) *****-1234` e telefone fixo `(11) ****-4567`.
@@ -589,3 +625,4 @@ Máscaras padrão: CPF `***.***.***-12`, CNH `*******8900`, celular `(11) *****-
 | 1.14 | 15/11/2026 | SOS escalonado na API: o SOS repetido olha a ocorrência mais recente do entregador; `Location` sempre absoluto; o app decide pelo status HTTP, não pelo texto do erro; sem capacete vinculado, o comando da ocorrência não é publicado; nova tentativa só no aceite e `409` no cancelar e no encerrar em conflito de concorrência; erro por rodada no escalonamento com o banco fora |
 | 1.15 | 16/11/2026 | Identidade com o ASP.NET Core Identity para entregador e socorrista: cadastro com e-mail e senha, login, renovação do token e sessão; papéis e quem pode o quê em cada rota; `GET` da ficha médica, edição e exclusão de contatos e troca de telefone; CNH, telefone e e-mail únicos; `distanciaVoluntarioKm` para a vítima; encerramento automático em `TEMPO_ENCERRAMENTO_AUTOMATICO_MIN`; rota de desenvolvimento para contas de dados antigos; bloqueio, limite de logins (`429`), `204` no `DELETE` e `email` na seção 9; chaves do Data Protection persistentes e cabeçalhos encaminhados na Infra |
 | 1.16 | 17/11/2026 | Cofre médico: janela de acesso por socorrista e entregador (expira pelo TTL ou pelo fim da ocorrência, com bloqueio da emergência manual depois do fechamento); enum `MotivoNegacaoCofre` e auditoria das negações; o que não gera auditoria; corpo da resposta do acesso; login do socorrista sem renovação; corpo da rota de desenvolvimento dos socorristas; página web igual para qualquer `qrToken`, token só na memória e cabeçalhos de segurança; `qrToken` como credencial na seção 9 |
+| 1.17 | 17/11/2026 | Previsão do tempo real pela Open-Meteo no `POST /turnos` (horas do turno, maior chuva e hora de maior índice de calor, coordenada fixa da cidade, reserva simulada sem falhar o turno e previsão simulada forçada para testes); `GET /clima` para o entregador logado, com `alertaCalor`, crédito da fonte, cache de 10 min e `503` sem a Open-Meteo; `ALERTA_CALOR_C` também na API; saída HTTPS para `api.open-meteo.com` na Infra |

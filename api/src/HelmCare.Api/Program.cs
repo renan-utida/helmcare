@@ -164,8 +164,9 @@ builder.Services.AddScoped<SocorristaServico>();
 // Cofre médico (1.16): acesso do socorrista pelo qrToken, com a janela de acesso e a auditoria.
 builder.Services.AddScoped<CofreServico>();
 
-// Previsão do tempo fixa (exemplo da seção 8) até entrar a Open-Meteo.
-builder.Services.AddSingleton<IPrevisaoTempo, PrevisaoTempoSimulada>();
+// Previsão do tempo pela Open-Meteo (seção 7, 1.17): no POST /turnos, real com reserva na simulada,
+// ou a simulada direto com HelmCare:PrevisaoSimuladaForcada; e o GET /clima, com o cache de 10 min.
+ConfiguracaoPrevisao.Registrar(builder.Services, opcoesIniciais.PrevisaoSimuladaForcada);
 
 // Serviço de Risco (seção 8): URL base e tempo limite na seção "ServicoRisco" (sem segredo; na VM,
 // ServicoRisco__UrlBase). O HttpClient tipado vem da fábrica, que cuida do ciclo das conexões.

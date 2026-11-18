@@ -115,6 +115,12 @@ public sealed partial class TratadorExcecoes : IExceptionHandler
                 StatusCodes.Status503ServiceUnavailable,
                 "Serviço de Risco indisponível",
                 "Os trechos críticos não estão disponíveis agora; tente de novo."),
+            // Também fora do quadro antigo: só o GET /clima chega aqui (o POST /turnos usa a previsão
+            // simulada e nunca deixa esta exceção escapar). Sem nenhum valor simulado.
+            PrevisaoIndisponivelException => (
+                StatusCodes.Status503ServiceUnavailable,
+                "Previsão do tempo indisponível",
+                "As condições do tempo não estão disponíveis agora; tente de novo."),
             DbUpdateConcurrencyException => (
                 StatusCodes.Status409Conflict,
                 "Conflito de concorrência",

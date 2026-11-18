@@ -19,6 +19,7 @@ public sealed class FakeHttpMessageHandler : HttpMessageHandler
     private string _corpo = "{}";
     private string _tipoConteudo = "application/json";
     private Func<Exception>? _excecao;
+    private TimeSpan _atraso = TimeSpan.Zero;
 
     /// <summary>
     /// Requisições recebidas, na ordem.
@@ -48,6 +49,15 @@ public sealed class FakeHttpMessageHandler : HttpMessageHandler
     }
 
     /// <summary>
+    /// Faz cada resposta demorar, para o tempo limite real do <see cref="HttpClient"/> esgotar.
+    /// </summary>
+    /// <param name="atraso">Demora antes de responder.</param>
+    public void Atrasar(TimeSpan atraso)
+    {
+        _atraso = atraso;
+    }
+
+    /// <summary>
     /// Passa a lançar <see cref="TaskCanceledException"/> com uma <see cref="TimeoutException"/>
     /// interna, que é como o <see cref="HttpClient"/> sinaliza o tempo esgotado.
     /// </summary>
@@ -66,6 +76,12 @@ public sealed class FakeHttpMessageHandler : HttpMessageHandler
 
         // Quem chamou cancelou: o HttpClient transforma isto no cancelamento do token dele.
         cancellationToken.ThrowIfCancellationRequested();
+
+        // Demora de verdade: o tempo limite do HttpClient cancela este token.
+        if (_atraso > TimeSpan.Zero)
+        {
+            await Task.Delay(_atraso, cancellationToken);
+        }
 
         if (_excecao is not null)
         {
