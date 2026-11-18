@@ -3,6 +3,12 @@
  * mais as constantes próprias do app.
  */
 
+/**
+ * Segundos da janela de observação do capacete depois do impacto (seção 5). O app conta no
+ * próprio relógio, a partir da primeira leitura em IMPACTO_DETECTADO ou OBSERVACAO, só para o anel.
+ */
+export const JANELA_OBSERVACAO_S = 10;
+
 /** Segundos da contagem de cancelamento do alerta de queda, contados no relógio do app. */
 export const CONTAGEM_CANCELAMENTO_S = 15;
 

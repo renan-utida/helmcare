@@ -8,7 +8,8 @@ import { Botao } from '@/componentes/Botao';
 import { FaixaSessaoTerminada } from '@/componentes/FaixaSessaoTerminada';
 import { Icone } from '@/componentes/Icone';
 import { Texto } from '@/componentes/Texto';
-import { CONTAGEM_CANCELAMENTO_S } from '@/config/constantes';
+import { ContagemCircular } from '@/componentes/ContagemCircular';
+import { CONTAGEM_CANCELAMENTO_S, JANELA_OBSERVACAO_S } from '@/config/constantes';
 import { useTema } from '@/contextos/TemaContext';
 import { ehEstadoDeAlerta, useTurno } from '@/contextos/TurnoContext';
 import { useContagemRegressiva } from '@/hooks/useContagemRegressiva';
@@ -30,12 +31,12 @@ interface Mensagem {
   texto: string;
 }
 
-/** Volta para a tela de baixo (ou para a aba Turno, se a tela foi aberta sozinha). */
+/** Volta para a tela de baixo (ou para a aba Início, se a tela foi aberta sozinha). */
 function fechar() {
   if (router.canGoBack()) {
     router.back();
   } else {
-    router.replace('/turno');
+    router.replace('/inicio');
   }
 }
 
@@ -43,8 +44,9 @@ function fechar() {
  * Alerta de queda em tela cheia (seção 7 do contrato, `GET /turnos/{id}/alerta`).
  * O TurnoContext abre esta tela sozinho quando o capacete entra em IMPACTO_DETECTADO,
  * OBSERVACAO ou CONTAGEM, e a troca pela ocorrência quando o SOS sai.
- * - Observação: só informa; o cancelar fica desabilitado e explicado.
- * - Contagem: 15 s no relógio do app a partir da primeira leitura em CONTAGEM, vibração,
+ * - Verificação (impacto e observação): o anel de 10 s no relógio do app e "Verificando se você
+ *   está bem"; zerou e ainda está verificando, "Quase lá...". O cancelar fica desabilitado e explicado.
+ * - Contagem: o anel de 15 s no relógio do app a partir da primeira leitura em CONTAGEM, vibração,
  *   anúncios e o botão "Estou bem". Zerou e ainda está em CONTAGEM: "Enviando SOS...".
  *   Quem decide se ainda dá para cancelar é a API (202 ou 409).
  * - Fim (cancelado, falso positivo): mensagem curta e a tela fecha sozinha.
@@ -53,7 +55,7 @@ function fechar() {
 export default function Alerta() {
   const { cores, espaco } = useTema();
   const insets = useSafeAreaInsets();
-  const { turno, alerta, alertaSemConexao, contagemVistaEm, atualizarAlerta } = useTurno();
+  const { turno, alerta, alertaSemConexao, contagemVistaEm, verificacaoVistaEm, atualizarAlerta } = useTurno();
   const [cancelando, setCancelando] = useState(false);
   const [cancelou, setCancelou] = useState(false);
   const [mensagem, setMensagem] = useState<Mensagem | null>(null);
@@ -62,6 +64,9 @@ export default function Alerta() {
   const emVerificacao = estado === 'IMPACTO_DETECTADO' || estado === 'OBSERVACAO';
   const emContagem = estado === 'CONTAGEM';
   const restante = useContagemRegressiva(emContagem ? contagemVistaEm : null, CONTAGEM_CANCELAMENTO_S);
+  // Verificação: o anel de JANELA_OBSERVACAO_S no relógio do app, desde a primeira leitura em
+  // IMPACTO_DETECTADO ou OBSERVACAO. Ao zerar ainda em verificação, "Quase lá...".
+  const restanteVerificacao = useContagemRegressiva(emVerificacao ? verificacaoVistaEm : null, JANELA_OBSERVACAO_S);
   const enviandoSos = emContagem && restante === 0;
   const sosEnviado = estado === 'SOS_ENVIADO';
   // Terminou: o capacete saiu do alerta sem SOS (cancelado, falso positivo ou de volta ao normal).
@@ -220,9 +225,21 @@ export default function Alerta() {
             </View>
 
             {emVerificacao ? (
-              <Texto variante="subtitulo" centralizado corPersonalizada={corTexto} accessibilityLiveRegion="polite">
-                Detectamos um impacto. Estamos verificando se você está bem.
-              </Texto>
+              <View style={{ alignItems: 'center', gap: espaco.medio }}>
+                {restanteVerificacao !== null && restanteVerificacao > 0 && verificacaoVistaEm !== null ? (
+                  <ContagemCircular
+                    totalS={JANELA_OBSERVACAO_S}
+                    inicioMs={verificacaoVistaEm}
+                    restante={restanteVerificacao}
+                    cor={corAviso.icone}
+                    corTexto={corTexto}
+                    rotulo={`${restanteVerificacao} segundos de verificação`}
+                  />
+                ) : null}
+                <Texto variante="subtitulo" centralizado corPersonalizada={corTexto} accessibilityLiveRegion="polite">
+                  {restanteVerificacao === 0 ? 'Quase lá...' : 'Verificando se você está bem'}
+                </Texto>
+              </View>
             ) : null}
 
             {emContagem && restante !== null ? (
@@ -233,16 +250,18 @@ export default function Alerta() {
                   </Texto>
                 ) : (
                   <>
-                    <Texto
-                      variante="contagem"
-                      corPersonalizada={corTexto}
-                      centralizado
-                      // Sem região viva: ela fazia o TalkBack ler todos os segundos e cortar os
-                      // anúncios. O número é lido quando a pessoa toca nele.
-                      accessibilityLabel={`${restante} segundos para cancelar`}
-                    >
-                      {restante}
-                    </Texto>
+                    {/* Anel de 15 s com a cor de perigo; o número no centro tem o rótulo e não é
+                        região viva (os anúncios do início, dos 10 s e dos 5 s continuam). */}
+                    {contagemVistaEm !== null ? (
+                      <ContagemCircular
+                        totalS={CONTAGEM_CANCELAMENTO_S}
+                        inicioMs={contagemVistaEm}
+                        restante={restante}
+                        cor={cores.perigo}
+                        corTexto={corTexto}
+                        rotulo={`${restante} segundos para cancelar`}
+                      />
+                    ) : null}
                     <Texto variante="subtitulo" centralizado corPersonalizada={corTexto}>
                       segundos para cancelar
                     </Texto>
