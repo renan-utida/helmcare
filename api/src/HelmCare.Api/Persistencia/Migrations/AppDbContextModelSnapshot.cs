@@ -83,6 +83,9 @@ namespace HelmCare.Api.Persistencia.Migrations
                     b.Property<DateTime>("AcessadoEm")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<bool>("Concedido")
+                        .HasColumnType("boolean");
+
                     b.Property<Guid>("EntregadorId")
                         .HasColumnType("uuid");
 
@@ -92,6 +95,10 @@ namespace HelmCare.Api.Persistencia.Migrations
                     b.Property<string>("Ip")
                         .HasMaxLength(45)
                         .HasColumnType("character varying(45)");
+
+                    b.Property<string>("Motivo")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
 
                     b.Property<Guid?>("OcorrenciaId")
                         .HasColumnType("uuid");
