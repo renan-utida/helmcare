@@ -5,6 +5,8 @@ import type {
   TurnoResposta,
 } from '@/tipos/contrato';
 
+import { TEMPO_LIMITE_TURNO_MS } from '@/config/constantes';
+
 import { api } from './api';
 
 /** Rotas do turno (seção 7). */
@@ -12,9 +14,11 @@ export const turnoServico = {
   /**
    * `POST /turnos`: 201 com o Índice de Risco. 409 turno ativo ou proteção sem capacete;
    * 503 o comando `ARMAR` não chegou ao capacete (nada foi gravado); 400 duração inválida.
+   * Tempo limite próprio de 15 s: com a Open-Meteo e o Serviço de Risco lentos, a rota leva
+   * cerca de 6 s, e o contrato pede pelo menos 10 s (a tela mostra o carregamento).
    */
   async iniciar(dados: IniciarTurnoRequisicao): Promise<RiscoTurnoResposta> {
-    const { data } = await api.post<RiscoTurnoResposta>('/turnos', dados);
+    const { data } = await api.post<RiscoTurnoResposta>('/turnos', dados, { timeout: TEMPO_LIMITE_TURNO_MS });
     return data;
   },
 
