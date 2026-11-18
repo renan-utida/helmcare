@@ -63,6 +63,7 @@ export function useOcorrencia(id: string, papel: PapelOcorrencia): EstadoOcorren
           aceitaEm: resposta.aceitaEm,
           encerradaEm: resposta.encerradaEm,
           tempoAteAceiteSegundos: resposta.tempoAteAceiteSegundos,
+          encerradaAutomaticamente: resposta.encerradaAutomaticamente,
           atualizadoEm: new Date().toISOString(),
         });
       }

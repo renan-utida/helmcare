@@ -14,7 +14,7 @@ import { FaixaSessaoTerminada } from '@/componentes/FaixaSessaoTerminada';
 import { Icone, type NomeIcone } from '@/componentes/Icone';
 import { Tela } from '@/componentes/Tela';
 import { Texto } from '@/componentes/Texto';
-import { RAIO_CAMADA_1_KM } from '@/config/constantes';
+import { RAIO_CAMADA_1_KM, TEMPO_ENCERRAMENTO_AUTOMATICO_MIN } from '@/config/constantes';
 import { useChamados } from '@/contextos/ChamadosContext';
 import { useTema } from '@/contextos/TemaContext';
 import { useCronometro } from '@/hooks/useCronometro';
@@ -22,7 +22,7 @@ import { ESTADOS_FINAIS, useOcorrencia } from '@/hooks/useOcorrencia';
 import { converterErro, type ErroApi } from '@/servicos/erros';
 import { ocorrenciaServico } from '@/servicos/ocorrenciaServico';
 import type { EstadoOcorrencia, OcorrenciaResposta } from '@/tipos/contrato';
-import { duracaoFalada, formatarDecimal, formatarMinutosSegundos } from '@/utils/datas';
+import { duracaoFalada, formatarDecimal, formatarMinutosSegundos, textoEncerramentoAutomatico } from '@/utils/datas';
 import { MENSAGEM_SEM_CONEXAO, mensagemComum } from '@/utils/mensagensErro';
 import { repetirEmConflito } from '@/utils/repetirEmConflito';
 
@@ -149,12 +149,45 @@ function CabecalhoStatus({ status, ativa }: { status: StatusTela; ativa: boolean
 
 /** Frase do resumo com o tempo até o aceite e a situação da meta. */
 function fraseResumo(ocorrencia: OcorrenciaResposta): string {
+  // A API encerrou o SOS por tempo (`encerradaAutomaticamente`, seção 7).
+  const automatica = ocorrencia.encerradaAutomaticamente
+    ? ` ${textoEncerramentoAutomatico(TEMPO_ENCERRAMENTO_AUTOMATICO_MIN)}.`
+    : '';
   const tempo = ocorrencia.tempoAteAceiteSegundos;
   if (tempo === null) {
-    return 'Tempo até o aceite: sem aceite.';
+    return `Tempo até o aceite: sem aceite.${automatica}`;
   }
   const meta = TEXTO_META[situacaoDaMeta(tempo, ocorrencia.cronometro.metaSegundos)].toLowerCase();
-  return `Tempo até o aceite: ${formatarMinutosSegundos(tempo)} (${duracaoFalada(tempo)}), ${meta}.`;
+  return `Tempo até o aceite: ${formatarMinutosSegundos(tempo)} (${duracaoFalada(tempo)}), ${meta}.${automatica}`;
+}
+
+/**
+ * Distância do voluntário que aceitou, para a vítima: "Voluntário a 0,6 km" (1 casa, vírgula),
+ * atualizada a cada consulta e anunciada uma vez quando aparece. Só a distância: a posição do
+ * voluntário nunca sai da API (seção 9). Sem `distanciaVoluntarioKm`, nada aparece.
+ */
+function DistanciaVoluntario({ km }: { km: number | null }) {
+  const { cores, espaco } = useTema();
+  const anunciada = useRef(false);
+  useEffect(() => {
+    if (km !== null && !anunciada.current) {
+      anunciada.current = true;
+      AccessibilityInfo.announceForAccessibility(`Voluntário a ${formatarDecimal(km)} quilômetros`);
+    }
+  }, [km]);
+  if (km === null) {
+    return null;
+  }
+  return (
+    <View
+      accessible
+      accessibilityLabel={`Voluntário a ${formatarDecimal(km)} quilômetros`}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: espaco.pequeno }}
+    >
+      <Icone nome="walk" cor={cores.aviso.sucesso.icone} tamanho={32} />
+      <Texto variante="subtitulo" style={{ flex: 1 }}>{`Voluntário a ${formatarDecimal(km)} km`}</Texto>
+    </View>
+  );
 }
 
 /** Tela da vítima: status, cronômetro, Ligar 192 e "Estou bem, cancelar o SOS". */
@@ -214,6 +247,8 @@ function OcorrenciaDaVitima({ id }: { id: string }) {
       <FaixaSessaoTerminada />
       <Tela aoAtualizar={() => void recarregar()} atualizando={false}>
         <CabecalhoStatus status={STATUS_VITIMA[ocorrencia.estado]} ativa={ativa} />
+
+        {ocorrencia.estado === 'SOCORRO_A_CAMINHO' ? <DistanciaVoluntario km={ocorrencia.distanciaVoluntarioKm} /> : null}
 
         <Aviso tipo="informacao" mensagem="Seu contato de emergência foi avisado." />
         {erro?.tipo === 'sem-conexao' ? (

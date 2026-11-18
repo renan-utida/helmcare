@@ -61,6 +61,18 @@ export function duracaoFalada(totalSegundos: number): string {
   return partes.join(' e ');
 }
 
+/**
+ * Texto do encerramento automático do SOS, montado com `TEMPO_ENCERRAMENTO_AUTOMATICO_MIN`:
+ * "Encerrada automaticamente depois de 2 horas" (ou "de 90 minutos", se a constante mudar).
+ */
+export function textoEncerramentoAutomatico(minutos: number): string {
+  if (minutos % 60 === 0) {
+    const horas = minutos / 60;
+    return `Encerrada automaticamente depois de ${horas} ${horas === 1 ? 'hora' : 'horas'}`;
+  }
+  return `Encerrada automaticamente depois de ${minutos} minutos`;
+}
+
 /** Data curta no horário do aparelho, como "sáb., 15/11". */
 export function formatarDia(iso: string): string {
   return new Date(iso).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' });
@@ -84,4 +96,10 @@ export function formatarDuracaoEntre(inicioIso: string, fimIso: string, falada =
     return horas > 0 ? `${horas} ${horas === 1 ? 'hora' : 'horas'} e ${textoMinutos}` : textoMinutos;
   }
   return horas > 0 ? `${horas} h ${String(minutos).padStart(2, '0')} min` : `${minutos} min`;
+}
+
+/** Hora no horário do aparelho no formato falado do dia a dia, como "22h10". */
+export function formatarHoraComH(iso: string): string {
+  const data = new Date(iso);
+  return `${data.getHours()}h${String(data.getMinutes()).padStart(2, '0')}`;
 }

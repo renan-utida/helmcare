@@ -20,6 +20,8 @@ export interface OcorrenciaLocal {
   aceitaEm: string | null;
   encerradaEm: string | null;
   tempoAteAceiteSegundos: number | null;
+  /** Verdadeiro quando a API encerrou o SOS por tempo (migração 3; não é dado pessoal). */
+  encerradaAutomaticamente: boolean;
   atualizadoEm: string;
 }
 
@@ -34,6 +36,7 @@ interface LinhaOcorrencia {
   aceita_em: string | null;
   encerrada_em: string | null;
   tempo_ate_aceite_segundos: number | null;
+  encerrada_automaticamente: number;
   atualizado_em: string;
 }
 
@@ -49,6 +52,7 @@ function paraOcorrencia(linha: LinhaOcorrencia): OcorrenciaLocal {
     aceitaEm: linha.aceita_em,
     encerradaEm: linha.encerrada_em,
     tempoAteAceiteSegundos: linha.tempo_ate_aceite_segundos,
+    encerradaAutomaticamente: linha.encerrada_automaticamente === 1,
     atualizadoEm: linha.atualizado_em,
   };
 }
@@ -70,8 +74,8 @@ export const ocorrenciaRepositorio = {
     // então, se o UPDATE falhar, nenhum registro fica com um estado misturado.
     await db.runAsync(
       `INSERT INTO ocorrencia (id, entregador_id, papel, estado, camada, criada_em, aceita_em,
-         encerrada_em, tempo_ate_aceite_segundos, atualizado_em)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         encerrada_em, tempo_ate_aceite_segundos, encerrada_automaticamente, atualizado_em)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (id, entregador_id) DO NOTHING`,
       ocorrencia.id,
       ocorrencia.entregadorId,
@@ -82,17 +86,19 @@ export const ocorrenciaRepositorio = {
       ocorrencia.aceitaEm,
       ocorrencia.encerradaEm,
       ocorrencia.tempoAteAceiteSegundos,
+      ocorrencia.encerradaAutomaticamente ? 1 : 0,
       ocorrencia.atualizadoEm,
     );
     await db.runAsync(
       `UPDATE ocorrencia SET estado = ?, camada = ?, aceita_em = ?, encerrada_em = ?,
-         tempo_ate_aceite_segundos = ?, atualizado_em = ?
+         tempo_ate_aceite_segundos = ?, encerrada_automaticamente = ?, atualizado_em = ?
        WHERE id = ?`,
       ocorrencia.estado,
       ocorrencia.camada,
       ocorrencia.aceitaEm,
       ocorrencia.encerradaEm,
       ocorrencia.tempoAteAceiteSegundos,
+      ocorrencia.encerradaAutomaticamente ? 1 : 0,
       ocorrencia.atualizadoEm,
       ocorrencia.id,
     );

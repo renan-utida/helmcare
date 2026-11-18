@@ -261,6 +261,7 @@ export function ChamadosProvider({ children }: { children: ReactNode }) {
         aceitaEm: resposta.aceitaEm,
         encerradaEm: resposta.encerradaEm,
         tempoAteAceiteSegundos: resposta.tempoAteAceiteSegundos,
+        encerradaAutomaticamente: resposta.encerradaAutomaticamente,
         atualizadoEm: agoraIso(),
       };
       // Sem latitude e longitude: a localização exata fica só na tela do atendimento.
