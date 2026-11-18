@@ -17,6 +17,7 @@ import { useChamados } from '@/contextos/ChamadosContext';
 import { useSessao } from '@/contextos/SessaoContext';
 import { useTema } from '@/contextos/TemaContext';
 import { converterErro, type ErroApi } from '@/servicos/erros';
+import { comecarPilhaEm } from '@/utils/navegacao';
 import { formatarDecimal } from '@/utils/datas';
 import { MENSAGEM_SEM_CONEXAO, mensagemComum } from '@/utils/mensagensErro';
 import { IDS_POSICOES, posicaoSimulada, type IdPosicaoSimulada } from '@/utils/posicoesSimuladas';
@@ -91,7 +92,7 @@ export default function Chamados() {
     return (
       <Tela dentroDeAbas>
         <EstadoVazio titulo="Nenhuma conta neste aparelho" icone="person-outline" />
-        <Botao titulo="Entrar" aoPressionar={() => router.replace('/login')} />
+        <Botao titulo="Entrar" aoPressionar={() => comecarPilhaEm('/login')} />
       </Tela>
     );
   }

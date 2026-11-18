@@ -18,6 +18,7 @@ import { entregadorServico } from '@/servicos/entregadorServico';
 import { converterErro } from '@/servicos/erros';
 import { gerarEntregadorSimulado } from '@/utils/dadosSimulados';
 import { guardarParaProximaTela } from '@/utils/memoriaDoFluxo';
+import { comecarPilhaEm } from '@/utils/navegacao';
 import { errosDosCampos, MENSAGEM_CONFIRA_CAMPOS, mensagemComum } from '@/utils/mensagensErro';
 import { validarCnh, validarCpf, validarEmail, validarNome, validarSenha, validarTelefone } from '@/utils/validacao';
 
@@ -114,7 +115,7 @@ function irParaLogin(motivo?: 'conta-criada') {
     router.back();
     return;
   }
-  router.replace(motivo ? { pathname: '/login', params: { motivo } } : '/login');
+  comecarPilhaEm(motivo ? { pathname: '/login', params: { motivo } } : '/login');
 }
 
 /**
@@ -341,7 +342,7 @@ function Pronto({ comCapacete }: { comCapacete: boolean }) {
         icone="medkit"
         aoPressionar={() => router.push('/ficha-medica')}
       />
-      <Botao titulo="Ir para o turno" icone="arrow-forward" aoPressionar={() => router.dismissTo('/turno')} />
+      <Botao titulo="Ir para o turno" icone="arrow-forward" aoPressionar={() => comecarPilhaEm('/turno')} />
     </>
   );
 }

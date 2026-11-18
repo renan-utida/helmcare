@@ -1,4 +1,4 @@
-import { router, usePathname } from 'expo-router';
+import { usePathname } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import {
   createContext,
@@ -27,6 +27,7 @@ import {
 import { autenticacaoServico } from '@/servicos/autenticacaoServico';
 import { converterErro } from '@/servicos/erros';
 import type { LoginEntregadorResposta, SessaoEntregadorResposta } from '@/tipos/contrato';
+import { comecarPilhaEm } from '@/utils/navegacao';
 
 /**
  * Situação da sessão da conta ativa:
@@ -221,7 +222,7 @@ export function SessaoProvider({ children }: { children: ReactNode }) {
       // outras, vai para o login. Antes de terminar a abertura (rota "/"), quem decide é o index.
       const atual = caminhoAtual.current;
       if (!telaDeEmergencia(atual) && atual !== '/' && atual !== '/login') {
-        router.replace({ pathname: '/login', params: { motivo: 'sessao' } });
+        comecarPilhaEm({ pathname: '/login', params: { motivo: 'sessao' } });
       }
     });
     return () => definirTratadorNaoAutorizado(null);

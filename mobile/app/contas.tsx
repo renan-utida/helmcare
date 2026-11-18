@@ -14,6 +14,7 @@ import { useSessao } from '@/contextos/SessaoContext';
 import { useTema } from '@/contextos/TemaContext';
 import { useTurno } from '@/contextos/TurnoContext';
 import { useSessaoDaConta } from '@/hooks/useSessaoDaConta';
+import { comecarPilhaEm } from '@/utils/navegacao';
 
 /** Id único de cada troca de conta (o instante da troca), chamado só no toque de "Trocar". */
 function novoIdDeTroca(): string {
@@ -184,7 +185,7 @@ export default function Contas() {
     if (proxima) {
       router.dismissTo({ pathname: '/turno', params: { troca: novoIdDeTroca() } });
     } else {
-      router.replace('/login');
+      comecarPilhaEm('/login');
     }
   }
 

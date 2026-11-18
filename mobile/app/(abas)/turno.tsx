@@ -23,6 +23,7 @@ import { useTrechosCriticos } from '@/hooks/useTrechosCriticos';
 import { converterErro, type ErroApi } from '@/servicos/erros';
 import { formatarDecimal, formatarDiaHora, jaPassou } from '@/utils/datas';
 import { MENSAGEM_SEM_CONEXAO, mensagemComum } from '@/utils/mensagensErro';
+import { comecarPilhaEm } from '@/utils/navegacao';
 
 /** Durações oferecidas em botões (em horas). O contrato aceita até 24 h. */
 const DURACOES = ['4', '8', '12'] as const;
@@ -94,7 +95,7 @@ export default function Turno() {
     return (
       <Tela dentroDeAbas>
         <EstadoVazio titulo="Nenhuma conta neste aparelho" icone="person-outline" />
-        <Botao titulo="Entrar" aoPressionar={() => router.replace('/login')} />
+        <Botao titulo="Entrar" aoPressionar={() => comecarPilhaEm('/login')} />
       </Tela>
     );
   }

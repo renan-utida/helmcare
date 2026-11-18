@@ -14,6 +14,7 @@ import { useTema } from '@/contextos/TemaContext';
 import { autenticacaoServico } from '@/servicos/autenticacaoServico';
 import { converterErro, type ErroApi } from '@/servicos/erros';
 import { retirarDoFluxo } from '@/utils/memoriaDoFluxo';
+import { comecarPilhaEm } from '@/utils/navegacao';
 import { MENSAGEM_MUITAS_TENTATIVAS, MENSAGEM_SEM_CONEXAO, mensagemComum } from '@/utils/mensagensErro';
 import { validarEmail } from '@/utils/validacao';
 
@@ -88,9 +89,11 @@ export default function Login() {
       await adicionarConta(resposta);
       AccessibilityInfo.announceForAccessibility(`Você entrou como ${resposta.nome}`);
       if (modo === 'reentrar' && router.canGoBack()) {
+        // Volta para a mesma tela (alerta ou ocorrência) que pediu para entrar de novo.
         router.back();
       } else {
-        router.dismissTo('/turno');
+        // Pilha nova nas abas: o voltar do Android nunca reabre o login.
+        comecarPilhaEm('/turno');
       }
     } catch (e) {
       setMensagem(mensagemDoErro(converterErro(e)));

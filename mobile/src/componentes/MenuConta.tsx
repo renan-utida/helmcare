@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useChamados } from '@/contextos/ChamadosContext';
 import { useSessao } from '@/contextos/SessaoContext';
 import { useTema } from '@/contextos/TemaContext';
+import { comecarPilhaEm } from '@/utils/navegacao';
 
 import { Botao } from './Botao';
 import { Icone } from './Icone';
@@ -83,7 +84,7 @@ export function MenuConta({ visivel, aoFechar }: MenuContaProps) {
     if (proxima) {
       router.dismissTo('/turno');
     } else {
-      router.replace('/login');
+      comecarPilhaEm('/login');
     }
   }
 
