@@ -78,8 +78,11 @@ function celularSimulado(): string {
   return `(11) 9${n.slice(0, 4)}-${n.slice(4)}`;
 }
 
-/** Gera os dados simulados do entregador para o `POST /entregadores`. */
-export function gerarEntregadorSimulado(): CriarEntregadorRequisicao {
+/**
+ * Gera os dados pessoais simulados do entregador para o `POST /entregadores`. O e-mail e a senha
+ * ficam de fora: a pessoa digita os dela, porque vai usá-los para entrar.
+ */
+export function gerarEntregadorSimulado(): Omit<CriarEntregadorRequisicao, 'email' | 'senha'> {
   return {
     nome: nomeSimulado(),
     cpf: cpfSimulado(),
