@@ -602,6 +602,103 @@ info: ...CofreServico[900] Acesso ao Cofre 01a1ebd8-fc82-7b06-9898-41c6ca9fa006:
 info: ...CofreServico[900] Acesso ao Cofre 01a1ebe2-0eda-71e0-92bb-9d9b1fca4f1c: socorrista 01a1ebd7-5700-71ce-9dd2-db59d5ac2d7b, entregador 01a1d1e8-f66c-7ad8-9854-b31db7792668, resultado ACESSO_EXPIRADO.
 ```
 
+## Previsão do tempo e clima
+
+A previsão do tempo vem da [Open-Meteo](https://open-meteo.com/) (`https://api.open-meteo.com/v1/forecast`), gratuita para uso não comercial e sem chave. Os dados estão sob a licença [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), que exige o crédito da fonte; por isso, a resposta do `GET /clima` traz `"fonte": "Open-Meteo"`, e o cartão do app mostra "Dados: Open-Meteo".
+
+A API chama a Open-Meteo por um HttpClient tipado (`ClienteOpenMeteo`), no mesmo padrão do Serviço de Risco: URL base configurável, tempo limite de 3 s e nenhuma nova tentativa. O local é uma coordenada fixa da cidade, com padrão nas coordenadas simuladas da seção 5 (`-23.5641`, `-46.6525`). O app não manda a posição do entregador, e nenhuma coordenada vai para o log. O log do HttpClient, que leva a URL com a coordenada, fica em `Warning`.
+
+| Configuração | Padrão |
+|---|---|
+| `OpenMeteo:UrlBase` | `https://api.open-meteo.com/` |
+| `OpenMeteo:TempoLimiteS` | `3` (de 1 a 30) |
+| `OpenMeteo:Latitude` e `OpenMeteo:Longitude` | `-23.5641` e `-46.6525` |
+| `OpenMeteo:CacheClimaMin` | `10` (de 1 a 60) |
+| `HelmCare:PrevisaoSimuladaForcada` | `false` |
+
+**Previsão do turno (`POST /turnos`).** A API pede a previsão horária (`temperature_2m`, `relative_humidity_2m` e `precipitation`), com os horários no fuso padrão da Open-Meteo (GMT, que já é UTC) e o `start_date` e o `end_date` dos dias das horas do turno. A agregação:
+
+- **Horas:** as horas cheias UTC que se sobrepõem ao turno, as mesmas do Serviço de Risco (seção 8.1). Um turno das 18:30 às 20:15 UTC usa as horas das 18h, das 19h e das 20h.
+- **Chuva:** a maior precipitação horária dessas horas, porque o pior momento é o que importa para a segurança.
+- **Temperatura e umidade:** as da hora de maior índice de calor (fórmula da seção 6.1); no empate, a primeira hora.
+- **Arredondamento:** chuva e temperatura com 1 casa e umidade inteira (0,5 para cima), limitadas às faixas da seção 8 (chuva de 0 a 200 mm/h, temperatura de -10 a 50 °C e umidade de 0 a 100%).
+
+A `previsao` enviada ao Serviço de Risco não muda de formato.
+
+**Reserva.** Se a Open-Meteo falhar, o turno é criado normalmente com a previsão simulada (7 mm/h, 24 °C e 85%), e um aviso vai para o log só com o motivo e o tempo gasto:
+
+| Motivo no log | Causa |
+|---|---|
+| `Falha` | Erro de rede ou status diferente de 2xx |
+| `TempoEsgotado` | Mais de 3 s, sem nova tentativa |
+| `RespostaInvalida` | JSON quebrado, campo ausente ou nulo, listas de tamanhos diferentes ou horário fora do formato |
+| `HorasNaoCobertas` | A resposta não cobre todas as horas do turno |
+
+O cancelamento da requisição pelo próprio cliente não vira reserva: ele propaga, como no Serviço de Risco. No pior caso (a Open-Meteo e o Serviço de Risco esgotando o tempo), o `POST /turnos` leva cerca de 6 s.
+
+**Previsão simulada forçada.** Com `HelmCare:PrevisaoSimuladaForcada` verdadeiro (variável `HelmCare__PrevisaoSimuladaForcada=true`), o `POST /turnos` usa sempre a previsão simulada, sem chamar a Open-Meteo. É a configuração da demonstração com o resultado de referência: o turno do exemplo do contrato (quinta-feira, das 17h às 21h locais) dá o índice 60. Ela não vale para o `GET /clima`.
+
+**`GET /api/v1/clima`.**
+
+- **Acesso:** só para entregador logado (sem token, `401`; token de socorrista, `403`). Não tem parâmetros e usa a mesma coordenada fixa.
+- **Resposta:** `{ temperaturaC, umidadePct, chuvaMmHora, indiceCalorC, alertaCalor, atualizadoEm, fonte }`, a partir das condições atuais (`current`) da Open-Meteo, com os mesmos arredondamentos e faixas.
+- **Calor:** o `indiceCalorC` sai pela fórmula da seção 6.1, com 1 casa (29,0 °C com 55% dão 30,3). O `alertaCalor` compara o índice já arredondado com `ALERTA_CALOR_C` (maior ou igual), para o cartão nunca mostrar 32,0 °C sem o alerta.
+- **Horário:** o `atualizadoEm` é o horário da medição, em UTC.
+- **Cache:** a última resposta boa fica 10 min na memória, e os pedidos dentro desse tempo não chamam a Open-Meteo.
+- **Indisponível:** com o cache vencido e a Open-Meteo fora, a resposta é `503` em ProblemDetails, com o título "Previsão do tempo indisponível", sem nenhum valor simulado nem valor velho.
+
+**Infra.** A VM precisa liberar o HTTPS de saída para `api.open-meteo.com` (porta 443). Sem isso, o `POST /turnos` funciona com a previsão simulada, mas o `GET /clima` responde `503`.
+
+### Evidência (18/11/2026)
+
+Ponta a ponta com a internet da máquina e dados simulados. Os tokens aparecem omitidos e os e-mails, mascarados.
+
+**Subida e clima.** A API subiu em Development, e o `/api/v1/saude` deu `200`. O log não teve nenhuma linha `fail`, `crit` ou `error`. Com o token de `h***@exemplo.com`:
+
+```
+GET /api/v1/clima: 200
+{"temperaturaC":19.7,"umidadePct":92,"chuvaMmHora":0,"indiceCalorC":20.1,"alertaCalor":false,"atualizadoEm":"2026-11-18T00:45:00Z","fonte":"Open-Meteo"}
+```
+
+A fórmula da seção 6.1 com 19,7 °C e 92% dá 20,128, que vira `20.1`, como na resposta. O segundo `GET /clima` logo em seguida veio igual, do cache, sem nova chamada à Open-Meteo:
+
+```
+info: ...ClimaServico[630] Clima obtido da Open-Meteo em 752 ms.
+info: ...ClimaServico[631] Clima servido do cache (guardado há 2 s), sem chamar a Open-Meteo.
+```
+
+Sem token, deu `401`; com o token de `s***@exemplo.com` (socorrista), `403`, "Esta rota é só para entregadores.".
+
+**Turno com a previsão real.** `POST /turnos` de `t***@exemplo.com` (sem capacete), sem proteção, de agora até daqui a 4 h, deu `201`. Em seguida, o turno foi encerrado com `200`.
+
+```
+{"indiceRisco":22,"faixaRisco":"BAIXO","componentes":{"sinistro":44,"chuva":0,"calor":0},"explicacao":"Risco baixo: o seu horário tem histórico moderado de sinistros graves."}
+info: ...PrevisaoTempoComReserva[620] Previsão do turno obtida da Open-Meteo em 170 ms.
+```
+
+Com a noite de 19,7 °C e sem chuva, os componentes `chuva` e `calor` ficaram em 0.
+
+**Reserva.** A API subiu com `OpenMeteo__UrlBase=http://127.0.0.1:9/`, um endereço que não responde.
+
+- `POST /turnos`: `201`, com a previsão simulada (`chuva` 70, dos 7 mm/h), e o turno foi encerrado.
+- `GET /clima`: `503`, "Previsão do tempo indisponível".
+
+```
+{"indiceRisco":40,"faixaRisco":"MODERADO","componentes":{"sinistro":44,"chuva":70,"calor":0}, ...}
+warn: ...PrevisaoTempoComReserva[621] Open-Meteo indisponível no turno (motivo Falha, 2129 ms). Turno criado com a previsão simulada.
+warn: ...ClimaServico[632] Open-Meteo indisponível no clima (motivo Falha, 2021 ms) e sem cache válido: 503.
+```
+
+**Previsão simulada forçada.** A API subiu com `HelmCare__PrevisaoSimuladaForcada=true` e a URL normal. O `POST /turnos` do exemplo do contrato na próxima quinta (`2026-11-19T20:00:00Z` a `2026-11-20T00:00:00Z`, das 17h às 21h locais) deu `201`, sem nenhuma linha da Open-Meteo no log:
+
+```
+{"indiceRisco":60,"faixaRisco":"ALTO","componentes":{"sinistro":84,"chuva":70,"calor":0},"explicacao":"Risco alto: chuva prevista no turno e o seu horário tem histórico de sinistros graves (pico às 19h)."}
+```
+
+Esse turno ainda não começou, e um turno não pode terminar antes do início (`400`). Por isso, ele fica ativo até ser encerrado depois de `2026-11-19T20:00:00Z`.
+
+**Logs.** Nas quatro subidas da API, aparecem 0 vezes: a coordenada (`-23.5641` e `-46.6525`), a URL de consulta (`latitude=`), o corpo da Open-Meteo (`temperature_2m`), os tokens, `Bearer` e `@`. A última subida, do jeito normal, deu `200` no `/api/v1/saude`, e a API foi parada.
+
 ## Decisões de projeto
 
 - O indicador de impacto mede cada trecho no próprio relógio: o capacete mede da queda ao fim da contagem, e o servidor mede do SOS recebido até o aceite.
@@ -612,3 +709,4 @@ info: ...CofreServico[900] Acesso ao Cofre 01a1ebe2-0eda-71e0-92bb-9d9b1fca4f1c:
 - A conferência de quem pode o quê fica num componente só, chamado pelos serviços depois de achar o recurso: assim a ordem `401`, `404`, `403` vale em todas as rotas, e as regras são testadas sem subir a API.
 - O login monta os tokens com os mesmos protetores do esquema bearer do Identity, e não pela resposta automática do `SignIn`, para devolver no mesmo corpo os tokens e a sessão do app.
 - A janela de acesso ao Cofre fica no domínio (`JanelaAcessoCofre`), calculada a partir da última concessão do par socorrista e entregador: cada concessão dentro da janela repete o `expiraEm`, a origem e a ocorrência da que a abriu, então não há tabela nova, e as regras de fechamento e bloqueio são testadas por instante, sem banco.
+- A previsão do turno passa por um decorador com reserva (`PrevisaoTempoComReserva`), como o Índice de Risco: a Open-Meteo é tentada uma vez e, em qualquer falha, o turno segue com a previsão simulada. O `GET /clima` não tem reserva: sem a Open-Meteo e sem cache, responde `503`, para o app nunca mostrar um clima inventado.

@@ -694,3 +694,20 @@ Authorization: Bearer {{tokenSocorrista}}
 
 ### C13. Página do Cofre (200, o mesmo HTML para qualquer qrToken, com os cabeçalhos de segurança)
 GET {{baseUrl}}/cofre/{{qrToken}}
+
+
+# ---------------------------------------------------------------------------
+# Clima atual da cidade pela Open-Meteo (contrato 1.17). Só para entregador logado; a resposta fica
+# 10 min no cache. Sem a Open-Meteo e sem cache, 503 "Previsão do tempo indisponível".
+# ---------------------------------------------------------------------------
+
+### W1. Clima com o token do entregador (200: temperaturaC, umidadePct, chuvaMmHora, indiceCalorC, alertaCalor, atualizadoEm e fonte)
+GET {{baseUrl}}/api/v1/clima
+Authorization: Bearer {{token}}
+
+### W2. Clima sem token (401)
+GET {{baseUrl}}/api/v1/clima
+
+### W3. Clima com o token do socorrista (403)
+GET {{baseUrl}}/api/v1/clima
+Authorization: Bearer {{tokenSocorrista}}
