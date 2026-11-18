@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { trechoRepositorio, type TrechosEmCache } from '@/banco/trechoRepositorio';
 import { trechoServico } from '@/servicos/trechoServico';
 
-/** Quantos trechos a aba Turno mostra. */
+/** Quantos trechos o Turno em andamento mostra. */
 const LIMITE_TRECHOS = 5;
 
 /** Situação da lista: da API agora, do cache (com a data) ou indisponível. */
@@ -20,7 +20,7 @@ export interface EstadoTrechos {
 }
 
 /**
- * Trechos críticos da aba Turno: os 5 primeiros do `GET /trechos-criticos?limite=5`, gravados
+ * Trechos críticos do Turno em andamento: os 5 primeiros do `GET /trechos-criticos?limite=5`, gravados
  * no `trecho_cache`. No 503 (Serviço de Risco fora) ou sem rede, entrega a lista salva
  * (origem "cache") ou nada (origem "indisponivel"). Os trechos são dado público.
  */

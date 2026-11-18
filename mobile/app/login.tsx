@@ -93,7 +93,7 @@ export default function Login() {
         router.back();
       } else {
         // Pilha nova nas abas: o voltar do Android nunca reabre o login.
-        comecarPilhaEm('/turno');
+        comecarPilhaEm('/inicio');
       }
     } catch (e) {
       setMensagem(mensagemDoErro(converterErro(e)));

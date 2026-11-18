@@ -82,7 +82,7 @@ export function MenuConta({ visivel, aoFechar }: MenuContaProps) {
     const proxima = await sair(entregadorId);
     AccessibilityInfo.announceForAccessibility('Você saiu da conta');
     if (proxima) {
-      router.dismissTo('/turno');
+      router.dismissTo('/inicio');
     } else {
       comecarPilhaEm('/login');
     }

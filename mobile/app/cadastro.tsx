@@ -342,7 +342,7 @@ function Pronto({ comCapacete }: { comCapacete: boolean }) {
         icone="medkit"
         aoPressionar={() => router.push('/ficha-medica')}
       />
-      <Botao titulo="Ir para o turno" icone="arrow-forward" aoPressionar={() => comecarPilhaEm('/turno')} />
+      <Botao titulo="Ir para o início" icone="arrow-forward" aoPressionar={() => comecarPilhaEm('/inicio')} />
     </>
   );
 }

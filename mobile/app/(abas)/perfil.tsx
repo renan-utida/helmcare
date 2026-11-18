@@ -1,6 +1,6 @@
-import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { AccessibilityInfo, Alert, View } from 'react-native';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AccessibilityInfo, Alert, View, type ScrollViewInstance } from 'react-native';
 
 import { Aviso } from '@/componentes/Aviso';
 import { Botao } from '@/componentes/Botao';
@@ -48,6 +48,18 @@ export default function Perfil() {
   const [falha, setFalha] = useState<{ entregadorId: string; erro: ErroApi } | null>(null);
   const [atualizando, setAtualizando] = useState(false);
   const [avisoContato, setAvisoContato] = useState<string | null>(null);
+  // Atalho "Contatos de emergência" da Início: rola até a seção dos contatos, uma vez por pedido.
+  const { secao, pedido } = useLocalSearchParams<{ secao?: string; pedido?: string }>();
+  const rolagem = useRef<ScrollViewInstance | null>(null);
+  const [posicaoContatos, setPosicaoContatos] = useState<number | null>(null);
+  const pedidoAtendido = useRef<string | null>(null);
+  useEffect(() => {
+    if (secao !== 'contatos' || !pedido || pedido === pedidoAtendido.current || posicaoContatos === null) {
+      return;
+    }
+    pedidoAtendido.current = pedido;
+    rolagem.current?.scrollTo({ y: posicaoContatos, animated: true });
+  }, [secao, pedido, posicaoContatos]);
 
   // Só vale o que é da conta em uso: ao trocar de conta, a tela volta a "Carregando".
   const dados = resposta && resposta.id === entregadorId ? resposta : null;
@@ -143,7 +155,7 @@ export default function Perfil() {
   }
 
   return (
-    <Tela dentroDeAbas aoAtualizar={atualizar} atualizando={atualizando}>
+    <Tela dentroDeAbas aoAtualizar={atualizar} atualizando={atualizando} refRolagem={rolagem}>
       <Texto variante="titulo">{dados?.nome ?? sessao?.nome ?? 'Seu perfil'}</Texto>
       {erro ? (
         <Texto variante="legenda" cor="erro" accessibilityLiveRegion="polite">
@@ -240,7 +252,7 @@ export default function Perfil() {
             )}
           </Cartao>
 
-          <Cartao titulo="Contatos de emergência">
+          <Cartao titulo="Contatos de emergência" onLayout={(evento) => setPosicaoContatos(evento.nativeEvent.layout.y)}>
             {dados.contatos.length === 0 ? (
               <Texto>Nenhum contato ainda. Ele é avisado se você cair.</Texto>
             ) : (

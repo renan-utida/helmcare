@@ -95,7 +95,7 @@ function rotuloDaAba(texto: string, corReserva: string) {
 
 /** As 5 abas, na ordem da barra, com o ícone de cada uma. */
 const ABAS: { nome: string; titulo: string; icone: NomeIcone }[] = [
-  { nome: 'turno', titulo: 'Turno', icone: 'speedometer' },
+  { nome: 'inicio', titulo: 'Início', icone: 'home' },
   { nome: 'chamados', titulo: 'Chamados', icone: 'people' },
   { nome: 'historico', titulo: 'Histórico', icone: 'time' },
   { nome: 'perfil', titulo: 'Perfil', icone: 'person-circle' },
@@ -103,7 +103,7 @@ const ABAS: { nome: string; titulo: string; icone: NomeIcone }[] = [
 ];
 
 /**
- * Abas do app: Turno, Chamados, Histórico, Perfil e Ajustes, sempre com ícone e texto.
+ * Abas do app: Início, Chamados, Histórico, Perfil e Ajustes, sempre com ícone e texto.
  * A altura da barra soma a área segura de baixo e cresce com a fonte do sistema,
  * para o texto das abas nunca ser cortado. No cabeçalho, só o botão do menu da conta.
  * A aba Chamados mostra no ícone o número de chamados próximos (com o voluntário disponível),

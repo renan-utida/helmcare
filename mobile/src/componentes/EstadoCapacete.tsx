@@ -23,6 +23,19 @@ const APARENCIA: Record<EstadoDispositivo | 'SEM_CAPACETE', { texto: string; ico
   SEM_CAPACETE: { texto: 'Sem capacete neste turno', icone: 'remove-circle-outline', tom: 'neutro' },
 };
 
+/** Texto e ícone do estado do capacete, e a cor do ícone pelo tom (o texto sempre diz o estado). */
+export function useAparenciaCapacete(estado: EstadoDispositivo | null): { texto: string; icone: NomeIcone; cor: string } {
+  const { cores } = useTema();
+  const { texto, icone, tom } = APARENCIA[estado ?? 'SEM_CAPACETE'];
+  const cor = {
+    neutro: cores.textoSecundario,
+    bom: cores.aviso.sucesso.icone,
+    atencao: cores.aviso.atencao.icone,
+    perigo: cores.aviso.erro.icone,
+  }[tom];
+  return { texto, icone, cor };
+}
+
 /** Props do `EstadoCapacete`. */
 export interface EstadoCapaceteProps {
   /** Estado do último `GET /turnos/{id}/alerta`, ou `null` (turno sem capacete ou sem leitura). */
@@ -33,14 +46,8 @@ export interface EstadoCapaceteProps {
 
 /** Cartão "Seu capacete": o estado em linguagem simples, com ícone e texto. */
 export function EstadoCapacete({ estado, semConexao = false }: EstadoCapaceteProps) {
-  const { cores, espaco } = useTema();
-  const { texto, icone, tom } = APARENCIA[estado ?? 'SEM_CAPACETE'];
-  const corIcone = {
-    neutro: cores.textoSecundario,
-    bom: cores.aviso.sucesso.icone,
-    atencao: cores.aviso.atencao.icone,
-    perigo: cores.aviso.erro.icone,
-  }[tom];
+  const { espaco } = useTema();
+  const { texto, icone, cor } = useAparenciaCapacete(estado);
   return (
     <Cartao titulo="Seu capacete">
       <View
@@ -49,7 +56,7 @@ export function EstadoCapacete({ estado, semConexao = false }: EstadoCapacetePro
         accessibilityLiveRegion="polite"
         style={{ flexDirection: 'row', alignItems: 'center', gap: espaco.pequeno }}
       >
-        <Icone nome={icone} cor={corIcone} tamanho={32} />
+        <Icone nome={icone} cor={cor} tamanho={32} />
         <Texto variante="subtitulo" style={{ flex: 1 }}>
           {texto}
         </Texto>
