@@ -40,6 +40,7 @@ Nunca renomeie campos, enums, rotas ou payloads do contrato. O app usa exatament
 | Ícones | `@expo/vector-icons` |
 | Logo e símbolo (SVG) | `react-native-svg` e, só no desenvolvimento, `react-native-svg-transformer` (configurado no `metro.config.js`) |
 | Contas e tokens do login da API | `expo-secure-store` (`src/servicos/armazenamentoSeguro.ts`) |
+| QR Code do capacete | `react-native-qrcode-svg` (usa o `react-native-svg`), só na tela `app/qr-capacete.tsx` |
 | Node | 22.13 ou mais novo |
 
 - Instale pacotes sempre com `npx expo install <pacote>`, para receber a versão compatível com o SDK.
@@ -63,7 +64,11 @@ mobile/
 │   ├── (abas)/historico.tsx   histórico offline (só SQLite) com o resumo do indicador
 │   ├── (abas)/perfil.tsx      dados mascarados, capacete, ficha, contatos e rede
 │   ├── (abas)/ajustes.tsx     conexão com a API, aparência, atalho para as contas e a versão
-│   ├── ficha-medica.tsx, contato.tsx, contas.tsx   modais (contas: as contas do aparelho)
+│   ├── ficha-medica.tsx       ficha médica: leitura pelo GET e edição (só em memória)
+│   ├── contato.tsx            adicionar ou editar um contato de emergência (parâmetro contatoId)
+│   ├── contas.tsx, telefone.tsx, acessos-ficha.tsx   modais (contas do aparelho, troca de
+│   │                          telefone e quem acessou a ficha no Cofre)
+│   ├── qr-capacete.tsx        QR Code do capacete, logo depois do POST /dispositivos
 │   ├── alerta.tsx             alerta de queda em tela cheia, sem gesto de fechar
 │   └── ocorrencia/[id].tsx    o SOS, para a vítima ou o voluntário (parâmetro papel)
 └── src/
@@ -71,6 +76,7 @@ mobile/
     ├── tipos/         contrato.ts (DTOs e enums das seções 4 e 7)
     ├── servicos/      api.ts (instância única, Authorization e renovação), erros.ts,
     │                  armazenamentoSeguro.ts (contas e tokens), autenticacaoServico.ts,
+    │                  cofreServico.ts (auditoria do Cofre),
     │                  testeSessaoDev.ts (só __DEV__) e um serviço por recurso (entregador,
     │                  dispositivo, turno, trecho, voluntario, ocorrencia e saude)
     ├── banco/         migracoes.ts e um repositório por tabela (sem tabela de perfil desde a migração 3)
@@ -83,7 +89,7 @@ mobile/
     │                  SessaoIndisponivel e FaixaSessaoTerminada
     ├── tema/          cores, tipografia e espaçamentos
     └── utils/         validacao, datas, dadosSimulados, posicoesSimuladas,
-                       mensagensErro, repetirEmConflito e memoriaDoFluxo
+                       mensagensErro, repetirEmConflito, memoriaDoFluxo e navegacao
 ```
 
 - Telas não chamam o Axios nem o SQLite direto: usam serviços, repositórios, hooks e contextos.
@@ -129,7 +135,10 @@ npx expo start           # o Renan escaneia o QR Code no Expo Go
 - **Localização:** antes do aceite, o voluntário só vê a localização aproximada e a `distanciaKm`. A exata só aparece quando a resposta traz `localizacaoExata` verdadeiro.
 - **Ficha médica:** o `GET /entregadores/{id}` só traz `possuiFichaMedica`; a ficha completa vem do `GET /entregadores/{id}/ficha-medica` (404 sem ficha) e da resposta do `PUT`, as duas com `no-store`. Ela fica só em memória, na tela, e some ao sair.
 - **E-mail:** sempre mascarado, como a API devolve (`r***@exemplo.com`).
-- **Capacete:** o `qrToken` e a `urlCofre` só existem na resposta do `POST /dispositivos`, e o QR do capacete só aparece logo depois dela. Não guarde nenhum dos dois.
+- **Capacete:** o `qrToken` e a `urlCofre` só existem na resposta do `POST /dispositivos`, e o QR do capacete só aparece logo depois dela. Não guarde nenhum dos dois. A `urlCofre` vem relativa ("/cofre/{qrToken}"): o app completa com a origem da URL da API em uso (`completarCaminhoDaApi`, em `src/config/urlApi.ts`), e o endereço completo segue as regras do `qrToken` (só em memória, pela memória do fluxo, nunca na rota).
+- **Contatos:** o `PUT` de um contato pede o corpo inteiro, e a API só devolve o telefone mascarado: o formulário de edição começa com o telefone vazio. O `DELETE` responde 204.
+- **Ocorrência da vítima:** depois do aceite, mostre só a `distanciaVoluntarioKm` ("Voluntário a 0,6 km"), nunca a posição do voluntário. Com `encerradaAutomaticamente`, o resumo e o histórico dizem "Encerrada automaticamente depois de 2 horas" (texto montado com `TEMPO_ENCERRAMENTO_AUTOMATICO_MIN`).
+- **Pilha de navegação:** ao entrar (login ou cadastro) e ao ir para o login (sair, fim da sessão), use `comecarPilhaEm` (`src/utils/navegacao.ts`), para o voltar do Android não reabrir o login nem as abas de uma conta que saiu.
 
 ## Banco local (SQLite)
 

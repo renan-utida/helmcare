@@ -71,6 +71,12 @@ export interface Cores {
   abaInativa: string;
   /** Escurecido semitransparente atrás do painel lateral (enfeite: nenhum texto fica sobre ele). */
   sombraModal: string;
+  /**
+   * Módulos e fundo do QR Code do capacete: azul-marinho sobre branco nos DOIS temas (16:1), porque
+   * os leitores de QR precisam de módulos escuros sobre fundo claro, inclusive no tema escuro.
+   */
+  qrModulo: string;
+  qrFundo: string;
   /** Avisos de informação, sucesso, atenção e erro. */
   aviso: Record<'informacao' | 'sucesso' | 'atencao' | 'erro', CoresAviso>;
   /** Selos das faixas de risco. */
@@ -113,6 +119,8 @@ export const coresClaras: Cores = {
   abaAtiva: AZUL_MARINHO,
   abaInativa: '#44526B',
   sombraModal: 'rgba(0, 29, 72, 0.45)',
+  qrModulo: AZUL_MARINHO,
+  qrFundo: BRANCO,
   aviso: {
     informacao: { fundo: '#E5EDF8', texto: AZUL_MARINHO, icone: AZUL_MARINHO },
     sucesso: { fundo: '#E3F3E8', texto: AZUL_MARINHO, icone: '#1B6E3A' },
@@ -140,6 +148,8 @@ export const coresEscuras: Cores = {
   abaAtiva: LARANJA,
   abaInativa: '#C5D0E2',
   sombraModal: 'rgba(0, 0, 0, 0.6)',
+  qrModulo: AZUL_MARINHO,
+  qrFundo: BRANCO,
   aviso: {
     informacao: { fundo: '#0E3570', texto: BRANCO, icone: '#9CC3FF' },
     sucesso: { fundo: '#0D3B2E', texto: BRANCO, icone: '#7FD49C' },
