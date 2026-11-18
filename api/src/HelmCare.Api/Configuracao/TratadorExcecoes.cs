@@ -64,9 +64,15 @@ public sealed partial class TratadorExcecoes : IExceptionHandler
             Status = status,
             Title = titulo,
             Detail = detalhe,
-            Instance = httpContext.Request.Path,
+            // O caminho do Cofre leva o qrToken, que é credencial: sai com o marcador no lugar.
+            Instance = CaminhoSeguro.SemQrToken(httpContext.Request.Path),
         };
         problema.Extensions["traceId"] = traceId;
+
+        if (exception is AcessoCofreNegadoException negado)
+        {
+            problema.Extensions["motivo"] = NomeContrato.Para(negado.Motivo);
+        }
 
         return await _problemDetails.TryWriteAsync(new ProblemDetailsContext
         {
@@ -93,6 +99,7 @@ public sealed partial class TratadorExcecoes : IExceptionHandler
             ValidacaoDominioException e => (StatusCodes.Status400BadRequest, "Dados inválidos", e.Message),
             NaoAutenticadoException e => (StatusCodes.Status401Unauthorized, ProblemasPadrao.TituloNaoAutenticado, e.Message),
             AcessoNegadoException e => (StatusCodes.Status403Forbidden, ProblemasPadrao.TituloAcessoNegado, e.Message),
+            AcessoCofreNegadoException e => (StatusCodes.Status403Forbidden, ProblemasPadrao.TituloAcessoNegado, e.Message),
             RecursoNaoEncontradoException e => (StatusCodes.Status404NotFound, "Recurso não encontrado", e.Message),
             TransicaoInvalidaException e => (StatusCodes.Status409Conflict, "Transição de estado inválida", e.Message),
             RegraNegocioException e => (StatusCodes.Status409Conflict, "Regra de negócio violada", e.Message),

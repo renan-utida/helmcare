@@ -28,6 +28,12 @@ public sealed class FakeAutorizacaoLivre : IAutorizacaoRecursos
     }
 
     /// <inheritdoc/>
+    public Guid ExigirSocorrista()
+    {
+        return Guid.Empty;
+    }
+
+    /// <inheritdoc/>
     public Task ExigirLeituraOcorrenciaAsync(Ocorrencia ocorrencia, Voluntario? voluntarioInformado, CancellationToken cancellationToken)
     {
         return Task.CompletedTask;

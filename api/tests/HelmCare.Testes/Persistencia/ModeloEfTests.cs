@@ -32,6 +32,7 @@ public sealed class ModeloEfTests
         "Ocorrencia.Estado",
         "Voluntario.Tipo",
         "AcessoCofre.Origem",
+        "AcessoCofre.Motivo",
         "EventoMqttProcessado.Tipo",
     ];
 

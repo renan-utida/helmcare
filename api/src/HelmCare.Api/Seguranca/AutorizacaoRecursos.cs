@@ -29,6 +29,11 @@ public sealed class AutorizacaoRecursos : IAutorizacaoRecursos
     /// </summary>
     public const string MensagemOutroDono = "O recurso pertence a outro usuário.";
 
+    /// <summary>
+    /// Mensagem do <c>403</c> de um token que não é de socorrista nas rotas do Cofre.
+    /// </summary>
+    public const string MensagemSoSocorrista = "Esta rota é só para socorristas.";
+
     private readonly IUsuarioAtual _usuario;
     private readonly IVoluntarioRepositorio _voluntarios;
 
@@ -69,6 +74,22 @@ public sealed class AutorizacaoRecursos : IAutorizacaoRecursos
         {
             throw new AcessoNegadoException(MensagemOutroDono);
         }
+    }
+
+    /// <inheritdoc/>
+    public Guid ExigirSocorrista()
+    {
+        if (!_usuario.Autenticado)
+        {
+            throw new NaoAutenticadoException(MensagemSemToken);
+        }
+
+        if (!_usuario.EhSocorrista || _usuario.SocorristaId is not { } socorristaId)
+        {
+            throw new AcessoNegadoException(MensagemSoSocorrista);
+        }
+
+        return socorristaId;
     }
 
     /// <inheritdoc/>

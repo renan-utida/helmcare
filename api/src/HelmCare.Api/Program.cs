@@ -9,6 +9,7 @@ using HelmCare.Api.Persistencia;
 using HelmCare.Api.Persistencia.Repositorios;
 using HelmCare.Api.Seguranca;
 using HelmCare.Api.Servicos.Cadastro;
+using HelmCare.Api.Servicos.Cofre;
 using HelmCare.Api.Servicos.Identidade;
 using HelmCare.Api.Servicos.Ocorrencias;
 using HelmCare.Api.Servicos.Risco;
@@ -110,6 +111,7 @@ builder.Services.AddScoped<IContasIdentity, ContasIdentity>();
 builder.Services.AddSingleton<SenhaReferencia>();
 builder.Services.AddScoped<IEmissorTokens, EmissorTokensIdentity>();
 builder.Services.AddScoped<AutenticacaoEntregadorServico>();
+builder.Services.AddScoped<AutenticacaoSocorristaServico>();
 
 // Regra de implantação da seção 1: atrás do nginx, o IP do cliente vem do X-Forwarded-For, aceito só
 // dos proxies confiáveis. Sem isso, o limite de logins por IP valeria para todos os usuários juntos.
@@ -130,6 +132,8 @@ builder.Services.AddScoped<IOcorrenciaRepositorio, OcorrenciaRepositorio>();
 builder.Services.AddScoped<IEventoMqttProcessadoRepositorio, EventoMqttProcessadoRepositorio>();
 builder.Services.AddScoped<ITurnoRepositorio, TurnoRepositorio>();
 builder.Services.AddScoped<IVoluntarioRepositorio, VoluntarioRepositorio>();
+builder.Services.AddScoped<ISocorristaRepositorio, SocorristaRepositorio>();
+builder.Services.AddScoped<IAcessoCofreRepositorio, AcessoCofreRepositorio>();
 
 // Mensageria (seção 6). Uma única conexão com o broker (singleton), compartilhada pelo assinante
 // e pelo publicador. O roteador e os processadores têm o escopo de uma mensagem, porque usam o
@@ -155,6 +159,10 @@ builder.Services.AddHostedService<AssinanteMqtt>();
 // Casos de uso do cadastro.
 builder.Services.AddScoped<EntregadorServico>();
 builder.Services.AddScoped<DispositivoServico>();
+builder.Services.AddScoped<SocorristaServico>();
+
+// Cofre médico (1.16): acesso do socorrista pelo qrToken, com a janela de acesso e a auditoria.
+builder.Services.AddScoped<CofreServico>();
 
 // Previsão do tempo fixa (exemplo da seção 8) até entrar a Open-Meteo.
 builder.Services.AddSingleton<IPrevisaoTempo, PrevisaoTempoSimulada>();
@@ -255,6 +263,10 @@ app.UseAuthorization();
 
 // Sem UseHttpsRedirection: o contrato define a API em http na porta 5000 (o TLS ficaria no nginx).
 app.MapHealthChecks("/api/v1/saude");
+
+// Página do Cofre, fora do /api/v1: o mesmo HTML estático para qualquer qrToken, com os assets em
+// /cofre/assets/ e os cabeçalhos de segurança (CSP sem script inline, sem referrer, sem cache).
+PaginaCofre.Mapear(app, app.Environment.WebRootFileProvider);
 
 // Login exigido em todas as rotas dos controllers; as públicas são marcadas uma a uma com
 // [AllowAnonymous]. Rota inexistente continua 404 (não há política global).

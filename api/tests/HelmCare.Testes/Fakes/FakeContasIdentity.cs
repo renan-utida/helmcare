@@ -22,6 +22,11 @@ public sealed class FakeContasIdentity : IContasIdentity
     public IReadOnlyList<ContaFake> Contas => _contas;
 
     /// <summary>
+    /// Quantas vezes a senha foi conferida (inclusive com e-mail desconhecido, como o ContasIdentity real faz com o hash).
+    /// </summary>
+    public int Verificacoes { get; private set; }
+
+    /// <summary>
     /// Semeia uma conta.
     /// </summary>
     /// <param name="email">E-mail.</param>
@@ -56,6 +61,7 @@ public sealed class FakeContasIdentity : IContasIdentity
     /// <inheritdoc/>
     public Task<VerificacaoSenha> VerificarSenhaAsync(string email, string senha, CancellationToken cancellationToken)
     {
+        Verificacoes++;
         ContaFake? conta = Achar(email);
 
         VerificacaoSenha resultado = conta switch

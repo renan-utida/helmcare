@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using HelmCare.Api.Configuracao;
 using HelmCare.Api.Contratos.Entregadores;
+using HelmCare.Api.Contratos.Socorristas;
 using HelmCare.Api.Servicos.Cadastro;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -25,14 +26,17 @@ namespace HelmCare.Api.Controllers;
 public sealed class DesenvolvimentoController : ControllerBase
 {
     private readonly EntregadorServico _entregadores;
+    private readonly SocorristaServico _socorristas;
 
     /// <summary>
     /// Cria o controller.
     /// </summary>
     /// <param name="entregadores">Casos de uso do cadastro.</param>
-    public DesenvolvimentoController(EntregadorServico entregadores)
+    /// <param name="socorristas">Cadastro dos socorristas da demonstração.</param>
+    public DesenvolvimentoController(EntregadorServico entregadores, SocorristaServico socorristas)
     {
         _entregadores = entregadores;
+        _socorristas = socorristas;
     }
 
     /// <summary>
@@ -58,5 +62,29 @@ public sealed class DesenvolvimentoController : ControllerBase
     {
         EntregadorResposta resposta = await _entregadores.CriarContaAsync(id, requisicao, cancellationToken);
         return CreatedAtAction(nameof(EntregadoresController.Obter), "Entregadores", new { id }, resposta);
+    }
+
+    /// <summary>
+    /// Cria um socorrista da demonstração e a conta dele (papel SOCORRISTA), numa transação só.
+    /// </summary>
+    /// <remarks>
+    /// O socorrista não tem rota de leitura própria, então o 201 sai sem <c>Location</c>.
+    /// </remarks>
+    /// <param name="requisicao">Dados do socorrista, e-mail e senha.</param>
+    /// <param name="cancellationToken">Cancelamento da requisição.</param>
+    /// <returns>O socorrista, com o e-mail mascarado.</returns>
+    /// <response code="201">Socorrista e conta criados.</response>
+    /// <response code="400">Dados, e-mail ou senha fora da regra.</response>
+    /// <response code="409">E-mail já usado.</response>
+    [HttpPost("socorristas")]
+    [ProducesResponseType<SocorristaResposta>(StatusCodes.Status201Created, "application/json")]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
+    public async Task<ActionResult<SocorristaResposta>> CriarSocorrista(
+        CriarSocorristaRequisicao requisicao,
+        CancellationToken cancellationToken)
+    {
+        SocorristaResposta resposta = await _socorristas.CriarAsync(requisicao, cancellationToken);
+        return StatusCode(StatusCodes.Status201Created, resposta);
     }
 }

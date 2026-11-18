@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>HelmCare - Cofre médico</title>
+  <link rel="stylesheet" href="/cofre/assets/cofre.css">
+  <script src="/cofre/assets/cofre.js" defer></script>
+</head>
+<body>
+  <header class="topo">
+    <h1>HelmCare · Cofre médico</h1>
+    <p class="subtitulo">Acesso para socorristas cadastrados</p>
+  </header>
+
+  <main>
+    <a class="samu" href="tel:192">Ligar para o SAMU 192</a>
+
+    <p id="mensagem" class="mensagem" role="alert" hidden></p>
+
+    <section id="secao-login" aria-labelledby="titulo-login">
+      <h2 id="titulo-login">Entrar</h2>
+      <form id="form-login" novalidate>
+        <label for="email">E-mail</label>
+        <input id="email" name="email" type="email" autocomplete="username" required>
+        <label for="senha">Senha</label>
+        <input id="senha" name="senha" type="password" autocomplete="current-password" required>
+        <button id="botao-entrar" type="submit">Entrar e abrir a ficha</button>
+      </form>
+    </section>
+
+    <section id="secao-ficha" aria-labelledby="titulo-ficha" hidden>
+      <h2 id="titulo-ficha">Ficha mínima</h2>
+      <p class="contagem" aria-live="polite">Os dados somem em <strong id="contagem">--:--</strong></p>
+      <p class="origem" id="origem"></p>
+      <dl class="ficha">
+        <dt>Tipo sanguíneo</dt>
+        <dd id="tipo-sanguineo"></dd>
+        <dt>Alergias</dt>
+        <dd id="alergias"></dd>
+        <dt>Condições críticas</dt>
+        <dd id="condicoes"></dd>
+      </dl>
+      <h3>Contatos de emergência</h3>
+      <ul id="contatos" class="contatos"></ul>
+      <button id="botao-sair" type="button" class="secundario">Sair e apagar da tela</button>
+    </section>
+  </main>
+
+  <footer class="rodape">
+    <p>Os dados só aparecem para socorristas verificados, por tempo limitado, e cada acesso fica registrado.</p>
+  </footer>
+</body>
+</html>

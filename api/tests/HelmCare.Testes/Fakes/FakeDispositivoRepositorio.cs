@@ -49,6 +49,12 @@ public sealed class FakeDispositivoRepositorio : IDispositivoRepositorio
     }
 
     /// <inheritdoc/>
+    public Task<Dispositivo?> ObterPorQrTokenAsync(string qrToken, CancellationToken cancellationToken)
+    {
+        return Task.FromResult(_dispositivos.FirstOrDefault(d => d.QrToken == qrToken));
+    }
+
+    /// <inheritdoc/>
     public Task<bool> CodigoJaCadastradoAsync(string codigo, CancellationToken cancellationToken)
     {
         return Task.FromResult(_dispositivos.Exists(d => d.Codigo == codigo));
