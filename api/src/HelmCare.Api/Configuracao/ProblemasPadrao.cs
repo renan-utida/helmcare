@@ -32,6 +32,9 @@ public static class ProblemasPadrao
 
         ProblemDetails problema = contexto.ProblemDetails;
 
+        // Vale para todo ProblemDetails: o caminho do Cofre nunca sai com o qrToken.
+        problema.Instance = CaminhoSeguro.SemQrToken(problema.Instance);
+
         if (problema is ValidationProblemDetails)
         {
             problema.Title = "Dados inválidos";
@@ -58,7 +61,7 @@ public static class ProblemasPadrao
         {
             problema.Title = escolhidos.titulo;
             problema.Detail = escolhidos.detalhe;
-            problema.Instance ??= contexto.HttpContext.Request.Path;
+            problema.Instance ??= CaminhoSeguro.SemQrToken(contexto.HttpContext.Request.Path);
         }
     }
 }

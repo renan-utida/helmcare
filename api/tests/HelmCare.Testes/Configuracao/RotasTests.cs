@@ -42,8 +42,9 @@ public sealed class RotasTests
     }
 
     /// <summary>
-    /// Garante que as rotas públicas são exatamente as do contrato (seção 7, 1.15), mais a de
-    /// desenvolvimento: todas as outras ações dos controllers exigem login.
+    /// Garante que as ações públicas dos controllers são exatamente as do contrato (seção 7, 1.16), mais
+    /// as de desenvolvimento: todas as outras exigem login. A página do Cofre não é controller e tem o
+    /// próprio teste.
     /// </summary>
     [TestMethod]
     public void RotasPublicas_SaoAsDoContrato()
@@ -52,9 +53,11 @@ public sealed class RotasTests
         string[] esperadas =
         [
             "DesenvolvimentoController.CriarContaEntregador",
+            "DesenvolvimentoController.CriarSocorrista",
             "EntregadoresController.Criar",
             "EntregadoresController.Entrar",
             "EntregadoresController.RenovarToken",
+            "SocorristasController.Entrar",
             "TrechosCriticosController.Listar",
         ];
 
@@ -90,7 +93,8 @@ public sealed class RotasTests
     }
 
     /// <summary>
-    /// Garante que a rota de desenvolvimento existe em Development e não existe nos outros ambientes.
+    /// Garante que as rotas de desenvolvimento (conta do entregador e socorristas) existem em Development
+    /// e não existem nos outros ambientes.
     /// </summary>
     /// <param name="ambiente">Ambiente.</param>
     /// <param name="mapeada">Se a rota deve existir.</param>
@@ -102,13 +106,15 @@ public sealed class RotasTests
     public async Task RotaDeDesenvolvimento_SoEmDevelopment(string ambiente, bool mapeada)
     {
         // Act
-        string? escolhida = await RotaAsync(
+        string? conta = await RotaAsync(
             ambiente,
             "POST",
             "/api/v1/dev/entregadores/3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90/conta");
+        string? socorristas = await RotaAsync(ambiente, "POST", "/api/v1/dev/socorristas");
 
         // Assert
-        Assert.AreEqual(mapeada, escolhida?.Contains(nameof(DesenvolvimentoController.CriarContaEntregador), System.StringComparison.Ordinal) == true);
+        Assert.AreEqual(mapeada, conta?.Contains(nameof(DesenvolvimentoController.CriarContaEntregador), System.StringComparison.Ordinal) == true);
+        Assert.AreEqual(mapeada, socorristas?.Contains(nameof(DesenvolvimentoController.CriarSocorrista), System.StringComparison.Ordinal) == true);
     }
 
     /// <summary>

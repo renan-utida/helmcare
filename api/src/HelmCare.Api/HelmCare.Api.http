@@ -66,6 +66,7 @@ Content-Type: application/json
 }
 
 ### 4. Vincular o capacete HC-0001 (201, qrToken e urlCofre só nesta resposta)
+# @name vincularCapacete
 POST {{baseUrl}}/api/v1/dispositivos
 Authorization: Bearer {{token}}
 Content-Type: application/json
@@ -112,7 +113,7 @@ Content-Type: application/json
 }
 
 # ---------------------------------------------------------------------------
-# Turnos e ocorrência (rodada 3), na ordem do roteiro de conferência.
+# Turnos e ocorrência, na ordem do roteiro de conferência.
 # Usa o entregador do passo 1 (dono do HC-0001). As datas saem do relógio da máquina
 # ({{$datetime iso8601}}), para o encerramento nunca ficar antes do início.
 # O passo T1 publica ARMAR no broker real.
@@ -412,7 +413,7 @@ Authorization: Bearer {{token}}
 Accept: application/json
 
 # ---------------------------------------------------------------------------
-# Aceite, cancelamento e encerramento da ocorrência (rodada 2 do SOS escalonado). Troque o id pela
+# Aceite, cancelamento e encerramento da ocorrência. Troque o id pela
 # ocorrência aberta pelo SOS de teste. O aceite publica SOCORRO_A_CAMINHO; cancelar e encerrar
 # publicam ENCERRAR. Os comandos saem depois de gravar e não bloqueiam a rota.
 # Desde a 1.15, o aceite só vale com o token do entregador dono do voluntarioId, e o cancelar só com o
@@ -588,3 +589,108 @@ Content-Type: application/json
   "email": "entregador.antigo@exemplo.com",
   "senha": "Senha123"
 }
+
+
+# ---------------------------------------------------------------------------
+# Cofre médico (contrato 1.16). O qrToken vem da resposta do passo 4 (o arquivo nunca guarda um
+# qrToken) e os tokens, da resposta de cada login. Senhas fictícias (Senha123), e-mails de exemplo.com.
+# Os socorristas são criados pela rota de desenvolvimento (só em Development).
+# ---------------------------------------------------------------------------
+
+###
+@qrToken = {{vincularCapacete.response.body.$.qrToken}}
+
+### C1. Só em Development: socorrista verificado (201, e-mail mascarado; sem Location)
+POST {{baseUrl}}/api/v1/dev/socorristas
+Content-Type: application/json
+
+{
+  "nome": "Socorrista Simulado",
+  "registroProfissional": "COREN-SP 000001",
+  "organizacao": "SAMU Simulado",
+  "verificado": true,
+  "email": "socorrista@exemplo.com",
+  "senha": "Senha123"
+}
+
+### C2. Só em Development: socorrista não verificado (201)
+POST {{baseUrl}}/api/v1/dev/socorristas
+Content-Type: application/json
+
+{
+  "nome": "Socorrista Pendente",
+  "registroProfissional": "COREN-SP 000002",
+  "organizacao": "SAMU Simulado",
+  "verificado": false,
+  "email": "socorrista.pendente@exemplo.com",
+  "senha": "Senha123"
+}
+
+### C3. O mesmo e-mail de novo (409)
+POST {{baseUrl}}/api/v1/dev/socorristas
+Content-Type: application/json
+
+{
+  "nome": "Socorrista Repetido",
+  "registroProfissional": "COREN-SP 000003",
+  "organizacao": "SAMU Simulado",
+  "verificado": true,
+  "email": "socorrista@exemplo.com",
+  "senha": "Senha123"
+}
+
+### C4. Login do socorrista verificado (200: tokens, socorristaId, nome, organizacao e verificado)
+# @name loginSocorrista
+POST {{baseUrl}}/api/v1/socorristas/login
+Content-Type: application/json
+
+{
+  "email": "socorrista@exemplo.com",
+  "senha": "Senha123"
+}
+
+###
+@tokenSocorrista = {{loginSocorrista.response.body.$.accessToken}}
+
+### C5. Login do socorrista não verificado (200: também recebe token; o Cofre é que dá 403)
+# @name loginSocorristaPendente
+POST {{baseUrl}}/api/v1/socorristas/login
+Content-Type: application/json
+
+{
+  "email": "socorrista.pendente@exemplo.com",
+  "senha": "Senha123"
+}
+
+###
+@tokenSocorristaPendente = {{loginSocorristaPendente.response.body.$.accessToken}}
+
+### C6. Acesso ao Cofre (200 com Cache-Control: no-store; SOS_ATIVO com ocorrência ativa, senão EMERGENCIA_MANUAL)
+POST {{baseUrl}}/api/v1/cofre/{{qrToken}}/acesso
+Authorization: Bearer {{tokenSocorrista}}
+
+### C7. Acesso sem token (401)
+POST {{baseUrl}}/api/v1/cofre/{{qrToken}}/acesso
+
+### C8. Acesso do socorrista não verificado (403, motivo SOCORRISTA_NAO_VERIFICADO, auditado)
+POST {{baseUrl}}/api/v1/cofre/{{qrToken}}/acesso
+Authorization: Bearer {{tokenSocorristaPendente}}
+
+### C9. Acesso com token de entregador (403, sem auditoria)
+POST {{baseUrl}}/api/v1/cofre/{{qrToken}}/acesso
+Authorization: Bearer {{token}}
+
+### C10. Acesso com um qrToken inexistente (404, sem auditoria)
+POST {{baseUrl}}/api/v1/cofre/qr-inexistente/acesso
+Authorization: Bearer {{tokenSocorrista}}
+
+### C11. Auditoria do dono do capacete (200, do mais recente ao mais antigo, sem ip)
+GET {{baseUrl}}/api/v1/cofre/auditoria/{{entregadorId}}
+Authorization: Bearer {{token}}
+
+### C12. Auditoria com token de socorrista (403)
+GET {{baseUrl}}/api/v1/cofre/auditoria/{{entregadorId}}
+Authorization: Bearer {{tokenSocorrista}}
+
+### C13. Página do Cofre (200, o mesmo HTML para qualquer qrToken, com os cabeçalhos de segurança)
+GET {{baseUrl}}/cofre/{{qrToken}}

@@ -28,6 +28,9 @@ public sealed class UsuarioAtualHttp : IUsuarioAtual
     public bool EhEntregador => Autenticado && Usuario!.IsInRole(Papeis.Entregador);
 
     /// <inheritdoc/>
+    public bool EhSocorrista => Autenticado && Usuario!.IsInRole(Papeis.Socorrista);
+
+    /// <inheritdoc/>
     public Guid? EntregadorId => LerId(ClaimsHelmCare.EntregadorId);
 
     /// <inheritdoc/>

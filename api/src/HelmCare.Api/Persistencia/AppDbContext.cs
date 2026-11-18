@@ -123,6 +123,7 @@ public sealed class AppDbContext : IdentityDbContext<IdentityUser, IdentityRole,
         UsarNomeContrato<FaixaRisco>(configurationBuilder);
         UsarNomeContrato<TipoVoluntario>(configurationBuilder);
         UsarNomeContrato<OrigemAcessoCofre>(configurationBuilder);
+        UsarNomeContrato<MotivoNegacaoCofre>(configurationBuilder);
         UsarNomeContrato<TipoEventoMqtt>(configurationBuilder);
         UsarNomeContrato<TipoComandoMqtt>(configurationBuilder);
     }

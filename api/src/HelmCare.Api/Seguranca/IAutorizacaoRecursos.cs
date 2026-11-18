@@ -35,6 +35,14 @@ public interface IAutorizacaoRecursos
     void ExigirDono(Guid entregadorId);
 
     /// <summary>
+    /// Exige um token de socorrista (rotas do Cofre).
+    /// </summary>
+    /// <returns>O id do socorrista do token.</returns>
+    /// <exception cref="Servicos.Comum.NaoAutenticadoException">Sem token (401).</exception>
+    /// <exception cref="Servicos.Comum.AcessoNegadoException">Token de outro papel, como o de entregador (403).</exception>
+    Guid ExigirSocorrista();
+
+    /// <summary>
     /// <c>GET /ocorrencias/{id}</c>: a vítima ou qualquer entregador que seja voluntário. O voluntário
     /// informado na consulta, se houver, precisa ser o do token.
     /// </summary>

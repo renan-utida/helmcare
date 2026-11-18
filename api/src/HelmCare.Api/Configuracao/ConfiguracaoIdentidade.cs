@@ -157,7 +157,7 @@ public static class ConfiguracaoIdentidade
                         Status = StatusCodes.Status429TooManyRequests,
                         Title = "Muitas tentativas",
                         Detail = "Limite de tentativas por minuto atingido. Espere um pouco e tente de novo.",
-                        Instance = http.Request.Path,
+                        Instance = CaminhoSeguro.SemQrToken(http.Request.Path),
                     },
                 });
             };

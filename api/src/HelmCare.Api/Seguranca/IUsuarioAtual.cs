@@ -19,6 +19,11 @@ public interface IUsuarioAtual
     bool EhEntregador { get; }
 
     /// <summary>
+    /// Verdadeiro quando o token tem o papel <see cref="Papeis.Socorrista"/>.
+    /// </summary>
+    bool EhSocorrista { get; }
+
+    /// <summary>
     /// Id do entregador do token, ou nulo.
     /// </summary>
     Guid? EntregadorId { get; }

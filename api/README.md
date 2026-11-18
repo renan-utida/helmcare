@@ -243,7 +243,7 @@ info: HelmCare.Api.Mensageria.PublicadorComandosMqtt[400]
       Comando ENCERRAR publicado para o capacete HC-0001.
 ```
 
-Nenhuma linha do log desta rodada tem coordenadas, nome ou telefone: os logs levam só ids, o código do capacete e o comando.
+Nenhuma linha do log da API tem coordenadas, nome ou telefone: os logs levam só ids, o código do capacete e o comando.
 
 Do lado do broker, o cliente web do HiveMQ assinando `helmcare-rdu/v1/HC-0001/#` mostra a sequência inteira, no horário de Brasília e de baixo para cima: o SOS às 11:56:08, o `SOCORRO_A_CAMINHO` do aceite às 12:00:16, o `ENCERRAR` do encerramento às 12:00:17, o SOS repetido com o mesmo `ts` e o `ENCERRAR` refeito no mesmo segundo (12:02:02) e, no topo, o SOS extra da evidência da camada 1 (12:05:36).
 
@@ -429,6 +429,179 @@ info: ...PublicadorComandosMqtt[400] Comando ENCERRAR publicado para o capacete 
 
 **Passo 12: limite de logins.** Depois de 61 s, foram 11 logins seguidos com um e-mail inexistente. Os 10 primeiros deram `401`, e o 11º deu `429`, em `application/problem+json`: "Muitas tentativas", "Limite de tentativas por minuto atingido. Espere um pouco e tente de novo.".
 
+## Cofre médico
+
+O Cofre deixa um socorrista verificado ver o mínimo da ficha médica do entregador pelo QR Code do capacete, por tempo limitado, e registra toda tentativa para o entregador consultar (seção 7 do contrato, 1.16). O `qrToken` do QR Code é credencial (seção 9). Ele só aparece no QR Code, no endereço da página e na resposta do `POST /api/v1/dispositivos`, e nunca em log, mensagem de erro, ProblemDetails (o `instance` sai com `{qrToken}`), auditoria ou outra resposta.
+
+**Login do socorrista.** `POST /api/v1/socorristas/login` tem o mesmo corpo e o mesmo formato do login do entregador. No lugar dos campos do entregador, a resposta traz `socorristaId`, `nome`, `organizacao` e `verificado`.
+
+- Senha errada, conta bloqueada e conta de entregador dão o mesmo `401`, com o mesmo texto.
+- O e-mail desconhecido passa pela mesma verificação de hash.
+- O limite de 10 por minuto por IP também vale.
+- O socorrista não verificado também recebe token: é o Cofre que responde `403` e registra a tentativa.
+- Não há renovação: o `POST /api/v1/entregadores/renovar-token` com um refresh de socorrista dá `401`, e a página faz o login de novo.
+
+**Acesso `POST /api/v1/cofre/{qrToken}/acesso`.** A ordem dos códigos é:
+
+| Situação | Código | Auditoria |
+|---|---|---|
+| Sem token, ou token inválido ou vencido | `401` | Não |
+| Token de entregador | `403` | Não (só o log, com o id do entregador) |
+| `qrToken` inexistente | `404` | Não (só o log, com o id do socorrista) |
+| Socorrista não verificado | `403`, `"motivo": "SOCORRISTA_NAO_VERIFICADO"` | Sim |
+| Janela fechada, ainda no bloqueio | `403`, `"motivo": "ACESSO_EXPIRADO"` | Sim |
+| Dentro da janela ou janela nova | `200`, com `Cache-Control: no-store` | Sim |
+
+O `200` traz `{ origem, ocorrenciaId, acessadoEm, expiraEm, tipoSanguineo, alergias, condicoesCriticas, contatos: [{ nome, telefone, parentesco }] }`:
+
+- O telefone dos contatos vem completo, só com os dígitos, para a ligação.
+- Nunca vêm os `medicamentos`, nem o nome, o CPF ou a CNH do entregador.
+- Sem ficha médica, os três campos de saúde vêm `null`.
+- Na emergência manual, o `ocorrenciaId` vem `null`.
+
+**Janela de acesso.** Cada par de socorrista e entregador tem a própria janela, calculada no domínio (`JanelaAcessoCofre`) a partir da última concessão do par.
+
+- **Abertura:** na primeira concessão, que vale até o `expiraEm` (a concessão mais `TTL_ACESSO_COFRE_MIN`, 60 min, em `HelmCare:TtlAcessoCofreMin`). Com ocorrência ativa do entregador (`SOS_CAMADA_1`, `SOS_CAMADA_2` ou `SOCORRO_A_CAMINHO`), a origem é `SOS_ATIVO`; sem ela, a emergência manual abre sozinha (`EMERGENCIA_MANUAL`).
+- **Dentro da janela:** `200`, com o mesmo `expiraEm` e a mesma origem, e uma linha nova de auditoria. Repetir não estica o prazo.
+- **Fechamento:** pelo TTL ou, na `SOS_ATIVO`, quando a ocorrência que a abriu vai para `ENCERRADA` ou `CANCELADA` (a emergência manual só fecha pelo TTL).
+- **Bloqueio:** depois do fechamento, o socorrista fica bloqueado para esse entregador por mais 60 min (`403 ACESSO_EXPIRADO`). Sem isso, o fim do SOS levaria direto a uma emergência manual, e o acesso nunca expiraria de fato.
+- **Ocorrência nova:** outro SOS do entregador abre uma janela nova na hora, mesmo dentro do bloqueio.
+
+**Auditoria.** Toda tentativa de um socorrista autenticado, com um `qrToken` existente, grava um `AcessoCofre`:
+
+- **Concessão:** `concedido` verdadeiro e `motivo` nulo.
+- **Negação:** `concedido` falso e o `motivo` (`MotivoNegacaoCofre`). A `origem` e o `ocorrenciaId` são os que valeriam naquele momento, e o `expiraEm` é o fechamento da janela (`ACESSO_EXPIRADO`) ou o próprio `acessadoEm` (`SOCORRISTA_NAO_VERIFICADO`).
+- **IP:** o `ip` é o do cliente depois dos cabeçalhos encaminhados e fica só no banco.
+
+O `GET /api/v1/cofre/auditoria/{entregadorId}` é só do próprio entregador: entregador inexistente dá `404`, e outro usuário ou socorrista dá `403`. A lista vem do mais recente ao mais antigo, com `{ acessadoEm, expiraEm, origem, concedido, motivo, socorrista: { nome, organizacao } }`, sem `ip` e sem dados de saúde.
+
+**Página `GET /cofre/{qrToken}`.** É sempre o mesmo HTML estático (`wwwroot/cofre/index.html`), exista o `qrToken` ou não, para não revelar quais são válidos, e nunca traz dados no HTML. O JavaScript e o CSS ficam em `/cofre/assets/cofre.js` e `/cofre/assets/cofre.css`, servidos pela própria API, sem CDN e sem script inline.
+
+1. O socorrista entra com e-mail e senha (`POST /api/v1/socorristas/login`).
+2. A página chama o `POST /api/v1/cofre/{qrToken}/acesso`, com o `qrToken` tirado do endereço.
+3. Ela mostra a ficha mínima e os contatos, com o link `tel:` para ligar, e uma contagem regressiva até o `expiraEm`. Quando a contagem zera, os dados são apagados da tela.
+4. Ela mostra a mensagem de cada código:
+   - `401`: entrar de novo;
+   - `403`: não verificado ou expirado, pelo `motivo` do ProblemDetails, ou conta sem acesso;
+   - `404`: QR inválido;
+   - `429`: aguardar.
+5. O botão "Ligar para o SAMU 192" (`tel:192`) fica sempre visível.
+
+O token fica só numa variável do JavaScript, sem armazenamento local, de sessão ou cookie: recarregar pede o login de novo.
+
+A página e os assets saem com estes cabeçalhos:
+
+| Cabeçalho | Valor |
+|---|---|
+| `Content-Security-Policy` | `default-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'` |
+| `Referrer-Policy` | `no-referrer` (o `qrToken` está no endereço) |
+| `X-Content-Type-Options` | `nosniff` |
+| `X-Frame-Options` | `DENY` |
+| `Cache-Control` | `no-store` |
+
+**Socorristas da demonstração.** Em Development, `POST /api/v1/dev/socorristas` com `{ nome, registroProfissional, organizacao, verificado, email, senha }` cria o socorrista e a conta (papel `SOCORRISTA`) numa transação só.
+
+- Responde `201` com `{ socorristaId, nome, organizacao, verificado, email }`, com o e-mail mascarado.
+- E-mail repetido dá `409`, e as regras de e-mail e senha são as do cadastro do entregador.
+- Fora de Development, a rota não existe nem aparece no Scalar.
+- O `HelmCare.Api.http` tem o fluxo completo (C1 a C13).
+
+### Evidência (17/11/2026)
+
+Ponta a ponta com a migration `Cofre` aplicada e dados simulados. O `qrToken` e os tokens aparecem omitidos, e os e-mails, os nomes e os telefones, mascarados. As contas usam e-mails de `exemplo.com`.
+
+**Migration.** A tabela `AcessosCofre` ganhou `Concedido` (`boolean`, sem valor padrão na coluna) e `Motivo` (`character varying(30)`, nulo). O banco de desenvolvimento ainda não tinha nenhuma linha de auditoria.
+
+**Socorristas.** `POST /api/v1/dev/socorristas` deu `201` (sem `Location`) para três socorristas: A e B verificados, e um pendente, não verificado. O e-mail de A com outra caixa deu `409`, "Já existe uma conta com este e-mail.".
+
+**Página.** `GET /cofre/<qrToken omitido>` (o real) e `GET /cofre/<qrToken omitido>` (inventado, também com 43 caracteres) deram `200`, com o mesmo corpo: 2022 bytes, o mesmo sha256 e nenhum `qrToken` no HTML. Os assets `/cofre/assets/cofre.js` e `/cofre/assets/cofre.css` deram `200`, com os mesmos cabeçalhos:
+
+```
+Content-Security-Policy: default-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'
+Referrer-Policy: no-referrer
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Cache-Control: no-store
+```
+
+**Logins.**
+
+- `POST /socorristas/login` de A, B e do pendente: `200`, com `"verificado": true`, `true` e `false`.
+- A conta do HC-0001 no login do socorrista e a de A no login do entregador: `401`, os dois com "E-mail ou senha inválidos.".
+- O `refreshToken` de A no `POST /entregadores/renovar-token`: `401`.
+
+**Acesso sem SOS.** As contagens de `AcessosCofre` antes e depois de cada chamada:
+
+| Chamada | Status | Auditoria |
+|---|---|---|
+| Sem token | `401` | 0 -> 0 |
+| Token do HC-0001 (entregador) | `403`, "Esta rota é só para socorristas." | 0 -> 0 |
+| A com o `qrToken` inventado | `404`, "QR Code inválido ou inexistente." | 0 -> 0 |
+| Pendente | `403`, `"motivo": "SOCORRISTA_NAO_VERIFICADO"` (`expiraEm` igual ao `acessadoEm`) | 0 -> 1 |
+| A | `200`, `Cache-Control: no-store` | 1 -> 2 |
+| A de novo | `200`, com o mesmo `expiraEm` | 2 -> 3 |
+
+O `instance` dos erros saiu como `/api/v1/cofre/{qrToken}/acesso`. O `200` de A, com o telefone mascarado aqui:
+
+```
+{"origem":"EMERGENCIA_MANUAL","ocorrenciaId":null,"acessadoEm":"2026-11-17T23:30:28.6062469Z","expiraEm":"2026-11-18T00:30:28.6062469Z","tipoSanguineo":"O+","alergias":"Dipirona","condicoesCriticas":"Asma","contatos":[{"nome":"C***","telefone":"******4567","parentesco":"Mãe"}]}
+```
+
+O corpo não tem `medicamentos`, nem o nome, o CPF ou a CNH do entregador. A auditoria gravou `concedido` verdadeiro, `motivo` nulo e o `ip` (só no banco).
+
+Nesse primeiro teste, o `expiraEm` do primeiro `200` saiu com 7 casas (da memória) e o do segundo com 6 (relido do PostgreSQL, que guarda até microssegundos). O instante do acesso passou a ser cortado em microssegundos antes de gravar (com teste), e o passo da expiração pelo TTL mostrou os dois `200` seguidos com o mesmo `expiraEm`.
+
+**Acesso com SOS.** O SOS publicado no HiveMQ abriu a ocorrência `01a1ebe0-1bde-7558-9e54-b7b3456e1955`.
+
+| Chamada | Status | Auditoria |
+|---|---|---|
+| B | `200`, `SOS_ATIVO`, com o `ocorrenciaId` da ocorrência nova | 3 -> 4 |
+| Encerrar pela vítima (HC-0001) | `200`, `ENCERRADA` | |
+| B de novo | `403`, `"motivo": "ACESSO_EXPIRADO"` | 4 -> 5 |
+| B mais uma vez (bloqueio) | `403`, `ACESSO_EXPIRADO` | 5 -> 6 |
+
+Na negação, a auditoria gravou `concedido` falso, `ACESSO_EXPIRADO`, a origem `EMERGENCIA_MANUAL` (a que valeria sem ocorrência ativa) e o `expiraEm` igual ao `encerradaEm` da ocorrência.
+
+**Expiração pelo TTL.** A faixa do `TtlAcessoCofreMin` vai de 5 a 1440 min, então a API subiu com `HelmCare__TtlAcessoCofreMin=5`. O socorrista C (verificado) foi criado com `201`.
+
+1. C: `200`, `EMERGENCIA_MANUAL`, com `expiraEm` 5 min depois.
+2. C de novo: `200`, com o mesmo `expiraEm`.
+3. Depois de 5 min e 5 s: `403`, `ACESSO_EXPIRADO`, com o `expiraEm` da auditoria igual ao fechamento da janela.
+
+A API voltou depois para o TTL de 60 min.
+
+**Auditoria.** `GET /api/v1/cofre/auditoria/{HC-0001}` com o token do dono deu `200`, com 9 itens (5 concedidos e 4 negados), em ordem decrescente de `acessadoEm`. Os itens têm só `acessadoEm`, `expiraEm`, `origem`, `concedido`, `motivo` e `socorrista` (`nome` e `organizacao`), sem ip e sem dados de saúde. Os 3 primeiros, com o nome mascarado aqui:
+
+```
+{"acessadoEm":"2026-11-17T23:51:50.24521Z","expiraEm":"2026-11-17T23:48:21.741852Z","origem":"EMERGENCIA_MANUAL","concedido":false,"motivo":"ACESSO_EXPIRADO","socorrista":{"nome":"S***","organizacao":"SAMU Simulado"}}
+{"acessadoEm":"2026-11-17T23:43:24.342499Z","expiraEm":"2026-11-17T23:48:21.741852Z","origem":"EMERGENCIA_MANUAL","concedido":true,"motivo":null,"socorrista":{"nome":"S***","organizacao":"SAMU Simulado"}}
+{"acessadoEm":"2026-11-17T23:43:21.741852Z","expiraEm":"2026-11-17T23:48:21.741852Z","origem":"EMERGENCIA_MANUAL","concedido":true,"motivo":null,"socorrista":{"nome":"S***","organizacao":"SAMU Simulado"}}
+```
+
+O primeiro pedido da auditoria deu `500`: o EF Core não traduzia a ordenação feita depois da projeção num record. A ordenação passou para antes da projeção, e um teste agora confere a tradução das consultas do Cofre para SQL sem banco (`ToQueryString`). Com a correção, a rota respondeu como acima. Com o token do socorrista A, deu `403`; com o de `voluntario1`, também `403`.
+
+**Página no navegador.** O socorrista A entrou pela página do HC-0001, com a janela manual ainda aberta. A página mostrou a ficha mínima, os contatos com o link para ligar, a contagem regressiva e o botão do SAMU 192.
+
+![Página do Cofre médico com a ficha mínima](evidencias/cofre-pagina.png)
+
+**Logs.** Nos cinco logs da API do ponta a ponta, aparecem 0 vezes:
+
+- o `qrToken` real e o inventado;
+- `@`, `Bearer`, `Senha` e trechos dos tokens;
+- o tipo sanguíneo, a alergia, a condição crítica e o telefone do contato.
+
+As linhas do Cofre e do login do socorrista levam só ids e o resultado:
+
+```
+info: ...AutenticacaoSocorristaServico[810] Login do socorrista 01a1ebd7-496d-7318-ad3b-68792dab273e: sucesso.
+warn: ...AutenticacaoSocorristaServico[811] Login de socorrista recusado: falha (socorrista (null)).
+warn: ...CofreServico[901] Acesso ao Cofre recusado: token de entregador 01a1d1e8-f66c-7ad8-9854-b31db7792668 (403, sem auditoria).
+warn: ...CofreServico[902] Acesso ao Cofre recusado: QR Code inexistente, socorrista 01a1ebd7-496d-7318-ad3b-68792dab273e (404, sem auditoria).
+info: ...CofreServico[900] Acesso ao Cofre 01a1ebd8-f22a-7b8b-967e-b5b1e5def966: socorrista 01a1ebd7-607f-77a9-8b8b-88f921a69b6b, entregador 01a1d1e8-f66c-7ad8-9854-b31db7792668, resultado SOCORRISTA_NAO_VERIFICADO.
+info: ...CofreServico[900] Acesso ao Cofre 01a1ebd8-fc82-7b06-9898-41c6ca9fa006: socorrista 01a1ebd7-496d-7318-ad3b-68792dab273e, entregador 01a1d1e8-f66c-7ad8-9854-b31db7792668, resultado CONCEDIDO.
+info: ...CofreServico[900] Acesso ao Cofre 01a1ebe2-0eda-71e0-92bb-9d9b1fca4f1c: socorrista 01a1ebd7-5700-71ce-9dd2-db59d5ac2d7b, entregador 01a1d1e8-f66c-7ad8-9854-b31db7792668, resultado ACESSO_EXPIRADO.
+```
+
 ## Decisões de projeto
 
 - O indicador de impacto mede cada trecho no próprio relógio: o capacete mede da queda ao fim da contagem, e o servidor mede do SOS recebido até o aceite.
@@ -438,3 +611,4 @@ info: ...PublicadorComandosMqtt[400] Comando ENCERRAR publicado para o capacete 
 - O aceite faz uma única nova tentativa depois de um conflito de concorrência, porque o escalonamento em segundo plano também troca a versão da ocorrência; se a ocorrência relida já não aguarda aceite (outro voluntário aceitou antes), a resposta é `409`.
 - A conferência de quem pode o quê fica num componente só, chamado pelos serviços depois de achar o recurso: assim a ordem `401`, `404`, `403` vale em todas as rotas, e as regras são testadas sem subir a API.
 - O login monta os tokens com os mesmos protetores do esquema bearer do Identity, e não pela resposta automática do `SignIn`, para devolver no mesmo corpo os tokens e a sessão do app.
+- A janela de acesso ao Cofre fica no domínio (`JanelaAcessoCofre`), calculada a partir da última concessão do par socorrista e entregador: cada concessão dentro da janela repete o `expiraEm`, a origem e a ocorrência da que a abriu, então não há tabela nova, e as regras de fechamento e bloqueio são testadas por instante, sem banco.

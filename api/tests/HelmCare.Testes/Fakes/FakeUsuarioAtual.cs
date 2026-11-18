@@ -15,6 +15,9 @@ public sealed class FakeUsuarioAtual : IUsuarioAtual
     public bool EhEntregador { get; init; }
 
     /// <inheritdoc/>
+    public bool EhSocorrista { get; init; }
+
+    /// <inheritdoc/>
     public Guid? EntregadorId { get; init; }
 
     /// <inheritdoc/>
@@ -40,11 +43,21 @@ public sealed class FakeUsuarioAtual : IUsuarioAtual
     }
 
     /// <summary>
-    /// Token de socorrista.
+    /// Token de socorrista, com um id novo.
     /// </summary>
     /// <returns>O usuário.</returns>
     public static FakeUsuarioAtual Socorrista()
     {
-        return new FakeUsuarioAtual { Autenticado = true, SocorristaId = Guid.CreateVersion7() };
+        return Socorrista(Guid.CreateVersion7());
+    }
+
+    /// <summary>
+    /// Token do socorrista informado.
+    /// </summary>
+    /// <param name="socorristaId">Id do socorrista do token.</param>
+    /// <returns>O usuário.</returns>
+    public static FakeUsuarioAtual Socorrista(Guid socorristaId)
+    {
+        return new FakeUsuarioAtual { Autenticado = true, EhSocorrista = true, SocorristaId = socorristaId };
     }
 }

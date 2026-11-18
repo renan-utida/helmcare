@@ -12,6 +12,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- A página do Cofre e os assets reais, para os testes da página (servidos de wwwroot na saída). -->
+    <None Include="..\..\src\HelmCare.Api\wwwroot\cofre\**\*" Link="wwwroot\cofre\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\HelmCare.Dominio\HelmCare.Dominio.csproj" />
     <ProjectReference Include="..\..\src\HelmCare.Api\HelmCare.Api.csproj" />
   </ItemGroup>

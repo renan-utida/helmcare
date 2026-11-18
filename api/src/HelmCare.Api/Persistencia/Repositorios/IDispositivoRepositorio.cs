@@ -19,6 +19,15 @@ public interface IDispositivoRepositorio : IRepositorio<Dispositivo>
     Task<Dispositivo?> ObterPorCodigoAsync(string codigo, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Busca, sem rastrear, o capacete pelo <c>qrToken</c> do QR Code (Cofre médico). O <c>qrToken</c> é
+    /// credencial: quem chama nunca o registra no log.
+    /// </summary>
+    /// <param name="qrToken">Token do QR Code.</param>
+    /// <param name="cancellationToken">Cancelamento da requisição.</param>
+    /// <returns>O capacete, ou nulo se o token não existir.</returns>
+    Task<Dispositivo?> ObterPorQrTokenAsync(string qrToken, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Diz se o código já está vinculado a algum entregador.
     /// </summary>
     /// <param name="codigo">Código do capacete.</param>

@@ -27,6 +27,12 @@ public sealed class DispositivoRepositorio : RepositorioBase<Dispositivo>, IDisp
     }
 
     /// <inheritdoc/>
+    public Task<Dispositivo?> ObterPorQrTokenAsync(string qrToken, CancellationToken cancellationToken)
+    {
+        return Conjunto.AsNoTracking().FirstOrDefaultAsync(d => d.QrToken == qrToken, cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public Task<bool> CodigoJaCadastradoAsync(string codigo, CancellationToken cancellationToken)
     {
         return Conjunto.AnyAsync(d => d.Codigo == codigo, cancellationToken);

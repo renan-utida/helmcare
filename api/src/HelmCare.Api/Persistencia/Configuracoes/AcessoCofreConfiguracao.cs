@@ -21,6 +21,12 @@ public sealed class AcessoCofreConfiguracao : IEntityTypeConfiguration<AcessoCof
 
         builder.Property(a => a.Ip).HasMaxLength(AcessoCofre.TamanhoMaximoIp);
 
+        // Sem valor padrão no modelo: o EF sempre manda o Concedido (um padrão verdadeiro faria o EF
+        // omitir o falso, que é o valor padrão do bool, e o banco gravaria verdadeiro). O verdadeiro
+        // para as linhas antigas fica só na migration Cofre.
+        builder.Property(a => a.Concedido).IsRequired();
+        builder.Property(a => a.Motivo);
+
         // Consulta de GET /api/v1/cofre/auditoria/{entregadorId}, do mais recente ao mais antigo.
         builder.HasIndex(a => new { a.EntregadorId, a.AcessadoEm });
 

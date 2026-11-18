@@ -20,8 +20,8 @@ public sealed class NomeContratoTests
 {
     private const string NamespaceEnums = "HelmCare.Dominio.Enums";
 
-    // Total de membros na seção 4 do contrato: 8 + 5 + 4 + 4 + 2 + 2 + 5 + 5.
-    private const int TotalMembrosNoContrato = 35;
+    // Total de membros na seção 4 do contrato (1.16): 8 + 5 + 4 + 4 + 2 + 2 + 2 + 5 + 5.
+    private const int TotalMembrosNoContrato = 37;
 
     /// <summary>
     /// Garante que <see cref="NomeContrato.Para{TEnum}(TEnum)"/> devolve exatamente o nome da seção 4 do contrato para cada membro.
@@ -288,7 +288,7 @@ public sealed class NomeContratoTests
             .ToList();
 
         // Assert
-        Assert.HasCount(8, enums);
+        Assert.HasCount(9, enums);
         Assert.IsEmpty(semConversor, $"Enums sem o JsonConverter: {string.Join(", ", semConversor)}");
     }
 
