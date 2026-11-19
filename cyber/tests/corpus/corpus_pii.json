@@ -1,0 +1,666 @@
+{
+  "descricao": "Corpus rotulado do motor de PII. Todos os dados pessoais são simulados (CPF e CNH com DV válido inventados).",
+  "formato": "esperado lista as categorias que o motor deve achar, com repetição. limitacaoConhecida marca casos fora do alcance do motor.",
+  "casos": [
+    {
+      "id": "cpf-01",
+      "grupo": "cpf",
+      "entrada": "CPF do entregador: 482.917.365-37",
+      "esperado": [
+        "CPF"
+      ]
+    },
+    {
+      "id": "cpf-02",
+      "grupo": "cpf",
+      "entrada": "cpf 73104829640 cadastrado",
+      "esperado": [
+        "CPF"
+      ]
+    },
+    {
+      "id": "cpf-03",
+      "grupo": "cpf",
+      "entrada": "documento 20586391703 sem rótulo",
+      "esperado": [
+        "CPF"
+      ],
+      "nota": "sem contexto, decide o DV do CPF"
+    },
+    {
+      "id": "cpf-04",
+      "grupo": "cpf",
+      "entrada": {
+        "cpf": "916.274.038-50"
+      },
+      "esperado": [
+        "CPF"
+      ]
+    },
+    {
+      "id": "cpf-05",
+      "grupo": "cpf",
+      "entrada": {
+        "cpf": "48291736538"
+      },
+      "esperado": [
+        "CPF"
+      ],
+      "nota": "campo cpf marca mesmo com DV errado"
+    },
+    {
+      "id": "cpf-neg-01",
+      "grupo": "cpf",
+      "entrada": "protocolo 482.917.365-38",
+      "esperado": [],
+      "nota": "máscara de CPF, DV errado e sem contexto"
+    },
+    {
+      "id": "cpf-neg-02",
+      "grupo": "cpf",
+      "entrada": "pedido 948291736537",
+      "esperado": [],
+      "nota": "CPF colado em sequência maior de dígitos"
+    },
+    {
+      "id": "cnh-01",
+      "grupo": "cnh",
+      "entrada": "CNH 60471928331 categoria A",
+      "esperado": [
+        "CNH"
+      ]
+    },
+    {
+      "id": "cnh-02",
+      "grupo": "cnh",
+      "entrada": "habilitação nº 13958274600",
+      "esperado": [
+        "CNH"
+      ]
+    },
+    {
+      "id": "cnh-03",
+      "grupo": "cnh",
+      "entrada": "registro 47201639525",
+      "esperado": [
+        "CNH"
+      ],
+      "nota": "sem contexto, decide o DV da CNH"
+    },
+    {
+      "id": "cnh-04",
+      "grupo": "cnh",
+      "entrada": {
+        "cnh": "95024861305"
+      },
+      "esperado": [
+        "CNH"
+      ]
+    },
+    {
+      "id": "cnh-neg-01",
+      "grupo": "cnh",
+      "entrada": "lote 60471928332",
+      "esperado": [],
+      "nota": "DV errado, DDD inexistente e sem contexto"
+    },
+    {
+      "id": "rg-01",
+      "grupo": "rg",
+      "entrada": "RG 12.345.678-9 SSP/SP",
+      "esperado": [
+        "RG"
+      ]
+    },
+    {
+      "id": "rg-02",
+      "grupo": "rg",
+      "entrada": {
+        "identidade": "23.456.789-X"
+      },
+      "esperado": [
+        "RG"
+      ]
+    },
+    {
+      "id": "rg-neg-01",
+      "grupo": "rg",
+      "entrada": "código 12.345.678-9",
+      "esperado": []
+    },
+    {
+      "id": "tel-01",
+      "grupo": "telefone",
+      "entrada": "Ligar para (11) 98765-4321",
+      "esperado": [
+        "TELEFONE"
+      ]
+    },
+    {
+      "id": "tel-02",
+      "grupo": "telefone",
+      "entrada": "whatsapp +55 21 99876-1234",
+      "esperado": [
+        "TELEFONE"
+      ]
+    },
+    {
+      "id": "tel-03",
+      "grupo": "telefone",
+      "entrada": "fixo (11) 3456-7890",
+      "esperado": [
+        "TELEFONE"
+      ]
+    },
+    {
+      "id": "tel-04",
+      "grupo": "telefone",
+      "entrada": "celular 11912345678",
+      "esperado": [
+        "TELEFONE"
+      ]
+    },
+    {
+      "id": "tel-05",
+      "grupo": "telefone",
+      "entrada": {
+        "telefone": "11987654321"
+      },
+      "esperado": [
+        "TELEFONE"
+      ]
+    },
+    {
+      "id": "tel-06",
+      "grupo": "telefone",
+      "entrada": "retorno 31991234567",
+      "esperado": [
+        "TELEFONE"
+      ],
+      "nota": "11 dígitos sem DV de CPF ou CNH, com formato de celular"
+    },
+    {
+      "id": "tel-neg-01",
+      "grupo": "telefone",
+      "entrada": "ligar para (10) 98765-4321",
+      "esperado": [],
+      "nota": "DDD 10 não existe"
+    },
+    {
+      "id": "tel-neg-02",
+      "grupo": "telefone",
+      "entrada": "evento 1731445530 registrado",
+      "esperado": [],
+      "nota": "timestamp Unix de 10 dígitos"
+    },
+    {
+      "id": "email-01",
+      "grupo": "email",
+      "entrada": "contato: entregador.simulado@exemplo.com",
+      "esperado": [
+        "EMAIL"
+      ]
+    },
+    {
+      "id": "email-02",
+      "grupo": "email",
+      "entrada": {
+        "email": "socorrista.simulada@exemplo.com"
+      },
+      "esperado": [
+        "EMAIL"
+      ]
+    },
+    {
+      "id": "email-03",
+      "grupo": "email",
+      "entrada": {
+        "email": "r***@exemplo.com"
+      },
+      "esperado": [
+        "EMAIL"
+      ],
+      "nota": "já mascarado: achado com jaMascarado"
+    },
+    {
+      "id": "email-neg-01",
+      "grupo": "email",
+      "entrada": "usuario@ sem domínio",
+      "esperado": []
+    },
+    {
+      "id": "nome-01",
+      "grupo": "nome",
+      "entrada": {
+        "nome": "Nome Simulado"
+      },
+      "esperado": [
+        "NOME"
+      ]
+    },
+    {
+      "id": "nome-02",
+      "grupo": "nome",
+      "entrada": {
+        "contatos": [
+          {
+            "nome": "Contato Simulado",
+            "parentesco": "Mãe"
+          }
+        ]
+      },
+      "esperado": [
+        "NOME"
+      ]
+    },
+    {
+      "id": "nome-lim-01",
+      "grupo": "nome",
+      "entrada": "O entregador Fulano Simulado caiu na Paulista",
+      "esperado": [
+        "NOME"
+      ],
+      "limitacaoConhecida": true,
+      "nota": "nome em texto livre exige NER"
+    },
+    {
+      "id": "nome-lim-02",
+      "grupo": "nome",
+      "entrada": "Avisar Beltrana Simulada, irmã do entregador",
+      "esperado": [
+        "NOME"
+      ],
+      "limitacaoConhecida": true,
+      "nota": "nome em texto livre exige NER"
+    },
+    {
+      "id": "saude-01",
+      "grupo": "saude",
+      "entrada": "Tipo sanguíneo: O+",
+      "esperado": [
+        "SAUDE"
+      ]
+    },
+    {
+      "id": "saude-02",
+      "grupo": "saude",
+      "entrada": "Entregador alérgico a dipirona",
+      "esperado": [
+        "SAUDE"
+      ]
+    },
+    {
+      "id": "saude-03",
+      "grupo": "saude",
+      "entrada": "Faz uso contínuo de insulina",
+      "esperado": [
+        "SAUDE",
+        "SAUDE"
+      ]
+    },
+    {
+      "id": "saude-04",
+      "grupo": "saude",
+      "entrada": "Atestado com CID J45",
+      "esperado": [
+        "SAUDE"
+      ]
+    },
+    {
+      "id": "saude-05",
+      "grupo": "saude",
+      "entrada": "HIPERTENSÃO controlada",
+      "esperado": [
+        "SAUDE"
+      ]
+    },
+    {
+      "id": "saude-06",
+      "grupo": "saude",
+      "entrada": {
+        "tipoSanguineo": "AB-",
+        "alergias": "Látex",
+        "condicoesCriticas": "Epilepsia"
+      },
+      "esperado": [
+        "SAUDE",
+        "SAUDE",
+        "SAUDE"
+      ]
+    },
+    {
+      "id": "saude-neg-01",
+      "grupo": "saude",
+      "entrada": "Nota A+ na avaliação do app",
+      "esperado": [],
+      "nota": "tipo sanguíneo sem contexto"
+    },
+    {
+      "id": "saude-neg-02",
+      "grupo": "saude",
+      "entrada": "Sangue frio no trânsito",
+      "esperado": []
+    },
+    {
+      "id": "loc-01",
+      "grupo": "localizacao",
+      "entrada": "Queda em -23.5641, -46.6525",
+      "esperado": [
+        "LOCALIZACAO_EXATA"
+      ]
+    },
+    {
+      "id": "loc-02",
+      "grupo": "localizacao",
+      "entrada": {
+        "latitude": -23.5641,
+        "longitude": -46.6525
+      },
+      "esperado": [
+        "LOCALIZACAO_EXATA",
+        "LOCALIZACAO_EXATA"
+      ]
+    },
+    {
+      "id": "loc-03",
+      "grupo": "localizacao",
+      "entrada": "lat=-23.58341 lon=-46.77771",
+      "esperado": [
+        "LOCALIZACAO_EXATA",
+        "LOCALIZACAO_EXATA"
+      ]
+    },
+    {
+      "id": "loc-04",
+      "grupo": "localizacao",
+      "entrada": "chamado perto de -23.56, -46.65",
+      "esperado": [
+        "LOCALIZACAO_APROXIMADA"
+      ]
+    },
+    {
+      "id": "loc-05",
+      "grupo": "localizacao",
+      "entrada": {
+        "latitude": -23.56,
+        "longitude": -46.65
+      },
+      "esperado": [
+        "LOCALIZACAO_APROXIMADA",
+        "LOCALIZACAO_APROXIMADA"
+      ]
+    },
+    {
+      "id": "loc-neg-01",
+      "grupo": "localizacao",
+      "entrada": "temperatura 33.4, umidade 58",
+      "esperado": []
+    },
+    {
+      "id": "loc-neg-02",
+      "grupo": "localizacao",
+      "entrada": "valores 95.1234, 200.5678",
+      "esperado": [],
+      "nota": "fora da faixa de coordenadas"
+    },
+    {
+      "id": "senha-01",
+      "grupo": "senha",
+      "entrada": "login falhou senha=SenhaSimulada123",
+      "esperado": [
+        "SENHA"
+      ]
+    },
+    {
+      "id": "senha-02",
+      "grupo": "senha",
+      "entrada": "{\"password\": \"OutraSenha9\"",
+      "esperado": [
+        "SENHA"
+      ],
+      "nota": "JSON inválido é tratado como texto"
+    },
+    {
+      "id": "senha-03",
+      "grupo": "senha",
+      "entrada": {
+        "senha": "SenhaSimulada123"
+      },
+      "esperado": [
+        "SENHA"
+      ]
+    },
+    {
+      "id": "senha-04",
+      "grupo": "senha",
+      "entrada": "pwd: Simulada#2026",
+      "esperado": [
+        "SENHA"
+      ]
+    },
+    {
+      "id": "senha-neg-01",
+      "grupo": "senha",
+      "entrada": "esqueci a senha do app",
+      "esperado": []
+    },
+    {
+      "id": "token-01",
+      "grupo": "token_acesso",
+      "entrada": "Authorization: Bearer CfDJ8SimuladoTokenOpacoDoIdentity0123456789abcdefXYZ",
+      "esperado": [
+        "TOKEN_ACESSO"
+      ]
+    },
+    {
+      "id": "token-02",
+      "grupo": "token_acesso",
+      "entrada": "jwt eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJzaW11bGFkbyJ9.c2ltdWxhZG9hc3NpbmF0dXJh",
+      "esperado": [
+        "TOKEN_ACESSO"
+      ]
+    },
+    {
+      "id": "token-03",
+      "grupo": "token_acesso",
+      "entrada": {
+        "accessToken": "CfDJ8SimuladoTokenOpacoDoIdentity0123456789abcdefXYZ",
+        "refreshToken": "CfDJ8SimuladoRefreshTokenDoIdentity9876543210zyxwvuQ"
+      },
+      "esperado": [
+        "TOKEN_ACESSO",
+        "TOKEN_ACESSO"
+      ]
+    },
+    {
+      "id": "token-neg-01",
+      "grupo": "token_acesso",
+      "entrada": "{\"tokenType\": \"Bearer\", \"expiresIn\": 3600}",
+      "esperado": []
+    },
+    {
+      "id": "qr-01",
+      "grupo": "qr_token",
+      "entrada": "GET /cofre/qrSimulado_7Hk2Lm9Pq4Rs8Tv1 200",
+      "esperado": [
+        "QR_TOKEN"
+      ]
+    },
+    {
+      "id": "qr-02",
+      "grupo": "qr_token",
+      "entrada": {
+        "qrToken": "qrSimulado_7Hk2Lm9Pq4Rs8Tv1"
+      },
+      "esperado": [
+        "QR_TOKEN"
+      ]
+    },
+    {
+      "id": "qr-03",
+      "grupo": "qr_token",
+      "entrada": {
+        "urlCofre": "http://localhost:5000/cofre/qrSimulado_7Hk2Lm9Pq4Rs8Tv1"
+      },
+      "esperado": [
+        "QR_TOKEN"
+      ]
+    },
+    {
+      "id": "qr-neg-01",
+      "grupo": "qr_token",
+      "entrada": "GET /cofre/assets/app.js 200",
+      "esperado": []
+    },
+    {
+      "id": "segredo-01",
+      "grupo": "segredo_api",
+      "entrada": "GEMINI_API_KEY={{CHAVE_GOOGLE}}",
+      "esperado": [
+        "SEGREDO_API"
+      ]
+    },
+    {
+      "id": "segredo-02",
+      "grupo": "segredo_api",
+      "entrada": "chave {{CHAVE_SK}}",
+      "esperado": [
+        "SEGREDO_API"
+      ]
+    },
+    {
+      "id": "segredo-neg-01",
+      "grupo": "segredo_api",
+      "entrada": "a sigla AIza sozinha",
+      "esperado": []
+    },
+    {
+      "id": "telemetria-01",
+      "grupo": "telemetria",
+      "entrada": {
+        "dispositivo": "HC-0001",
+        "ts": "2026-11-12T21:15:30Z",
+        "estado": "ARMADO",
+        "temperaturaC": 33.4,
+        "umidadePct": 58,
+        "indiceCalorC": 37.1,
+        "presenca": true,
+        "velocidadeKmh": 32,
+        "bateriaPct": 81
+      },
+      "esperado": []
+    },
+    {
+      "id": "telemetria-02",
+      "grupo": "telemetria",
+      "entrada": "{\"dispositivo\": \"HC-0001\", \"ts\": \"2026-11-12T21:15:30Z\", \"estado\": \"ARMADO\", \"temperaturaC\": 33.4, \"umidadePct\": 58, \"indiceCalorC\": 37.1, \"presenca\": true, \"velocidadeKmh\": 32, \"bateriaPct\": 81}",
+      "esperado": [],
+      "nota": "mensagem MQTT como texto"
+    },
+    {
+      "id": "telemetria-03",
+      "grupo": "telemetria",
+      "entrada": "picoG=4.8 temperaturaC=33.4 umidadePct=58 indiceCalorC=37.1 velocidadeKmh=32 bateriaPct=81",
+      "esperado": []
+    },
+    {
+      "id": "telemetria-04",
+      "grupo": "telemetria",
+      "entrada": {
+        "dispositivo": "HC-0001",
+        "ts": "2026-11-12T21:16:02Z",
+        "tipo": "IMPACTO_DETECTADO",
+        "picoG": 3.12,
+        "orientacaoAnormal": false,
+        "pilotandoAntes": true
+      },
+      "esperado": []
+    },
+    {
+      "id": "telemetria-05",
+      "grupo": "telemetria",
+      "entrada": {
+        "temperaturaC": 23.5,
+        "umidadePct": 58,
+        "indiceCalorC": 23.4,
+        "velocidadeKmh": 0
+      },
+      "esperado": []
+    },
+    {
+      "id": "guid-01",
+      "grupo": "guid",
+      "entrada": "entregadorId 3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90",
+      "esperado": []
+    },
+    {
+      "id": "guid-02",
+      "grupo": "guid",
+      "entrada": "id 12345678-9012-3456-7890-123456789012",
+      "esperado": [],
+      "nota": "GUID só com dígitos"
+    },
+    {
+      "id": "guid-03",
+      "grupo": "guid",
+      "entrada": {
+        "ocorrenciaId": "9b1d0c2e-1111-4a2b-8c3d-2e4f5a6b7c8d",
+        "voluntarioId": "3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90"
+      },
+      "esperado": []
+    },
+    {
+      "id": "timestamp-01",
+      "grupo": "timestamp",
+      "entrada": "criadaEm 2026-11-12T21:16:02Z",
+      "esperado": []
+    },
+    {
+      "id": "timestamp-02",
+      "grupo": "timestamp",
+      "entrada": "expiraEm 2026-11-18T23:10:00.123+00:00",
+      "esperado": []
+    },
+    {
+      "id": "timestamp-03",
+      "grupo": "timestamp",
+      "entrada": {
+        "inicio": "2026-11-12T20:00:00Z",
+        "fimPrevisto": "2026-11-13T00:00:00Z"
+      },
+      "esperado": []
+    },
+    {
+      "id": "versao-01",
+      "grupo": "versao",
+      "entrada": "Python 3.13.17 e Windows 10.0.26200",
+      "esperado": []
+    },
+    {
+      "id": "versao-02",
+      "grupo": "versao",
+      "entrada": "Contrato versão 1.17",
+      "esperado": []
+    },
+    {
+      "id": "misto-01",
+      "grupo": "misto",
+      "entrada": "CPF 482.917.365-37, celular (11) 98765-4321, email entregador.simulado@exemplo.com",
+      "esperado": [
+        "CPF",
+        "TELEFONE",
+        "EMAIL"
+      ]
+    },
+    {
+      "id": "misto-02",
+      "grupo": "misto",
+      "entrada": "SOS HC-0001 em 2026-11-12T21:16:02Z lat=-23.5641 lon=-46.6525 contato 11912345678",
+      "esperado": [
+        "LOCALIZACAO_EXATA",
+        "LOCALIZACAO_EXATA",
+        "TELEFONE"
+      ]
+    }
+  ]
+}
