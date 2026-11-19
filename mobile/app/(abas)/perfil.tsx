@@ -1,15 +1,16 @@
-import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { AccessibilityInfo, Alert, View } from 'react-native';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AccessibilityInfo, View, type ScrollViewInstance } from 'react-native';
 
-import { Aviso } from '@/componentes/Aviso';
 import { Botao } from '@/componentes/Botao';
+import { BotaoOlho } from '@/componentes/BotaoOlho';
 import { Carregando } from '@/componentes/Carregando';
 import { Cartao } from '@/componentes/Cartao';
 import { EstadoErro } from '@/componentes/EstadoErro';
 import { EstadoVazio } from '@/componentes/EstadoVazio';
 import { FormularioCapacete } from '@/componentes/FormularioCapacete';
 import { Icone } from '@/componentes/Icone';
+import { ItemContato } from '@/componentes/ItemContato';
 import { LinhaInfo } from '@/componentes/LinhaInfo';
 import { ParticiparRede } from '@/componentes/ParticiparRede';
 import { Tela } from '@/componentes/Tela';
@@ -19,9 +20,9 @@ import { useSessao } from '@/contextos/SessaoContext';
 import { useTema } from '@/contextos/TemaContext';
 import { entregadorServico } from '@/servicos/entregadorServico';
 import { converterErro, type ErroApi } from '@/servicos/erros';
-import type { ContatoResposta, EntregadorResposta } from '@/tipos/contrato';
+import type { EntregadorResposta } from '@/tipos/contrato';
 import { retirarDoFluxo } from '@/utils/memoriaDoFluxo';
-import { MENSAGEM_SEM_CONEXAO, mensagemComum } from '@/utils/mensagensErro';
+import { mensagemComum } from '@/utils/mensagensErro';
 import { comecarPilhaEm } from '@/utils/navegacao';
 
 /** Mensagem de erro do Perfil para cada tipo de erro da API. */
@@ -47,9 +48,23 @@ export default function Perfil() {
   // O erro guarda de qual entregador ele é, para não aparecer no perfil seguinte.
   const [falha, setFalha] = useState<{ entregadorId: string; erro: ErroApi } | null>(null);
   const [atualizando, setAtualizando] = useState(false);
-  const [avisoContato, setAvisoContato] = useState<string | null>(null);
+  // Os contatos começam escondidos ("•••••"); o olho do cartão mostra como a API devolve.
+  const [contatosVisiveis, setContatosVisiveis] = useState(false);
+  // Atalho "Contatos de emergência" da Início: rola até a seção dos contatos, uma vez por pedido.
+  const { secao, pedido } = useLocalSearchParams<{ secao?: string; pedido?: string }>();
+  const rolagem = useRef<ScrollViewInstance | null>(null);
+  const [posicaoContatos, setPosicaoContatos] = useState<number | null>(null);
+  const pedidoAtendido = useRef<string | null>(null);
+  useEffect(() => {
+    if (secao !== 'contatos' || !pedido || pedido === pedidoAtendido.current || posicaoContatos === null) {
+      return;
+    }
+    pedidoAtendido.current = pedido;
+    rolagem.current?.scrollTo({ y: posicaoContatos, animated: true });
+  }, [secao, pedido, posicaoContatos]);
 
   // Só vale o que é da conta em uso: ao trocar de conta, a tela volta a "Carregando".
+  const primeiroContato = resposta && resposta.id === entregadorId ? (resposta.contatos[0] ?? null) : null;
   const dados = resposta && resposta.id === entregadorId ? resposta : null;
   const erro = falha && falha.entregadorId === entregadorId ? falha.erro : null;
 
@@ -81,40 +96,6 @@ export default function Perfil() {
     }, [carregar, entregadorId]),
   );
 
-  /** `DELETE` do contato: 204 recarrega; 404 (já não existe) também recarrega a lista. */
-  async function excluirContato(contato: ContatoResposta) {
-    if (!entregadorId) {
-      return;
-    }
-    setAvisoContato(null);
-    try {
-      await entregadorServico.excluirContato(entregadorId, contato.id);
-      AccessibilityInfo.announceForAccessibility(`Contato ${contato.nome} excluído`);
-      await carregar();
-    } catch (e) {
-      const erroApi = converterErro(e);
-      if (erroApi.tipo === 'nao-encontrado') {
-        await carregar();
-      } else {
-        setAvisoContato(erroApi.tipo === 'sem-conexao' ? MENSAGEM_SEM_CONEXAO : mensagemComum(erroApi));
-      }
-    }
-  }
-
-  /** Confirmação da exclusão, com o aviso extra quando é o último contato. */
-  function confirmarExclusao(contato: ContatoResposta, ultimo: boolean) {
-    Alert.alert(
-      'Excluir contato?',
-      `Excluir o contato ${contato.nome}? Ele deixa de ser avisado num SOS.${
-        ultimo ? '\n\nSem contatos, ninguém da sua família é avisado num SOS.' : ''
-      }`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Excluir', style: 'destructive', onPress: () => void excluirContato(contato) },
-      ],
-    );
-  }
-
   function atualizar() {
     setAtualizando(true);
     void carregar();
@@ -143,7 +124,7 @@ export default function Perfil() {
   }
 
   return (
-    <Tela dentroDeAbas aoAtualizar={atualizar} atualizando={atualizando}>
+    <Tela dentroDeAbas aoAtualizar={atualizar} atualizando={atualizando} refRolagem={rolagem}>
       <Texto variante="titulo">{dados?.nome ?? sessao?.nome ?? 'Seu perfil'}</Texto>
       {erro ? (
         <Texto variante="legenda" cor="erro" accessibilityLiveRegion="polite">
@@ -153,8 +134,13 @@ export default function Perfil() {
 
       {dados ? (
         <>
+          {/* Sem olho: a API só devolve CPF, CNH, telefone e e-mail mascarados (seção 9), e o app
+              nunca desmascara, então não há o que mostrar a mais. Ver os dados completos precisa
+              de rota nova na API (melhoria futura). */}
           <Cartao titulo="Seus dados">
-            <Texto variante="legenda">Os números aparecem escondidos para proteger você.</Texto>
+            <Texto variante="legenda">
+              Por segurança, o app mostra só uma parte dos seus documentos, do telefone e do e-mail.
+            </Texto>
             <LinhaInfo rotulo="Nome" valor={dados.nome} />
             <LinhaInfo rotulo="CPF" valor={dados.cpf} mascarado />
             <LinhaInfo rotulo="CNH" valor={dados.cnh} mascarado />
@@ -240,42 +226,30 @@ export default function Perfil() {
             )}
           </Cartao>
 
-          <Cartao titulo="Contatos de emergência">
-            {dados.contatos.length === 0 ? (
-              <Texto>Nenhum contato ainda. Ele é avisado se você cair.</Texto>
+          <Cartao
+            titulo="Contatos de emergência"
+            acao={<BotaoOlho visivel={contatosVisiveis} aoAlternar={() => setContatosVisiveis((atual) => !atual)} />}
+            onLayout={(evento) => setPosicaoContatos(evento.nativeEvent.layout.y)}
+          >
+            {primeiroContato ? (
+              <ItemContato
+                entregadorId={entregadorId}
+                contato={primeiroContato}
+                ultimo={dados.contatos.length === 1}
+                oculto={!contatosVisiveis}
+                aoMudar={() => void carregar()}
+              />
             ) : (
-              dados.contatos.map((contato) => (
-                <View
-                  key={contato.id}
-                  style={{ gap: espaco.pequeno, borderTopWidth: 1, borderTopColor: cores.trilha, paddingTop: espaco.medio }}
-                >
-                  <LinhaInfo rotulo={contato.parentesco} valor={contato.nome} />
-                  <LinhaInfo rotulo="Telefone" valor={contato.telefone} mascarado />
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: espaco.pequeno }}>
-                    <View style={{ flexGrow: 1, flexBasis: '45%' }}>
-                      <Botao
-                        titulo="Editar"
-                        variante="secundaria"
-                        icone="create"
-                        aoPressionar={() => router.push({ pathname: '/contato', params: { contatoId: contato.id } })}
-                        accessibilityLabel={`Editar o contato ${contato.nome}`}
-                      />
-                    </View>
-                    <View style={{ flexGrow: 1, flexBasis: '45%' }}>
-                      <Botao
-                        titulo="Excluir"
-                        variante="secundaria"
-                        icone="trash"
-                        aoPressionar={() => confirmarExclusao(contato, dados.contatos.length === 1)}
-                        accessibilityLabel={`Excluir o contato ${contato.nome}`}
-                        accessibilityHint="Pede confirmação antes de excluir"
-                      />
-                    </View>
-                  </View>
-                </View>
-              ))
+              <Texto>Nenhum contato ainda. Ele é avisado se você cair.</Texto>
             )}
-            {avisoContato ? <Aviso tipo="erro" mensagem={avisoContato} /> : null}
+            {dados.contatos.length > 1 ? (
+              <Botao
+                titulo={`Ver todos os contatos (${dados.contatos.length})`}
+                variante="secundaria"
+                icone="people"
+                aoPressionar={() => router.push('/contatos')}
+              />
+            ) : null}
             <Botao
               titulo="Adicionar contato"
               variante="secundaria"

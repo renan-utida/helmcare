@@ -23,14 +23,23 @@ const ALTURA_SIMBOLO = 32;
 
 /**
  * Logo horizontal do HelmCare, claro ou escuro pelo tema, sem fundo próprio.
- * O tamanho sai em números (não em porcentagem): largura = mín(80% da janela, 320 dp)
+ * O tamanho sai em números (não em porcentagem): largura = mín(fração da janela, máximo)
  * e altura = largura ÷ proporção do viewBox. Assim o logo ocupa só o espaço dele,
  * sem sobra em cima e embaixo. O desenho não muda com a fonte do sistema (não é texto).
+ * Padrão: 80% da janela, até 320 dp (abertura); o login e o cadastro usam um logo menor.
  */
-export function LogoHorizontal() {
+export function LogoHorizontal({
+  fracaoDaTela = 0.8,
+  larguraMaxima = LARGURA_MAXIMA_LOGO,
+}: {
+  /** Fração da largura da janela que o logo ocupa. */
+  fracaoDaTela?: number;
+  /** Largura máxima, em dp. */
+  larguraMaxima?: number;
+} = {}) {
   const { esquema } = useTema();
   const { width } = useWindowDimensions();
-  const largura = Math.min(width * 0.8, LARGURA_MAXIMA_LOGO);
+  const largura = Math.min(width * fracaoDaTela, larguraMaxima);
   const altura = largura / PROPORCAO_LOGO[esquema];
   const Logo = esquema === 'escuro' ? LogoEscuro : LogoClaro;
   return (

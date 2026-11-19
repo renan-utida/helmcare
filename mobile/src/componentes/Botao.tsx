@@ -28,6 +28,14 @@ export interface BotaoProps {
   accessibilityHint?: string;
   /** Altura mínima maior que a padrão (56 dp), para ações de emergência (ex.: 72 dp). */
   alturaMinima?: number;
+  /**
+   * Botão menor, para as ações secundárias de uma tela (ex.: "Estou bem, cancelar" na ocorrência):
+   * altura mínima de 48 dp (a área de toque mínima) e letra de rótulo. Assim fica um botão principal
+   * por tela, sem perder a área de toque.
+   */
+  compacto?: boolean;
+  /** Botão que abre e fecha uma lista: o leitor de tela diz se ela está aberta (expandida). */
+  expandido?: boolean;
 }
 
 /**
@@ -45,6 +53,8 @@ export function Botao({
   accessibilityLabel,
   accessibilityHint,
   alturaMinima,
+  compacto = false,
+  expandido,
 }: BotaoProps) {
   const { cores, espaco, raio, medidas } = useTema();
   const inativo = desabilitado || carregando;
@@ -69,11 +79,17 @@ export function Botao({
       accessibilityLabel={accessibilityLabel ?? titulo}
       accessibilityHint={accessibilityHint}
       // Nas opções, `checked` dá o estado do papel "radio" e `selected` marca a escolhida.
-      accessibilityState={{ disabled: inativo, busy: carregando, checked: selecionado, selected: selecionado }}
+      accessibilityState={{
+        disabled: inativo,
+        busy: carregando,
+        checked: selecionado,
+        selected: selecionado,
+        expanded: expandido,
+      }}
       style={({ pressed }) => [
         styles.base,
         {
-          minHeight: Math.max(medidas.alturaBotao, alturaMinima ?? 0),
+          minHeight: Math.max(compacto ? medidas.toqueMinimo : medidas.alturaBotao, alturaMinima ?? 0),
           minWidth: medidas.toqueMinimo,
           paddingHorizontal: espaco.medio,
           paddingVertical: espaco.pequeno,
@@ -92,7 +108,7 @@ export function Botao({
         ) : icone ? (
           <Icone nome={icone} cor={corTexto} />
         ) : null}
-        <Texto variante="botao" corPersonalizada={corTexto} centralizado style={styles.texto}>
+        <Texto variante={compacto ? 'rotulo' : 'botao'} corPersonalizada={corTexto} centralizado style={styles.texto}>
           {titulo}
         </Texto>
       </View>

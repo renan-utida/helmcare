@@ -39,20 +39,22 @@ export interface LinhaInfoProps {
   selecionavel?: boolean;
   /** Como o leitor de tela fala o valor, quando difere do texto (ex.: "A+" vira "A positivo"). */
   leitura?: string;
+  /** Esconde o valor na tela ("•••••") até a pessoa tocar no olho do cartão. */
+  oculto?: boolean;
 }
 
 /** Par rótulo e valor, lido como uma frase só ("CPF: parte oculta, termina em 1 2"). */
-export function LinhaInfo({ rotulo, valor, mascarado = false, selecionavel = false, leitura }: LinhaInfoProps) {
+export function LinhaInfo({ rotulo, valor, mascarado = false, selecionavel = false, leitura, oculto = false }: LinhaInfoProps) {
   const { espaco } = useTema();
   return (
     <View
       accessible
-      accessibilityLabel={`${rotulo}: ${leitura ?? (mascarado ? leituraMascarada(valor) : valor)}`}
+      accessibilityLabel={`${rotulo}: ${oculto ? 'oculto' : (leitura ?? (mascarado ? leituraMascarada(valor) : valor))}`}
       style={{ gap: espaco.pequeno / 2 }}
     >
       <Texto variante="legenda">{rotulo}</Texto>
-      <Texto variante="rotulo" selectable={selecionavel}>
-        {valor}
+      <Texto variante="rotulo" selectable={selecionavel && !oculto}>
+        {oculto ? '•••••' : valor}
       </Texto>
     </View>
   );

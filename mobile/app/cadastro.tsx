@@ -16,7 +16,6 @@ import { useTema } from '@/contextos/TemaContext';
 import { autenticacaoServico } from '@/servicos/autenticacaoServico';
 import { entregadorServico } from '@/servicos/entregadorServico';
 import { converterErro } from '@/servicos/erros';
-import { gerarEntregadorSimulado } from '@/utils/dadosSimulados';
 import { guardarParaProximaTela } from '@/utils/memoriaDoFluxo';
 import { comecarPilhaEm } from '@/utils/navegacao';
 import { errosDosCampos, MENSAGEM_CONFIRA_CAMPOS, mensagemComum } from '@/utils/mensagensErro';
@@ -60,7 +59,7 @@ export default function Cadastro() {
         // Logo e indicador do passo juntos, com espaço médio entre eles (a Tela usa o grande).
         <View style={{ gap: espaco.medio }}>
           {/* A marca aparece só na primeira tela do cadastro, a porta de entrada do app. */}
-          {passo === 'dados' ? <LogoHorizontal /> : null}
+          {passo === 'dados' ? <LogoHorizontal fracaoDaTela={0.55} larguraMaxima={220} /> : null}
           <View style={{ gap: espaco.pequeno }}>
             <Texto variante="legenda">{`Passo ${numerado.numero} de 3`}</Texto>
             <Texto variante="titulo">{numerado.titulo}</Texto>
@@ -144,13 +143,6 @@ function PassoDados({ aoCriar }: { aoCriar: (id: string) => void }) {
     setValores((atual) => ({ ...atual, [campo]: valor }));
   }
 
-  /** Preenche os dados pessoais com dados fictícios: o contrato não aceita dados de pessoas reais. */
-  function preencherSimulado() {
-    setValores((atual) => ({ ...atual, ...gerarEntregadorSimulado() }));
-    setErros({});
-    setMensagem(null);
-  }
-
   async function continuar() {
     // Validação local com as regras da seção 3, antes de gastar uma chamada à API.
     const novosErros: Partial<Record<CampoDados | 'confirmacao', string>> = {};
@@ -216,14 +208,7 @@ function PassoDados({ aoCriar }: { aoCriar: (id: string) => void }) {
           mensagem={`Este celular já tem ${contas.length} contas, o máximo. Saia de uma delas em Contas para criar outra.`}
         />
       ) : null}
-      <Texto>Use dados simulados: o HelmCare é um protótipo e não guarda dados de pessoas reais.</Texto>
-      <Botao
-        titulo="Preencher com dados simulados"
-        variante="secundaria"
-        icone="shuffle"
-        aoPressionar={preencherSimulado}
-        accessibilityHint="Preenche nome, CPF, CNH e telefone com dados fictícios"
-      />
+      <Aviso tipo="informacao" mensagem="Protótipo acadêmico: use dados fictícios, não os seus dados reais." />
       <Campo rotulo="Nome" valor={valores.nome} aoMudar={(v) => mudar('nome', v)} erro={erros.nome} maxLength={120} />
       <Campo
         rotulo="CPF"
@@ -334,6 +319,7 @@ function Pronto({ comCapacete }: { comCapacete: boolean }) {
             ? 'Seu cadastro e o capacete estão prontos.'
             : 'Seu cadastro está pronto. Você pode vincular um capacete depois.'
         }
+        fechavel
       />
       <Texto>A ficha médica é opcional. Ela ajuda o socorro a cuidar de você numa emergência.</Texto>
       <Botao
@@ -342,7 +328,7 @@ function Pronto({ comCapacete }: { comCapacete: boolean }) {
         icone="medkit"
         aoPressionar={() => router.push('/ficha-medica')}
       />
-      <Botao titulo="Ir para o turno" icone="arrow-forward" aoPressionar={() => comecarPilhaEm('/turno')} />
+      <Botao titulo="Ir para o início" icone="arrow-forward" aoPressionar={() => comecarPilhaEm('/inicio')} />
     </>
   );
 }

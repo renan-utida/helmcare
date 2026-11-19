@@ -46,7 +46,7 @@ export interface CartaoCronometroProps {
  * cartão mostra "Você aceitou em mm:ss" e se ficou dentro da meta.
  */
 export function CartaoCronometro({ ocorrencia, segundos, papel }: CartaoCronometroProps) {
-  const { cores, espaco } = useTema();
+  const { cores, espaco, raio } = useTema();
   const ativa = !ESTADOS_FINAIS.includes(ocorrencia.estado);
   const meta = ocorrencia.cronometro.metaSegundos;
   const minutosMeta = meta / 60;
@@ -84,6 +84,20 @@ export function CartaoCronometro({ ocorrencia, segundos, papel }: CartaoCronomet
         <Texto variante="destaque">{numero === null ? '--:--' : formatarMinutosSegundos(numero)}</Texto>
         <Texto variante="rotulo">{legendaNumero}</Texto>
         <Texto>{`Meta: socorro em até ${minutosMeta} minutos`}</Texto>
+        {/* Barra da meta: quanto do tempo de 2 minutos já passou (só desenho; o texto diz a situação). */}
+        <View
+          accessible={false}
+          importantForAccessibility="no-hide-descendants"
+          style={{ height: espaco.pequeno + 4, backgroundColor: cores.trilha, borderRadius: raio.pequeno, overflow: 'hidden' }}
+        >
+          <View
+            style={{
+              width: `${Math.min(100, Math.round(((numero ?? 0) / meta) * 100))}%`,
+              height: '100%',
+              backgroundColor: situacao === 'acima' ? cores.aviso.atencao.icone : cores.aviso.sucesso.icone,
+            }}
+          />
+        </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: espaco.pequeno }}>
           <Icone
             nome={situacao === 'dentro' ? 'checkmark-circle' : situacao === 'acima' ? 'time' : 'remove-circle'}

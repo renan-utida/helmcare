@@ -4,8 +4,12 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 export const CHAVES_PREFERENCIA = {
   /** URL da API salva à mão na aba Ajustes. */
   urlApiManual: 'url_api_manual',
-  /** Aparência escolhida nos Ajustes: "sistema", "claro" ou "escuro". */
+  /** Modo de cor escolhido nos Ajustes: "claro" ou "escuro" ("sistema" é da versão antiga e é migrado). */
   tema: 'tema',
+  /** Paleta do modo claro: "helmcare", "alto-contraste" ou "areia". */
+  paletaClara: 'paleta_claro',
+  /** Paleta do modo escuro: "helmcare", "alto-contraste" ou "grafite". */
+  paletaEscura: 'paleta_escuro',
 } as const;
 
 /** Uma das chaves aceitas pela tabela `preferencia`. */

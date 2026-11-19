@@ -22,6 +22,8 @@ export const tipografia = {
   rotulo: { fontSize: 18, fontWeight: '700' },
   /** Textos de apoio (horários, dicas). Ainda grande, para leitura na rua. */
   legenda: { fontSize: 16, fontWeight: '400' },
+  /** Rótulos da barra de abas: o mesmo tamanho nas 5 abas. */
+  aba: { fontSize: 14, fontWeight: '700' },
 } satisfies Record<string, TextStyle>;
 
 /** Nome de uma variante de texto. */

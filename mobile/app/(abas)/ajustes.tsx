@@ -1,20 +1,20 @@
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable } from 'react-native';
+import { Alert, Linking, Pressable } from 'react-native';
 
 import { Aviso, type TipoAviso } from '@/componentes/Aviso';
 import { Botao } from '@/componentes/Botao';
 import { Campo } from '@/componentes/Campo';
 import { Cartao } from '@/componentes/Cartao';
-import { GrupoOpcoes } from '@/componentes/GrupoOpcoes';
+import { EscolhaAparencia } from '@/componentes/EscolhaAparencia';
 import { LinhaInfo } from '@/componentes/LinhaInfo';
 import { Tela } from '@/componentes/Tela';
 import { Texto } from '@/componentes/Texto';
 import { DESCRICAO_ORIGEM_URL, normalizarUrl } from '@/config/urlApi';
 import { useSessao } from '@/contextos/SessaoContext';
-import { PREFERENCIAS_TEMA, usePreferenciaTema, type PreferenciaTema } from '@/contextos/TemaContext';
 import { converterErro } from '@/servicos/erros';
+import { diagnosticarNotificacoes, pedirPermissao } from '@/servicos/notificacoes';
 import { saudeServico } from '@/servicos/saudeServico';
 import { invalidarAcessoParaTeste, invalidarRenovacaoParaTeste } from '@/servicos/testeSessaoDev';
 import { MENSAGEM_ERRO_GENERICO } from '@/utils/mensagensErro';
@@ -29,27 +29,67 @@ interface ResultadoTeste {
 /** Versão do app, do app.json. */
 const VERSAO_APP = Constants.expoConfig?.version ?? 'desconhecida';
 
-/** Texto de cada opção de aparência. */
-const TEXTO_PREFERENCIA: Record<PreferenciaTema, string> = {
-  sistema: 'Igual ao celular',
-  claro: 'Claro',
-  escuro: 'Escuro',
-};
-
 /**
  * Aba Ajustes: endereço da API (automático ou manual, salvo na tabela `preferencia`),
  * teste de conexão pelo `GET /saude`, aparência (tema) e o atalho para as contas do aparelho.
  */
 export default function Ajustes() {
   const { urlApi, definirUrlManual, contaAtiva, sessao } = useSessao();
-  const { preferencia, definirPreferencia } = usePreferenciaTema();
   const [urlDigitada, setUrlDigitada] = useState(urlApi.origem === 'manual' ? urlApi.url : '');
   const [erroUrl, setErroUrl] = useState<string | null>(null);
   const [resultado, setResultado] = useState<ResultadoTeste | null>(null);
   const [testando, setTestando] = useState(false);
   const [salvando, setSalvando] = useState(false);
 
-  /** Ações de teste da renovação e do fim da sessão (só em __DEV__, pelo toque longo na versão). */
+  /**
+   * Ações de teste (só em __DEV__, pelo toque longo na versão). O Android mostra no máximo 3
+   * botões num Alert: o primeiro escolhe entre o teste da notificação e os testes da sessão.
+   */
+  function abrirTestesDeDesenvolvimento() {
+    if (!__DEV__) {
+      return;
+    }
+    Alert.alert('Testes (desenvolvimento)', 'Escolha o teste.', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Testar notificação', onPress: () => void testarNotificacao() },
+      { text: 'Testes da sessão', onPress: abrirTestesDaSessao },
+    ]);
+  }
+
+  /**
+   * "Testar notificação": dispara "Teste do HelmCare" com `trigger: null` e mostra a permissão, o
+   * canal e o resultado do envio (só estados e códigos de erro, nenhum dado pessoal). Com a
+   * permissão negada, oferece pedir de novo ou, se o Android não deixa mais pedir, abrir os ajustes.
+   */
+  async function testarNotificacao() {
+    if (!__DEV__) {
+      return;
+    }
+    const resultado = await diagnosticarNotificacoes();
+    const linhaPermissao =
+      'erro' in resultado.permissao
+        ? `Permissão: erro ao ler (${resultado.permissao.erro})`
+        : `Permissão: ${resultado.permissao.status} (pode pedir de novo: ${resultado.permissao.podePedirDeNovo ? 'sim' : 'não'})`;
+    const linhaCanal =
+      resultado.canal.tipo === 'criado'
+        ? 'Canal "alertas": criado'
+        : resultado.canal.tipo === 'falhou'
+          ? `Canal "alertas": não criado (erro: ${resultado.canal.erro ?? 'sem código'})`
+          : 'Canal "alertas": não se aplica (não é Android)';
+    const linhaEnvio = 'id' in resultado.envio ? `Envio do teste: ok (id ${resultado.envio.id})` : `Envio do teste: erro (${resultado.envio.erro})`;
+    const linhaUltimo = `Último erro antes do teste: ${resultado.ultimoErroAntes ?? 'nenhum'}`;
+    const negada = !('erro' in resultado.permissao) && resultado.permissao.status !== 'granted';
+    const podePedir = !('erro' in resultado.permissao) && resultado.permissao.podePedirDeNovo;
+    const botoes: Parameters<typeof Alert.alert>[2] = [{ text: 'OK', style: 'cancel' }];
+    if (negada && podePedir) {
+      botoes.push({ text: 'Pedir permissão', onPress: () => void pedirPermissao().then(() => testarNotificacao()) });
+    } else if (negada) {
+      botoes.push({ text: 'Abrir os ajustes do app', onPress: () => void Linking.openSettings() });
+    }
+    Alert.alert('Teste de notificação', [linhaPermissao, linhaCanal, linhaEnvio, linhaUltimo].join('\n'), botoes);
+  }
+
+  /** Ações de teste da renovação e do fim da sessão (só em __DEV__). */
   function abrirTestesDaSessao() {
     if (!__DEV__ || !contaAtiva) {
       return;
@@ -126,7 +166,15 @@ export default function Ajustes() {
         <LinhaInfo rotulo="Endereço em uso" valor={urlApi.url} selecionavel />
         <LinhaInfo rotulo="De onde veio" valor={DESCRICAO_ORIGEM_URL[urlApi.origem]} />
         <Botao titulo="Testar conexão" icone="pulse" aoPressionar={testarConexao} carregando={testando} />
-        {resultado ? <Aviso tipo={resultado.tipo} mensagem={resultado.mensagem} /> : null}
+        {/* Resultado do teste e "Endereço salvo" confirmam uma ação: fecham pelo X e somem ao sair. */}
+        {resultado ? (
+          <Aviso
+            tipo={resultado.tipo}
+            mensagem={resultado.mensagem}
+            fechavel={resultado.tipo === 'sucesso' || resultado.tipo === 'informacao'}
+            aoFechar={() => setResultado(null)}
+          />
+        ) : null}
       </Cartao>
 
       <Cartao titulo="Endereço manual">
@@ -153,21 +201,14 @@ export default function Ajustes() {
       </Cartao>
 
       <Cartao titulo="Aparência">
-        <GrupoOpcoes
-          rotulo="Cores do app"
-          opcoes={PREFERENCIAS_TEMA}
-          selecionada={preferencia}
-          aoSelecionar={(opcao) => void definirPreferencia(opcao)}
-          textoDe={(opcao) => TEXTO_PREFERENCIA[opcao]}
-          colunas={1}
-        />
+        <EscolhaAparencia />
       </Cartao>
 
       <Cartao titulo="Sobre o app">
-        {/* Só no desenvolvimento, o toque longo na versão abre as ações de teste da sessão.
+        {/* Só no desenvolvimento, o toque longo na versão abre as ações de teste (notificação e sessão).
             Fora do __DEV__, a linha é só texto: nenhuma ação aparece. */}
         <Pressable
-          onLongPress={__DEV__ ? abrirTestesDaSessao : undefined}
+          onLongPress={__DEV__ ? abrirTestesDeDesenvolvimento : undefined}
           accessibilityRole="text"
           accessibilityLabel={`Versão do app: ${VERSAO_APP}`}
         >

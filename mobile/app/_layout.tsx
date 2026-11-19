@@ -9,6 +9,7 @@ import { ChamadosProvider } from '@/contextos/ChamadosContext';
 import { SessaoProvider } from '@/contextos/SessaoContext';
 import { TemaDoSistema, TemaProvider, useTema } from '@/contextos/TemaContext';
 import { TurnoProvider } from '@/contextos/TurnoContext';
+import { useNotificacoesTocadas } from '@/hooks/useNotificacoesTocadas';
 
 /** Nome do arquivo do banco local no aparelho. */
 const NOME_BANCO = 'helmcare.db';
@@ -19,6 +20,8 @@ const NOME_BANCO = 'helmcare.db';
  */
 function PilhaRaiz() {
   const { cores, esquema } = useTema();
+  // Notificações locais: prepara o canal e abre a tela certa quando a pessoa toca numa delas.
+  useNotificacoesTocadas();
   return (
     <>
       <StatusBar style={esquema === 'escuro' ? 'light' : 'dark'} />
@@ -43,6 +46,7 @@ function PilhaRaiz() {
         <Stack.Screen name="contato" options={{ presentation: 'modal', title: 'Contato de emergência' }} />
         <Stack.Screen name="contas" options={{ presentation: 'modal', title: 'Contas neste aparelho' }} />
         <Stack.Screen name="telefone" options={{ presentation: 'modal', title: 'Trocar telefone' }} />
+        <Stack.Screen name="contatos" options={{ title: 'Contatos de emergência' }} />
         <Stack.Screen name="qr-capacete" options={{ title: 'QR Code do seu capacete' }} />
         <Stack.Screen name="acessos-ficha" options={{ presentation: 'modal', title: 'Quem acessou minha ficha' }} />
         {/* Alerta de queda: tela cheia, sem cabeçalho e sem gesto de fechar (o voltar do
@@ -52,6 +56,9 @@ function PilhaRaiz() {
           options={{ presentation: 'fullScreenModal', headerShown: false, gestureEnabled: false }}
         />
         <Stack.Screen name="ocorrencia/[id]" options={{ title: 'Ocorrência' }} />
+        {/* Turno: telas da pilha abertas pela Início, com a seta de voltar padrão. */}
+        <Stack.Screen name="turno/novo" options={{ title: 'Começar turno' }} />
+        <Stack.Screen name="turno/ativo" options={{ title: 'Turno em andamento' }} />
       </Stack>
     </>
   );

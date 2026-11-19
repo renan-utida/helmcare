@@ -93,7 +93,7 @@ export default function Login() {
         router.back();
       } else {
         // Pilha nova nas abas: o voltar do Android nunca reabre o login.
-        comecarPilhaEm('/turno');
+        comecarPilhaEm('/inicio');
       }
     } catch (e) {
       setMensagem(mensagemDoErro(converterErro(e)));
@@ -109,8 +109,9 @@ export default function Login() {
   return (
     <>
       <Stack.Screen options={{ title: titulo, headerShown: modo !== 'entrar' }} />
-      <Tela>
-        {modo === 'entrar' ? <LogoHorizontal /> : null}
+      {/* Sem cabeçalho no modo "entrar": a tela respeita a barra de status e o logo fica menor. */}
+      <Tela areaSeguraTopo={modo === 'entrar'}>
+        {modo === 'entrar' ? <LogoHorizontal fracaoDaTela={0.55} larguraMaxima={220} /> : null}
         <View style={{ gap: espaco.pequeno }}>
           <Texto variante="titulo">{modo === 'adicionar' ? 'Adicionar outra conta' : 'Entrar na sua conta'}</Texto>
           {modo === 'adicionar' ? (

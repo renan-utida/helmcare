@@ -15,6 +15,7 @@ import { AccessibilityInfo, Vibration } from 'react-native';
 import { ocorrenciaRepositorio, type OcorrenciaLocal } from '@/banco/ocorrenciaRepositorio';
 import { usePolling } from '@/hooks/usePolling';
 import { converterErro, type ErroApi } from '@/servicos/erros';
+import { notificacoes } from '@/servicos/notificacoes';
 import { ocorrenciaServico } from '@/servicos/ocorrenciaServico';
 import { voluntarioServico } from '@/servicos/voluntarioServico';
 import type { OcorrenciaProximaResposta, OcorrenciaResposta } from '@/tipos/contrato';
@@ -140,6 +141,8 @@ export function ChamadosProvider({ children }: { children: ReactNode }) {
       if (novos > 0) {
         Vibration.vibrate(VIBRACAO_NOVO_CHAMADO);
         AccessibilityInfo.announceForAccessibility(ANUNCIO_NOVO_CHAMADO);
+        // Este polling pausa em segundo plano: a notificação aparece com o app aberto (no topo).
+        void notificacoes.novoChamado();
       }
     } catch (e) {
       if (voluntarioAtual.current === id) {

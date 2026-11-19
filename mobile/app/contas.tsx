@@ -157,9 +157,9 @@ export default function Contas() {
   async function trocar(entregadorId: string) {
     await trocarConta(entregadorId);
     AccessibilityInfo.announceForAccessibility('Conta trocada');
-    // Volta para a aba Turno, que mostra o aviso da troca uma vez só (pelo id único da troca).
+    // Volta para a aba Início, que mostra o aviso da troca uma vez só (pelo id único da troca).
     // Nenhum dado pessoal vai na rota: o nome vem da sessão, na própria aba.
-    router.dismissTo({ pathname: '/turno', params: { troca: novoIdDeTroca() } });
+    router.dismissTo({ pathname: '/inicio', params: { troca: novoIdDeTroca() } });
   }
 
   function confirmarSaida(entregadorId: string, exibido: string) {
@@ -183,7 +183,7 @@ export default function Contas() {
       return;
     }
     if (proxima) {
-      router.dismissTo({ pathname: '/turno', params: { troca: novoIdDeTroca() } });
+      router.dismissTo({ pathname: '/inicio', params: { troca: novoIdDeTroca() } });
     } else {
       comecarPilhaEm('/login');
     }

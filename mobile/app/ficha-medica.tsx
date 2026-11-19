@@ -158,7 +158,7 @@ function VerFicha({
   return (
     <Tela>
       {salvaAgora ? (
-        <Aviso tipo="sucesso" titulo="Ficha médica salva" mensagem="Esta é a ficha que ficou guardada." />
+        <Aviso tipo="sucesso" titulo="Ficha médica salva" mensagem="Esta é a ficha que ficou guardada." fechavel />
       ) : null}
       <Texto>
         Só um socorrista verificado vê o tipo sanguíneo, as alergias e as condições críticas, e só durante uma
