@@ -76,7 +76,21 @@ export function Campo({
         {rotulo}
       </Texto>
       {dica ? <Texto variante="legenda">{dica}</Texto> : null}
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: espaco.pequeno }}>
+      {/* A caixa é este contêiner (borda e fundo), com o texto e, na senha, o olho dentro dela,
+          à direita: assim todos os campos têm a mesma largura e as mesmas margens, e o texto
+          nunca passa por baixo do ícone (o olho tem a própria área). */}
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: multilinha ? 'flex-start' : 'center',
+          backgroundColor: cores.superficie,
+          borderColor: temErro ? cores.erro : cores.borda,
+          // Borda mais grossa no erro: a cor não é a única pista.
+          borderWidth: temErro ? 3 : 2,
+          borderRadius: raio.pequeno,
+          minHeight: multilinha ? medidas.alturaBotao * 2 : medidas.alturaBotao,
+        }}
+      >
         <TextInput
           value={valor}
           onChangeText={aoMudar}
@@ -99,14 +113,11 @@ export function Campo({
             styles.entrada,
             {
               flex: 1,
+              alignSelf: 'stretch',
               color: cores.texto,
-              backgroundColor: cores.superficie,
-              borderColor: temErro ? cores.erro : cores.borda,
-              // Borda mais grossa no erro: a cor não é a única pista.
-              borderWidth: temErro ? 3 : 2,
-              borderRadius: raio.pequeno,
-              minHeight: multilinha ? medidas.alturaBotao * 2 : medidas.alturaBotao,
-              paddingHorizontal: espaco.medio,
+              paddingLeft: espaco.medio,
+              // Com o olho, o espaço da direita é dele; sem ele, a margem normal.
+              paddingRight: ehSenha ? 0 : espaco.medio,
               paddingVertical: espaco.pequeno,
             },
           ]}
@@ -123,7 +134,7 @@ export function Campo({
               justifyContent: 'center',
             }}
           >
-            <Icone nome={mostrarSenha ? 'eye-off' : 'eye'} cor={cores.primaria} tamanho={28} />
+            <Icone nome={mostrarSenha ? 'eye-off' : 'eye'} cor={cores.primaria} tamanho={26} />
           </Pressable>
         ) : null}
       </View>

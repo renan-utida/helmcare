@@ -109,8 +109,9 @@ export default function Login() {
   return (
     <>
       <Stack.Screen options={{ title: titulo, headerShown: modo !== 'entrar' }} />
-      <Tela>
-        {modo === 'entrar' ? <LogoHorizontal /> : null}
+      {/* Sem cabeçalho no modo "entrar": a tela respeita a barra de status e o logo fica menor. */}
+      <Tela areaSeguraTopo={modo === 'entrar'}>
+        {modo === 'entrar' ? <LogoHorizontal fracaoDaTela={0.55} larguraMaxima={220} /> : null}
         <View style={{ gap: espaco.pequeno }}>
           <Texto variante="titulo">{modo === 'adicionar' ? 'Adicionar outra conta' : 'Entrar na sua conta'}</Texto>
           {modo === 'adicionar' ? (

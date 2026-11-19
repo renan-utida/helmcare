@@ -16,6 +16,11 @@ export interface TelaProps {
    * Nas telas da pilha e nos modais, a tela soma a área da barra de navegação do Android.
    */
   dentroDeAbas?: boolean;
+  /**
+   * Soma a área segura do topo (a barra de status do Android) com um respiro: para as telas sem
+   * cabeçalho, como o login no modo "entrar", em que nada pode ficar por baixo do relógio.
+   */
+  areaSeguraTopo?: boolean;
   /** Referência da rolagem, para a tela rolar até uma seção (ex.: os contatos do Perfil). */
   refRolagem?: RefObject<ScrollViewInstance | null>;
 }
@@ -24,7 +29,14 @@ export interface TelaProps {
  * Base de todas as telas: fundo do tema, rolagem (para a fonte grande nunca cortar texto),
  * teclado sem cobrir os campos e espaçamento padrão.
  */
-export function Tela({ children, aoAtualizar, atualizando = false, dentroDeAbas = false, refRolagem }: TelaProps) {
+export function Tela({
+  children,
+  aoAtualizar,
+  atualizando = false,
+  dentroDeAbas = false,
+  areaSeguraTopo = false,
+  refRolagem,
+}: TelaProps) {
   const { cores, espaco } = useTema();
   const insets = useSafeAreaInsets();
   return (
@@ -36,6 +48,7 @@ export function Tela({ children, aoAtualizar, atualizando = false, dentroDeAbas 
         contentContainerStyle={{
           flexGrow: 1,
           padding: espaco.medio,
+          paddingTop: areaSeguraTopo ? insets.top + espaco.grande : espaco.medio,
           paddingBottom: espaco.grande + (dentroDeAbas ? 0 : insets.bottom),
         }}
         refreshControl={
