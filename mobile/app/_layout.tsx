@@ -46,6 +46,7 @@ function PilhaRaiz() {
         <Stack.Screen name="contato" options={{ presentation: 'modal', title: 'Contato de emergência' }} />
         <Stack.Screen name="contas" options={{ presentation: 'modal', title: 'Contas neste aparelho' }} />
         <Stack.Screen name="telefone" options={{ presentation: 'modal', title: 'Trocar telefone' }} />
+        <Stack.Screen name="contatos" options={{ title: 'Contatos de emergência' }} />
         <Stack.Screen name="qr-capacete" options={{ title: 'QR Code do seu capacete' }} />
         <Stack.Screen name="acessos-ficha" options={{ presentation: 'modal', title: 'Quem acessou minha ficha' }} />
         {/* Alerta de queda: tela cheia, sem cabeçalho e sem gesto de fechar (o voltar do
