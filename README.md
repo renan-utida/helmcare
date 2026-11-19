@@ -18,7 +18,7 @@
 | Cybersecurity | [`cyber/`](cyber/) | *(a preencher)* |
 | C# Software Development | [`api/`](api/) | *(a preencher)* |
 | Inteligência Artificial & Machine Learning | [`ml/`](ml/) | Vídeo: *(a preencher)* |
-| Mobile Development & IoT | [`mobile/`](mobile/) | Vídeo: *(a preencher)* |
+| Mobile Development & IoT | [`mobile/`](mobile/) | Vídeo: [youtu.be/qUZFudiXW_Q](https://youtu.be/qUZFudiXW_Q) |
 | Operating Systems | [`infra/`](infra/) | Vídeo: *(a preencher)* |
 | Physical Computing: IoT & IoB | [`iot/`](iot/) | Wokwi: *(a preencher)* - Vídeo: *(a preencher)* |
 | Testing, Compliance & Quality Assurance | [`docs/`](docs/) | Azure Boards: *(a preencher)* - Pitch: *(a preencher)* |
@@ -266,6 +266,8 @@ O **app do entregador**: React Native + TypeScript + Expo Router.
 | Histórico | Turnos, alertas e ocorrências (com SQLite local, funciona offline) |
 
 Acessibilidade: fontes grandes, alto contraste, botões grandes, linguagem simples e suporte a leitor de tela.
+
+Detalhes, prints das telas e como rodar: [`mobile/README.md`](mobile/README.md). Vídeo da demonstração: [youtu.be/qUZFudiXW_Q](https://youtu.be/qUZFudiXW_Q).
 
 ### Inteligência Artificial & Machine Learning (`/ml`)
 - **Pergunta de ML:** quantos sinistros graves envolvendo motocicletas são esperados em São Paulo em cada faixa horária, dadas as condições de tempo (chuva e temperatura)?
