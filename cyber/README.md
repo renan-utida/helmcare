@@ -1,6 +1,48 @@
+<p align="center"><img src="assets/marca/logo-horizontal.png" alt="Logo do HelmCare: um capacete de moto com uma linha de batimento cardíaco na viseira" width="420"></p>
+
 # HelmCare: proteção de dados (Cybersecurity)
 
+[Repositório](https://github.com/renan-utida/helmcare/tree/main/cyber) | [Vídeo do painel no YouTube (não listado)](https://youtu.be/PSRhGlnmjcI)
+
 O HelmCare guarda dados de quem está na rua trabalhando: documentos, telefone, ficha médica, localização no momento de uma queda e as credenciais da conta. Este módulo existe para que esses dados do entregador só apareçam onde o [Contrato de Integração](../docs/contrato-integracao.md) permite (seção 9) e nunca em logs, mensagens MQTT, respostas para terceiros ou chamadas a serviços externos.
+
+## Sumário
+
+- [O que o módulo faz](#o-que-o-módulo-faz)
+- [Estrutura](#estrutura)
+- [Como rodar (Git Bash)](#como-rodar-git-bash)
+- [Uso do motor](#uso-do-motor)
+- [Categorias e regras](#categorias-e-regras)
+- [Máscaras (seção 9 do Contrato)](#máscaras-seção-9-do-contrato)
+- [O que nunca é marcado](#o-que-nunca-é-marcado)
+- [Como o valor original é protegido](#como-o-valor-original-é-protegido)
+- [Avaliação](#avaliação)
+- [Limitações do motor de PII](#limitações-do-motor-de-pii)
+- [Taint Analysis](#taint-analysis)
+  - [Modelo](#modelo)
+  - [Os dois modos](#os-dois-modos)
+  - [Política](#política)
+  - [Guarda, rastro e eventos](#guarda-rastro-e-eventos)
+  - [Proteção do log](#proteção-do-log)
+  - [Cenários](#cenários)
+  - [Demonstração](#demonstração)
+  - [Limitações do Taint Analysis](#limitações-do-taint-analysis)
+- [Tradução por IA e Risco Cidadão](#tradução-por-ia-e-risco-cidadão)
+  - [O que vai ao LLM e o que nunca vai](#o-que-vai-ao-llm-e-o-que-nunca-vai)
+  - [Validação da saída](#validação-da-saída)
+  - [Reserva, cache e disjuntor](#reserva-cache-e-disjuntor)
+  - [Risco Cidadão](#risco-cidadão)
+  - [Como rodar](#como-rodar)
+- [API e painel](#api-e-painel)
+  - [Como subir](#como-subir)
+  - [Rotas](#rotas)
+  - [Interceptador de entrada](#interceptador-de-entrada)
+  - [Painel](#painel)
+  - [Controles de segurança da API](#controles-de-segurança-da-api)
+- [Evidências, relatório e auditoria](#evidências-relatório-e-auditoria)
+  - [PDF do relatório](#pdf-do-relatório)
+  - [ZIP da entrega](#zip-da-entrega)
+- [Regras de dados pessoais](#regras-de-dados-pessoais)
 
 ## O que o módulo faz
 
@@ -56,8 +98,16 @@ cyber/
   scripts/demo_risco.py      Risco Cidadão de cada situação, com a mensagem
   scripts/testar_ia.py       três traduções de exemplo e a repetição pelo cache
   scripts/servir.py          sobe a API e o painel em 127.0.0.1:8100
-  tests/                     testes pytest (pii, taint, eventos, simulacao, risco, ia, api)
+  scripts/gerar_pdf.py       gera docs/relatorio-cyber.pdf a partir do Markdown
+  scripts/empacotar_zip.py   gera dist/helmcare-cyber-558540.zip para a entrega
+  tests/                     testes pytest (pii, taint, eventos, simulacao, risco, ia, api, scripts)
   tests/corpus/corpus_pii.json   corpus rotulado (positivos e negativos)
+  docs/relatorio-cyber.md    relatório do módulo (e o PDF gerado dele)
+  auditoria/auditoria-prototipo.md   auditoria das saídas do protótipo e o achado real do qrToken
+  evidencias/README.md       o que cada print e o vídeo mostram e em que seção do relatório entram
+  evidencias/prints/         os prints P01 a P18, citados como figuras no relatório
+  evidencias/video/          video-dashboard.mp4, o vídeo do painel com legendas e a logo
+  assets/marca/              cópia da logo de docs/marca/ do repositório, usada nos documentos, no PDF e no vídeo
 ```
 
 ## Como rodar (Git Bash)
@@ -77,6 +127,8 @@ python scripts/demo.py                           # cenários do Taint Analysis
 python scripts/demo_risco.py                     # Risco Cidadão, só com a reserva (sem rede)
 python scripts/testar_ia.py --sem-dotenv         # tradução sem carregar o cyber/.env
 python scripts/servir.py                         # API e painel em 127.0.0.1:8100
+python scripts/gerar_pdf.py                      # relatório em PDF (docs/relatorio-cyber.pdf)
+python scripts/empacotar_zip.py                  # ZIP da entrega (dist/helmcare-cyber-558540.zip)
 ```
 
 As variáveis de ambiente esperadas estão em `.env.example`. Para usar a tradução por IA, copie o arquivo para `cyber/.env` e preencha a chave e o modelo; o `.env` é ignorado pelo Git. A biblioteca só lê `os.environ`: quem carrega o `cyber/.env` são os scripts (`testar_ia.py` sem `--sem-dotenv` e `demo_risco.py --com-ia`), pela função `carregar_dotenv()`, que nunca sobrescreve uma variável que já existe no ambiente e nunca imprime o conteúdo. A chave não entra na `Config`.
@@ -500,6 +552,33 @@ Não há atualização automática: o painel atualiza depois de cada ação e no
 - **Cabeçalhos em toda resposta:** `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` e `X-Frame-Options: DENY`; `Cache-Control: no-store` nas rotas da API; e, no painel, `Content-Security-Policy` só com a própria origem (`default-src 'self'`), sem script nem estilo inline. O Swagger em `/docs` carrega os arquivos dele de fora e fica sem essa política; é a única página que precisa de internet.
 - **Sem CORS:** o painel é servido pela própria API, então nenhuma outra origem é liberada.
 - **Escuta local por padrão** (`127.0.0.1`).
+
+## Evidências, relatório e auditoria
+
+- [Relatório](docs/relatorio-cyber.md): contexto e LGPD, motor de PII com a tabela de regras e as métricas do corpus, Taint Analysis com a política e os cenários, tradução por IA com a reserva, o painel Risco Cidadão com a fórmula e a calibração, a auditoria, os testes, como executar e as limitações.
+- [Auditoria do protótipo](auditoria/auditoria-prototipo.md): os controles que a API C# já tem nas saídas, o Taint Analysis em ação nos cenários C1 a C11 e o achado real do `qrToken` publicado dentro de um QR Code de um print do Mobile.
+- [Evidências](evidencias/README.md): cada print e o vídeo, o que mostram e em que seção do relatório entram. Os prints ficam em `evidencias/prints/`, e o com o `qrToken` aparece só tarjado (`P16-qrtoken-tarjado.png`). O vídeo do painel, com legendas e a logo, está no YouTube como não listado ([https://youtu.be/PSRhGlnmjcI](https://youtu.be/PSRhGlnmjcI)) e em `evidencias/video/video-dashboard.mp4`, versionado no Git.
+- **Marca.** A logo vem de `docs/marca/` do repositório. O módulo guarda uma cópia idêntica em `assets/marca/` para ser autossuficiente (nenhum documento, nem o PDF, nem o ZIP depende de arquivo de fora de `cyber/`), e um teste confere que a cópia continua igual à original; dentro do ZIP, sem a pasta da raiz, esse teste é pulado.
+
+### PDF do relatório
+
+```bash
+python scripts/gerar_pdf.py              # imagem que falta vira o aviso "IMAGEM PENDENTE" no PDF
+python scripts/gerar_pdf.py --estrito    # imagem que falta faz o script falhar, sem gerar o PDF
+```
+
+O aviso traz o caminho do print esperado (por exemplo, `IMAGEM PENDENTE: evidencias/prints/P01-estrutura.png`). No modo `--estrito`, além das imagens citadas, precisam existir os prints `evidencias/prints/P01-estrutura.png` e `evidencias/prints/P18-pytest-cobertura.png`.
+
+O script converte o Markdown em HTML (tabelas, blocos de código com Pygments), embute as imagens em base64 (reduzidas para 1600 px de largura se o Pillow estiver instalado), inclusive a logo da capa, aplica um CSS para A4 e imprime o PDF com o Edge em modo headless (ou o Chrome, se não houver Edge). O HTML intermediário fica em `dist/`. Sem nenhum dos dois navegadores, o script gera só o HTML e orienta a imprimir com Ctrl+P. No fim, mostra o caminho, o tamanho e o número de páginas.
+
+### ZIP da entrega
+
+```bash
+python scripts/empacotar_zip.py                   # sem o vídeo
+python scripts/empacotar_zip.py --incluir-video   # com o evidencias/video/video-dashboard.mp4
+```
+
+Gera `dist/helmcare-cyber-558540.zip` com a pasta `cyber/` dentro, sem `.env`, `.venv/`, `__pycache__/`, `.pytest_cache/`, `.coverage`, `dados/`, `dist/` e `*.pyc`, e sem nenhum `.mp4` quando a flag não é usada. Depois de zipar, o script reabre o ZIP e confere que não entrou nenhum `.env`, nenhum vídeo sem a flag e nenhum texto com cara de chave de API; mostra o número de arquivos e o tamanho e avisa se algum `.md` cita uma imagem que não está no ZIP (como um print ainda não tirado). A logo fica em `assets/marca/`, dentro do módulo, então os links de imagem dos documentos resolvem dentro do ZIP. A pasta `dist/` é ignorada pelo Git.
 
 ## Regras de dados pessoais
 
