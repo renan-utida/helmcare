@@ -5,6 +5,7 @@ import type { EstadoDispositivo } from '@/tipos/contrato';
 
 import { Cartao } from './Cartao';
 import { Icone, type NomeIcone } from './Icone';
+import type { TomCirculo } from './IconeEmCirculo';
 import { Texto } from './Texto';
 
 /** Tom do estado, que escolhe a cor do ícone (o texto sempre diz o estado). */
@@ -23,8 +24,19 @@ const APARENCIA: Record<EstadoDispositivo | 'SEM_CAPACETE', { texto: string; ico
   SEM_CAPACETE: { texto: 'Sem capacete neste turno', icone: 'remove-circle-outline', tom: 'neutro' },
 };
 
-/** Texto e ícone do estado do capacete, e a cor do ícone pelo tom (o texto sempre diz o estado). */
-export function useAparenciaCapacete(estado: EstadoDispositivo | null): { texto: string; icone: NomeIcone; cor: string } {
+/** Tom do círculo do ícone para cada tom do estado. */
+const TOM_CIRCULO: Record<Tom, TomCirculo> = { neutro: 'informacao', bom: 'sucesso', atencao: 'atencao', perigo: 'erro' };
+
+/**
+ * Texto e ícone do estado do capacete, a cor do ícone e o tom do círculo pelo tom do estado
+ * (o texto sempre diz o estado: a cor nunca é a única pista).
+ */
+export function useAparenciaCapacete(estado: EstadoDispositivo | null): {
+  texto: string;
+  icone: NomeIcone;
+  cor: string;
+  tomCirculo: TomCirculo;
+} {
   const { cores } = useTema();
   const { texto, icone, tom } = APARENCIA[estado ?? 'SEM_CAPACETE'];
   const cor = {
@@ -33,7 +45,7 @@ export function useAparenciaCapacete(estado: EstadoDispositivo | null): { texto:
     atencao: cores.aviso.atencao.icone,
     perigo: cores.aviso.erro.icone,
   }[tom];
-  return { texto, icone, cor };
+  return { texto, icone, cor, tomCirculo: TOM_CIRCULO[tom] };
 }
 
 /** Props do `EstadoCapacete`. */

@@ -10,6 +10,7 @@ import { EstadoVazio } from '@/componentes/EstadoVazio';
 import { useAparenciaCapacete } from '@/componentes/EstadoCapacete';
 import { FaixaRisco, TEXTO_FAIXA } from '@/componentes/FaixaRisco';
 import { Icone, type NomeIcone } from '@/componentes/Icone';
+import { IconeEmCirculo } from '@/componentes/IconeEmCirculo';
 import { Tela } from '@/componentes/Tela';
 import { Texto } from '@/componentes/Texto';
 import { useSessao } from '@/contextos/SessaoContext';
@@ -71,18 +72,7 @@ function Atalho({
         opacity: pressed ? 0.85 : 1,
       })}
     >
-      <View
-        style={{
-          width: medidas.toqueMinimo,
-          height: medidas.toqueMinimo,
-          borderRadius: medidas.toqueMinimo / 2,
-          backgroundColor: cores.aviso.informacao.fundo,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <Icone nome={icone} cor={cores.aviso.informacao.icone} />
-      </View>
+      <IconeEmCirculo nome={icone} />
       <Texto variante="rotulo">{titulo}</Texto>
     </Pressable>
   );

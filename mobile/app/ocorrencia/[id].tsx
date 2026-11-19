@@ -1,6 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { AccessibilityInfo, Alert, Linking, Vibration, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { PapelOcorrencia } from '@/banco/ocorrenciaRepositorio';
 import { Aviso, type TipoAviso } from '@/componentes/Aviso';
@@ -12,6 +13,7 @@ import { CartaoCronometro, situacaoDaMeta, TEXTO_META } from '@/componentes/Cart
 import { EstadoErro } from '@/componentes/EstadoErro';
 import { FaixaSessaoTerminada } from '@/componentes/FaixaSessaoTerminada';
 import { Icone, type NomeIcone } from '@/componentes/Icone';
+import { IconeEmCirculo } from '@/componentes/IconeEmCirculo';
 import { Tela } from '@/componentes/Tela';
 import { Texto } from '@/componentes/Texto';
 import { RAIO_CAMADA_1_KM, TEMPO_ENCERRAMENTO_AUTOMATICO_MIN } from '@/config/constantes';
@@ -147,18 +149,49 @@ function SemOcorrencia({
 
 /** Cabeçalho com o status do socorro: ícone e frase, lidos juntos. */
 function CabecalhoStatus({ status, ativa }: { status: StatusTela; ativa: boolean }) {
-  const { cores, espaco } = useTema();
+  const { cores, espaco, raio } = useTema();
+  const tom = ativa ? 'erro' : 'sucesso';
   return (
     <View
       accessible
       accessibilityRole="header"
       accessibilityLabel={`Status do socorro: ${status.texto}`}
-      style={{ flexDirection: 'row', alignItems: 'center', gap: espaco.medio }}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: espaco.medio,
+        backgroundColor: cores.aviso[tom].fundo,
+        borderRadius: raio.medio,
+        padding: espaco.medio,
+      }}
     >
-      <Icone nome={status.icone} cor={ativa ? cores.aviso.erro.icone : cores.aviso.sucesso.icone} tamanho={40} />
-      <Texto variante="titulo" style={{ flex: 1 }}>
+      <IconeEmCirculo nome={status.icone} tom={tom} tamanho={56} />
+      <Texto variante="titulo" corPersonalizada={cores.aviso[tom].texto} style={{ flex: 1 }}>
         {status.texto}
       </Texto>
+    </View>
+  );
+}
+
+/**
+ * Rodapé fixo com o "Ligar 192", fora da rolagem: fica sempre visível, sem rolar, enquanto a
+ * ocorrência está ativa. Soma a área segura de baixo (a barra de navegação do Android).
+ */
+function Rodape192() {
+  const { cores, espaco } = useTema();
+  const insets = useSafeAreaInsets();
+  return (
+    <View
+      style={{
+        paddingHorizontal: espaco.medio,
+        paddingTop: espaco.pequeno,
+        paddingBottom: espaco.pequeno + insets.bottom,
+        backgroundColor: cores.fundo,
+        borderTopWidth: 1,
+        borderTopColor: cores.trilha,
+      }}
+    >
+      <BotaoLigar192 />
     </View>
   );
 }
@@ -316,14 +349,14 @@ function OcorrenciaDaVitima({ id }: { id: string }) {
 
         <CartaoCronometro ocorrencia={ocorrencia} segundos={segundos} papel="VITIMA" />
 
-        {ativa ? <BotaoLigar192 /> : null}
 
-        {mensagem ? <Aviso tipo={mensagem.tipo} mensagem={mensagem.texto} /> : null}
+        {mensagem ? <Aviso tipo={mensagem.tipo} mensagem={mensagem.texto} fechavel={mensagem.tipo === 'sucesso'} /> : null}
 
         {ESTADOS_CANCELAVEIS.includes(ocorrencia.estado) ? (
           <Botao
             titulo="Estou bem, cancelar o SOS"
             variante="secundaria"
+            compacto
             icone="hand-left"
             aoPressionar={confirmarCancelamento}
             carregando={cancelando}
@@ -335,6 +368,7 @@ function OcorrenciaDaVitima({ id }: { id: string }) {
           <Botao
             titulo="Já fui atendido, encerrar"
             variante="secundaria"
+            compacto
             icone="checkmark-done"
             aoPressionar={confirmarEncerramento}
             carregando={encerrando}
@@ -349,6 +383,7 @@ function OcorrenciaDaVitima({ id }: { id: string }) {
           </Cartao>
         ) : null}
       </Tela>
+      {ativa ? <Rodape192 /> : null}
     </View>
   );
 }
@@ -483,14 +518,14 @@ function OcorrenciaDoVoluntario({ id }: { id: string }) {
 
         <CartaoCronometro ocorrencia={ocorrencia} segundos={segundos} papel="VOLUNTARIO" />
 
-        {ativa ? <BotaoLigar192 /> : null}
 
-        {mensagem ? <Aviso tipo={mensagem.tipo} mensagem={mensagem.texto} /> : null}
+        {mensagem ? <Aviso tipo={mensagem.tipo} mensagem={mensagem.texto} fechavel={mensagem.tipo === 'sucesso'} /> : null}
 
         {ativa ? (
           <Botao
             titulo="Encerrar atendimento"
             variante="secundaria"
+            compacto
             icone="checkmark-done"
             aoPressionar={confirmarEncerrar}
             carregando={encerrando}
@@ -503,6 +538,7 @@ function OcorrenciaDoVoluntario({ id }: { id: string }) {
           </Cartao>
         )}
       </Tela>
+      {ativa ? <Rodape192 /> : null}
     </View>
   );
 }
