@@ -42,10 +42,11 @@ Nunca renomeie campos, enums, rotas ou payloads do contrato. O app usa exatament
 | Contas e tokens do login da API | `expo-secure-store` (`src/servicos/armazenamentoSeguro.ts`) |
 | QR Code do capacete | `react-native-qrcode-svg` (usa o `react-native-svg`), só na tela `app/qr-capacete.tsx` |
 | Notificações locais | `expo-notifications` (`src/servicos/notificacoes.ts`), canal Android "alertas" de alta importância; só locais (o push remoto não funciona no Expo Go) |
+| Localização (trechos perto de você) | `expo-location` (`src/hooks/useMinhaPosicao.ts`), só a permissão de primeiro plano; a posição fica só em memória |
 | Node | 22.13 ou mais novo |
 
 - Instale pacotes sempre com `npx expo install <pacote>`, para receber a versão compatível com o SDK.
-- Nenhuma biblioteca fora desta tabela sem me perguntar antes (nada de TanStack Query, react-hook-form, zod, AsyncStorage, Redux, UI kits ou expo-location).
+- Nenhuma biblioteca fora desta tabela sem me perguntar antes (nada de TanStack Query, react-hook-form, zod, AsyncStorage, Redux ou UI kits).
 - O alvo é Android no Expo Go. A web não é alvo.
 
 ## Estrutura
@@ -58,13 +59,16 @@ mobile/
 │   ├── index.tsx              abertura com o logo; restaura a sessão e vai para o login ou as abas
 │   ├── login.tsx              e-mail e senha (entrar, adicionar conta ou entrar de novo)
 │   ├── cadastro.tsx           3 passos (dados e acesso, contato, capacete), com o login logo depois
-│   ├── (abas)/_layout.tsx     5 abas: Turno, Chamados, Histórico, Perfil e Ajustes;
+│   ├── (abas)/_layout.tsx     5 abas: Início, Chamados, Histórico, Perfil e Ajustes;
 │   │                          no cabeçalho, só o botão do menu da conta
-│   ├── (abas)/turno.tsx       turno, Índice de Risco, estado do capacete, calor e trechos
+│   ├── (abas)/inicio.tsx      saudação, cartão "Clima agora", cartão do turno e atalhos
+│   ├── turno/novo.tsx         começar o turno (duração e proteção), da pilha
+│   ├── turno/ativo.tsx        turno em andamento: resumo, horários, Índice, trechos e encerrar
 │   ├── (abas)/chamados.tsx    rede de voluntários: disponibilidade, posição e chamados
 │   ├── (abas)/historico.tsx   histórico offline (só SQLite) com o resumo do indicador
-│   ├── (abas)/perfil.tsx      dados mascarados, capacete, ficha, contatos e rede
-│   ├── (abas)/ajustes.tsx     conexão com a API, aparência, atalho para as contas e a versão
+│   ├── (abas)/perfil.tsx      dados ocultos com o olho, capacete, ficha, primeiro contato e rede
+│   ├── (abas)/ajustes.tsx     conexão com a API, aparência (modo e paleta), contas e a versão
+│   ├── contatos.tsx           todos os contatos de emergência, um cartão por contato
 │   ├── ficha-medica.tsx       ficha médica: leitura pelo GET e edição (só em memória)
 │   ├── contato.tsx            adicionar ou editar um contato de emergência (parâmetro contatoId)
 │   ├── contas.tsx, telefone.tsx, acessos-ficha.tsx   modais (contas do aparelho, troca de
@@ -77,19 +81,22 @@ mobile/
     ├── tipos/         contrato.ts (DTOs e enums das seções 4 e 7)
     ├── servicos/      api.ts (instância única, Authorization e renovação), erros.ts,
     │                  armazenamentoSeguro.ts (contas e tokens), autenticacaoServico.ts,
-    │                  cofreServico.ts (auditoria do Cofre),
+    │                  cofreServico.ts (auditoria do Cofre), climaServico.ts (GET /clima),
+    │                  notificacoes.ts (notificações locais),
     │                  testeSessaoDev.ts (só __DEV__) e um serviço por recurso (entregador,
     │                  dispositivo, turno, trecho, voluntario, ocorrencia e saude)
     ├── banco/         migracoes.ts e um repositório por tabela (sem tabela de perfil desde a migração 3)
     ├── contextos/     Sessao (contas e sessão), Tema, Turno (alerta de queda) e Chamados (rede)
     ├── hooks/         usePolling, useContagemRegressiva, useCronometro, useOcorrencia,
-    │                  useHistorico, useSessaoDaConta, useTrechosCriticos e useAberturaMinima
+    │                  useHistorico, useSessaoDaConta, useTrechosCriticos, useAberturaMinima,
+    │                  useClima, useMinhaPosicao, useNotificacoesTocadas e useReduzirMovimento
     ├── componentes/   componentes reutilizáveis; da rede e da ocorrência: Chave,
     │                  ParticiparRede, CartaoChamado, CartaoCronometro, BotaoLigar192
     │                  e MenuConta (painel lateral da conta); do login: RegrasSenha,
-    │                  SessaoIndisponivel e FaixaSessaoTerminada
-    ├── tema/          cores, tipografia e espaçamentos
-    └── utils/         validacao, datas, dadosSimulados, posicoesSimuladas,
+    │                  SessaoIndisponivel e FaixaSessaoTerminada; da E5: CartaoClima,
+    │                  ContagemCircular, EscolhaAparencia, BotaoOlho, ItemContato e IconeEmCirculo
+    ├── tema/          cores (6 paletas: 3 por modo), tipografia e espaçamentos
+    └── utils/         validacao, datas, distancia, parentescos, posicoesSimuladas,
                        mensagensErro, repetirEmConflito, memoriaDoFluxo e navegacao
 ```
 
@@ -128,7 +135,10 @@ npx expo start           # o Renan escaneia o QR Code no Expo Go
 - **503 nas rotas do turno** (iniciar com proteção, encerrar e cancelar o alerta): o comando não chegou ao capacete e nada foi gravado. Peça para tentar de novo.
 - **`POST /turnos`:** tempo limite próprio de `TEMPO_LIMITE_TURNO_MS` (15 s; o contrato pede pelo menos 10 s, porque a rota pode levar cerca de 6 s com a Open-Meteo e o Serviço de Risco lentos), com o carregamento na tela.
 - **Turno da sessão:** com `turnoAtivoId`, o app assume esse turno; se o SQLite tem outro turno aberto, ele é encerrado no histórico (a API manda). O `GET /turnos/{id}/risco` não traz os horários: um turno que o SQLite não tem fica só em memória, sem horários, e entra no histórico pelo 200 do encerrar. Com `ocorrenciaAtivaId`, o app abre a ocorrência como vítima.
-- **`GET /clima`:** fora do polling (ao abrir a aba Início e ao puxar para atualizar), comparando o número e escondendo o cartão no 503.
+- **`GET /clima`:** cartão "Clima agora" da aba Início, fora do polling (ao abrir a aba e ao puxar para atualizar). A chuva é comparada como número (`chuvaMmHora === 0` é "Sem chuva"), o destaque de calor vem do `alertaCalor` da API (o app não recalcula), e o rodapé "Dados: Open-Meteo" está sempre visível com o cartão (licença CC BY 4.0). No 503, sem conexão ou em outro erro, o cartão some, sem mensagem.
+- **Turno:** a aba Início abre `/turno/novo` (começar) e `/turno/ativo` (em andamento), telas da pilha. Ao começar, `/turno/novo` é trocada por `/turno/ativo` (`router.replace`). O alerta de queda continua abrindo sozinho de qualquer tela.
+- **Alerta de queda:** o anel (`ContagemCircular`) esvazia no sentido horário: 10 s (`JANELA_OBSERVACAO_S`) na verificação, contados no relógio do app desde a primeira leitura em IMPACTO_DETECTADO ou OBSERVACAO ("Quase lá..." ao zerar), e 15 s na contagem. Com o "remover animações" do sistema, o anel pula de segundo em segundo.
+- **Trechos críticos:** uma chamada só por dia (`GET /trechos-criticos?limite=50`, com o cache de hoje). "Mais perigosos de São Paulo" mostra os 3 primeiros, e "Perto de você" os 3 mais próximos da posição do aparelho, entre os 50.
 - **Polling:** a cada `INTERVALO_POLLING_APP_S` (5 s), com `setTimeout` encadeado (a próxima consulta só começa depois que a anterior termina), pausado com o app em segundo plano (`AppState`) e cancelado ao desmontar. A única exceção é o alerta do turno com a proteção ligada, que continua com o app minimizado (`continuarEmSegundoPlano`), para a queda virar notificação. É melhor esforço: o Android pode pausar ou encerrar o app em segundo plano, e aí as consultas param até ele voltar para a frente. Os chamados e a ocorrência continuam pausando.
 - **Notificações:** só locais, sem nenhum dado pessoal no texto (seção 9). A permissão é pedida ao começar o primeiro turno, com uma frase antes explicando o motivo; negar não muda nada no app. Com o app aberto, a notificação também aparece no topo. Tocar abre a tela certa (alerta, ocorrência, chamados ou turno). As notificações de chamado novo, de voluntário a caminho e de ocorrência encerrada dependem de pollings que pausam em segundo plano: aparecem com o app aberto.
 - **Contagem do alerta:** conte os 15 s (`CONTAGEM_CANCELAMENTO_S`) no relógio do app, a partir da primeira leitura com `estadoCapacete` = `CONTAGEM`. O `contagemTerminaEm` aparece só como informação. Quando a contagem do app zerar e o estado ainda for `CONTAGEM`, mostre "Enviando SOS..." até o estado mudar. O botão de cancelar fica habilitado enquanto o estado for `CONTAGEM`: quem decide é a API (202 ou 409).
@@ -146,12 +156,14 @@ npx expo start           # o Renan escaneia o QR Code no Expo Go
 
 - Migrações em `src/banco/migracoes.ts`, controladas por `PRAGMA user_version`, executadas no `onInit` do `SQLiteProvider`. Nunca altere uma migração já publicada: crie a próxima.
 - Tabelas: `preferencia` (tema e URL manual), `turno`, `alerta`, `ocorrencia` e `trecho_cache` (o pedido de cada etapa detalha as colunas). A tabela `perfil` saiu na migração 3: a identidade é o token. O histórico é ligado só pelo `entregador_id` (o alerta pelo `turno_id`).
-- **Nunca grave no SQLite:** nome (nem simulado), e-mail, CPF, CNH, telefones, contatos de emergência, ficha médica, localização de pessoas (da vítima, da ocorrência e do voluntário), senha, `accessToken`, `refreshToken`, `qrToken` e `urlCofre`. As coordenadas dos trechos críticos são dado público e podem ficar no cache.
+- **Nunca grave no SQLite:** nome (nem fictício), e-mail, CPF, CNH, telefones, contatos de emergência, ficha médica, localização de pessoas (da vítima, da ocorrência, do voluntário e a do próprio aparelho, do GPS), senha, `accessToken`, `refreshToken`, `qrToken` e `urlCofre`. As coordenadas dos trechos críticos são dado público e podem ficar no cache.
 - Consultas sempre com parâmetros (`?`), nunca com texto concatenado.
 
 ## Dados pessoais
 
-- Todos os dados de cadastro são simulados (`src/utils/dadosSimulados.ts` gera nome, CPF, CNH e telefones fictícios).
+- Os dados de cadastro digitados são fictícios, de quem testa o protótipo: o app não tem mais o preenchimento automático com dados simulados, e o passo 1 do cadastro avisa "Protótipo acadêmico: use dados fictícios, não os seus dados reais." O README explica isso.
+- A posição do GPS (trechos perto de você) fica só em memória: nunca vai para o SQLite, para log nem para a API. A distância é calculada no próprio celular.
+- No Perfil, os dados e os contatos começam escondidos ("•••••"); o olho mostra como a API devolve, já mascarados. O app nunca desmascara.
 - Nunca use `console.log` com dados pessoais, ficha médica, coordenadas ou corpos de requisição e resposta. Logs, quando existirem, levam só ids e status HTTP.
 - As telas mostram os dados mascarados que a API devolve, sem desmascarar.
 - **Credenciais (seção 9):** a senha, o `accessToken`, o `refreshToken`, o `qrToken` e a `urlCofre` nunca vão para o SQLite, para log, para URL do app nem para parâmetro de rota. Os tokens ficam só no `expo-secure-store` (`src/servicos/armazenamentoSeguro.ts`) e só saem dele para o cabeçalho `Authorization` e para o corpo da renovação. A senha só existe no estado da tela de login e do cadastro e some depois de cada tentativa.
@@ -162,7 +174,7 @@ npx expo start           # o Renan escaneia o QR Code no Expo Go
 
 - Texto escala com a fonte do sistema: nunca `allowFontScaling={false}` e nada de altura fixa em contêiner de texto.
 - Área de toque de pelo menos 48 x 48 dp em todo elemento clicável; ações principais com botões grandes.
-- Contraste mínimo de 4,5:1 (texto normal) nos temas claro e escuro, que seguem o sistema (`useColorScheme`).
+- Contraste mínimo de 4,5:1 (texto normal) e 3:1 (ícones, bordas e marcas que informam) nas 6 paletas: no modo claro, HelmCare, Alto contraste e Areia; no escuro, HelmCare, Alto contraste e Grafite. O Alto contraste mira 7:1 no texto. A escolha do modo e da paleta fica nos Ajustes (tabela `preferencia`); quem tinha "Igual ao celular" passou uma vez para o modo atual do celular. Toda cor nova passa pelo teste de contraste.
 - A cor nunca é a única informação: a faixa de risco e os estados levam texto e ícone.
 - Todo elemento interativo tem `accessibilityRole` e `accessibilityLabel`, e `accessibilityHint` ou `accessibilityState` quando ajudam. Ícones decorativos ficam fora do leitor de tela.
 - Mudanças importantes (contagem do alerta, novo chamado, socorro a caminho) são anunciadas com `AccessibilityInfo.announceForAccessibility` ou `accessibilityLiveRegion`, e o alerta vibra (`Vibration`).
