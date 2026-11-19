@@ -11,6 +11,7 @@ no repr, no str nem no JSON, e se recusa a ser serializado por pickle.
 import json
 import re
 import unicodedata
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from helmcare_cyber.pii.categorias import Categoria, Confianca, Metodo
@@ -140,6 +141,13 @@ def _caminho_filho(caminho: str, chave) -> str:
     return f"{caminho}[{json.dumps(texto, ensure_ascii=False)}]"
 
 
+# Nome público, para quem precisa montar caminhos no mesmo formato dos achados.
+caminho_filho = _caminho_filho
+
+# substituir(achado, valor_atual) devolve o novo valor, ou None para manter o atual.
+Substituidor = Callable[["Achado", object], object]
+
+
 def _sobrepoe(inicio: int, fim: int, ocupados: list[tuple[int, int]]) -> bool:
     return any(inicio < o_fim and o_inicio < fim for o_inicio, o_fim in ocupados)
 
@@ -160,21 +168,32 @@ class MotorPII:
         """Devolve (cópia profunda com a PII mascarada, achados). A entrada não muda."""
         return self._processar_raiz(dado)
 
+    def transformar(self, dado, substituir: Substituidor) -> tuple[object, list[Achado]]:
+        """Como mascarar, mas quem decide o novo valor de cada achado é substituir.
+
+        substituir(achado, valor_atual) recebe o valor do campo (achado por nome
+        de campo) ou o trecho do texto (achado pelo valor) e devolve o valor que
+        fica no lugar, ou None para manter o atual. É o ponto em que o Taint
+        Analysis aplica a política sem precisar localizar o dado de novo.
+        """
+        return self._processar_raiz(dado, substituir)
+
     # ------------------------------------------------------------------
     # Entrada
     # ------------------------------------------------------------------
 
-    def _processar_raiz(self, dado) -> tuple[object, list[Achado]]:
+    def _processar_raiz(self, dado, substituir: Substituidor | None = None) -> tuple[object, list[Achado]]:
         if isinstance(dado, (bytes, bytearray)):
             dado = bytes(dado).decode("utf-8", errors="replace")
         if isinstance(dado, str):
             estrutura = self._tentar_json(dado)
             if estrutura is not None:
-                copia, achados = self._processar(estrutura, "$", None)
-                # Sem achados, devolve o texto original intacto (mesma formatação).
-                return (json.dumps(copia, ensure_ascii=False) if achados else dado), achados
-            return self._varrer_texto(dado, "$")
-        return self._processar(dado, "$", None)
+                copia, achados = self._processar(estrutura, "$", None, substituir)
+                # Sem mudança, devolve o texto original intacto (mesma formatação).
+                mudou = bool(achados) if substituir is None else copia != estrutura
+                return (json.dumps(copia, ensure_ascii=False) if mudou else dado), achados
+            return self._varrer_texto(dado, "$", substituir)
+        return self._processar(dado, "$", None, substituir)
 
     @staticmethod
     def _tentar_json(texto: str):
@@ -188,45 +207,51 @@ class MotorPII:
             return None
         return estrutura if isinstance(estrutura, (dict, list)) else None
 
+    # Nome público: quem precisa ler um payload do mesmo jeito que o motor
+    # (para os caminhos dos achados baterem) usa esta função.
+    ler_json_estruturado = _tentar_json
+
     # ------------------------------------------------------------------
     # Dados estruturados
     # ------------------------------------------------------------------
 
-    def _processar(self, valor, caminho: str, herdada: Categoria | None) -> tuple[object, list[Achado]]:
+    def _processar(
+        self, valor, caminho: str, herdada: Categoria | None, substituir: Substituidor | None = None
+    ) -> tuple[object, list[Achado]]:
         """Percorre recursivamente. herdada é a categoria do campo pai (ex.: lista de medicamentos)."""
         if isinstance(valor, dict):
-            return self._processar_dict(valor, caminho, herdada)
+            return self._processar_dict(valor, caminho, herdada, substituir)
         if isinstance(valor, (list, tuple)):
             novos, achados = [], []
             for indice, item in enumerate(valor):
-                novo, encontrados = self._processar(item, f"{caminho}[{indice}]", herdada)
+                novo, encontrados = self._processar(item, f"{caminho}[{indice}]", herdada, substituir)
                 novos.append(novo)
                 achados.extend(encontrados)
             return type(valor)(novos), achados
         if herdada is not None:
-            return self._achado_por_campo(valor, caminho, herdada)
+            return self._achado_por_campo(valor, caminho, herdada, substituir)
         if isinstance(valor, str):
-            return self._varrer_texto(valor, caminho)
+            return self._varrer_texto(valor, caminho, substituir)
         if isinstance(valor, int) and not isinstance(valor, bool):
             if len(str(abs(valor))) >= MINIMO_DIGITOS_INTEIRO:
-                mascarado, achados = self._varrer_texto(str(valor), caminho)
-                return (mascarado if achados else valor), achados
+                mascarado, achados = self._varrer_texto(str(valor), caminho, substituir)
+                return (mascarado if achados and mascarado != str(valor) else valor), achados
         # None, bool, float e inteiros curtos (telemetria) não são PII pelo valor.
         return valor, []
 
-    def _processar_dict(self, valor: dict, caminho: str, herdada: Categoria | None):
+    def _processar_dict(self, valor: dict, caminho: str, herdada: Categoria | None, substituir=None):
         novo: dict = {}
         achados: list[Achado] = []
         for chave, item in valor.items():
             categoria = NOMES_DE_CAMPO.get(normalizar_nome_campo(chave))
             nova_chave = chave
             if categoria is None and isinstance(chave, str) and self._chave_suspeita(chave):
-                chave_mascarada, achados_chave = self._varrer_texto(chave, f"{caminho}.<chave>")
+                chave_mascarada, achados_chave = self._varrer_texto(chave, f"{caminho}.<chave>", substituir)
                 if achados_chave:
                     nova_chave = chave_mascarada
                     achados.extend(achados_chave)
             filho = _caminho_filho(caminho, nova_chave)
-            novo_item, encontrados = self._processar(item, filho, categoria or herdada)
+            novo_item, encontrados = self._processar(item, filho, categoria or herdada, substituir)
             novo[nova_chave] = novo_item
             achados.extend(encontrados)
         return novo, achados
@@ -235,7 +260,7 @@ class MotorPII:
     def _chave_suspeita(chave: str) -> bool:
         return "@" in chave or len(somente_digitos(_nfkc(chave))) >= MINIMO_DIGITOS_CHAVE
 
-    def _achado_por_campo(self, valor, caminho: str, categoria: Categoria):
+    def _achado_por_campo(self, valor, caminho: str, categoria: Categoria, substituir=None):
         """Marca o valor de um campo com nome conhecido (o nome basta, confiança ALTA)."""
         if valor is None or isinstance(valor, bool):
             return valor, []
@@ -271,6 +296,9 @@ class MotorPII:
             valor_mascarado=str(mascarado),
             _original=ValorProtegido(str(valor)),
         )
+        if substituir is not None:
+            novo = substituir(achado, valor)
+            return (valor if novo is None else novo), [achado]
         return mascarado, [achado]
 
     @staticmethod
@@ -284,7 +312,7 @@ class MotorPII:
     # Texto livre
     # ------------------------------------------------------------------
 
-    def _varrer_texto(self, original: str, caminho: str) -> tuple[str, list[Achado]]:
+    def _varrer_texto(self, original: str, caminho: str, substituir=None) -> tuple[str, list[Achado]]:
         """Aplica ORDEM_TEXTO; quem casa primeiro fica com o trecho.
 
         Devolve o texto mascarado (normalizado em NFKC) e os achados em ordem
@@ -343,13 +371,20 @@ class MotorPII:
         if not encontrados:
             return original, []
         encontrados.sort(key=lambda e: e[0])
-        partes, cursor = [], 0
+        partes, cursor, mudou = [], 0, substituir is None
         for inicio, fim, achado in encontrados:
             partes.append(texto[cursor:inicio])
-            partes.append(achado.valor_mascarado)
+            if substituir is None:
+                partes.append(achado.valor_mascarado)
+            else:
+                novo = substituir(achado, texto[inicio:fim])
+                partes.append(texto[inicio:fim] if novo is None else str(novo))
+                mudou = mudou or novo is not None
             cursor = fim
         partes.append(texto[cursor:])
-        return "".join(partes), [achado for _, _, achado in encontrados]
+        achados = [achado for _, _, achado in encontrados]
+        # Nada substituído: devolve o texto original, sem a normalização NFKC.
+        return ("".join(partes) if mudou else original), achados
 
     @staticmethod
     def _avaliar(regra: Regra, trecho: str, dobrado: str, inicio: int) -> tuple[bool | None, Confianca] | None:
