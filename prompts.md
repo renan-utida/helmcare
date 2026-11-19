@@ -14,7 +14,24 @@ Exemplo: `08/11 - Domínio da API: "Crie as entidades do domínio seguindo o Con
  
 ## Cybersecurity
  
-*(a preencher)*
+- 19/11 - Plano do módulo: "Monte o plano do módulo de Cybersecurity da GS com as etapas e o que cobre cada ponto da rubrica do professor: motor de PII, Taint Analysis, IA na remediação e painel Risco Cidadão."
+- 19/11 - Regras de escrita: "Textos, comentários e documentos sem travessões. Português do Brasil."
+- 19/11 - Limites do Claude Code: "O Claude Code executa seguindo o cyber/CLAUDE.md e nunca faz git add, commit, push nem troca de branch, nunca abre nem imprime .env ou segredos."
+- 19/11 - Fluxo de git: "Mande todos os comandos de git de uma vez, incluindo PR, merge e a próxima branch."
+- 19/11 - Commits sem atribuição: "Commits sem nenhuma linha de atribuição (nada de Co-Authored-By ou menção ao Claude), nem nos commits nem nas PRs."
+- 19/11 - Prazo: "Lembre que hoje é o dia da entrega: dimensione o plano para caber hoje, com o essencial primeiro e os extras marcados."
+- 19/11 - Etapa 1, motor de PII: "Etapa 1 em cyber/: motor de parsing de PII para CPF, CNH, RG, telefone, e-mail, saúde, localização e senhas, com validação dos dígitos de CPF e CNH, máscaras do Contrato e testes."
+- 19/11 - Etapa 2, Taint Analysis: "Etapa 2 em cyber/: Taint Analysis com marcação na fonte, política deny-by-default, modos AUDITORIA e PROTECAO, rastro explicável sem o valor original e cenários C1 a C11."
+- 19/11 - Etapa 3, IA e Risco Cidadão: "Etapa 3 em cyber/: tradução dos eventos por LLM em mensagem simples para o cidadão, com reserva por tabela, cache e disjuntor, e o índice Risco Cidadão de 0 a 100 com semáforo."
+- 19/11 - Etapa 4, API e painel: "Etapa 4 em cyber/: API FastAPI com interceptador de entrada e painel executivo em HTML, CSS e JS puros mostrando semáforo, mensagem e rastro."
+- 19/11 - Roteiro dos prints: "Me dê tudo detalhado de onde tenho que estar para tirar os prints e detalhes, para eu tirar os prints certos."
+- 19/11 - Ações do vídeo: "Quero que você me explique detalhadamente as ações que são para eu tomar em cada trecho, não precisa alterar nada de ação, nem fala, só as ações mais detalhadas para eu realizar as ações."
+- 19/11 - Evidências no repositório: "Vamos pedir para ele pegar os prints e o vídeo da pasta Downloads, renomear e jogar dentro de evidencias; o vídeo terá só legendas, sem narração, igual ao que fiz no Mobile."
+- 19/11 - Etapa 6, relatório e ZIP: "Etapa 6 em cyber/: auditoria do protótipo, relatório em PDF com as figuras das evidências e ZIP da entrega."
+- 19/11 - Organização das evidências: "Em evidencias, jogaria os png dentro de uma pasta chamada prints, e o video dentro de uma pasta chamada video. Nas documentações queria que ele usasse a marca do nosso projeto."
+- 19/11 - Sumário e links: "No README raiz de Cyber tinha que ter um Sumário, e o link do YouTube pode ficar lá em cima junto com o link do repo."
+- 19/11 - Texto da entrega: "Ele não montou um txt com o meu nome e o link do youtube. Consegue montar?"
+- 19/11 - Fechamento com a central: "Monte a mensagem completa para a central, para atualizar ela."
  
 ## C# Software Development
  
