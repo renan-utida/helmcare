@@ -1,0 +1,391 @@
+/* Painel Risco Cidadão: fonte grande, alto contraste e foco bem visível.
+   A cor nunca aparece sozinha: sempre vem com texto e ícone. */
+
+:root {
+  --texto: #111111;
+  --fundo: #ffffff;
+  --fundo-cartao: #f4f5f7;
+  --borda: #5a5f66;
+  --foco: #1a4fd6;
+  --verde: #0a6b2d;
+  --amarelo: #f2c200;
+  --vermelho: #a4001d;
+  --neutro: #4a4f57;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html {
+  font-size: 125%;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, "Segoe UI", Roboto, Arial, sans-serif;
+  line-height: 1.5;
+  color: var(--texto);
+  background: var(--fundo);
+}
+
+h1,
+h2 {
+  line-height: 1.2;
+  margin: 0 0 0.5rem;
+}
+
+h1 {
+  font-size: 2rem;
+}
+
+h2 {
+  font-size: 1.3rem;
+}
+
+:focus-visible {
+  outline: 4px solid var(--foco);
+  outline-offset: 3px;
+}
+
+.pular {
+  position: absolute;
+  left: -9999px;
+}
+
+.pular:focus {
+  left: 1rem;
+  top: 1rem;
+  padding: 0.5rem 1rem;
+  background: var(--texto);
+  color: var(--fundo);
+  z-index: 10;
+}
+
+.topo {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  border-bottom: 3px solid var(--texto);
+}
+
+.marca {
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.subtitulo,
+.ajuda,
+.faixas,
+.modo-explicacao {
+  margin: 0.25rem 0;
+}
+
+.modo {
+  min-width: 16rem;
+}
+
+.modo-titulo {
+  margin: 0;
+  font-weight: 700;
+}
+
+.modo-atual {
+  display: inline-block;
+  margin: 0.25rem 0;
+  padding: 0.25rem 0.75rem;
+  border: 3px solid var(--texto);
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+
+.modo-atual.modo-PROTECAO {
+  background: var(--verde);
+  color: #ffffff;
+}
+
+.modo-atual.modo-AUDITORIA {
+  background: var(--amarelo);
+  color: #000000;
+}
+
+.status {
+  margin: 0;
+  padding: 0.5rem 1.5rem;
+  min-height: 2.5rem;
+  font-weight: 600;
+}
+
+.status.erro {
+  background: var(--vermelho);
+  color: #ffffff;
+}
+
+.principal {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+}
+
+.cartao {
+  padding: 1rem 1.25rem;
+  background: var(--fundo-cartao);
+  border: 2px solid var(--borda);
+  border-radius: 0.5rem;
+}
+
+.largo,
+.destaque {
+  grid-column: 1 / -1;
+}
+
+.semaforo-linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.semaforo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 12rem;
+  height: 12rem;
+  border-radius: 50%;
+  border: 6px solid var(--texto);
+}
+
+.icone {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.indice {
+  font-size: 4rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.escala {
+  font-size: 1rem;
+}
+
+.cor-VERDE {
+  background: var(--verde);
+  color: #ffffff;
+}
+
+.cor-AMARELO {
+  background: var(--amarelo);
+  color: #000000;
+}
+
+.cor-VERMELHO {
+  background: var(--vermelho);
+  color: #ffffff;
+}
+
+.cor-carregando,
+.cor-erro {
+  background: var(--neutro);
+  color: #ffffff;
+}
+
+.rotulo {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 800;
+}
+
+.nome-icone {
+  margin: 0.25rem 0;
+  font-weight: 600;
+}
+
+.mensagem {
+  font-size: 1.2rem;
+}
+
+.selo,
+.motivo,
+.estado {
+  display: inline-block;
+  padding: 0.1rem 0.6rem;
+  border: 2px solid var(--texto);
+  border-radius: 0.3rem;
+  font-weight: 700;
+}
+
+.selo.origem-IA {
+  background: #dce6ff;
+}
+
+.selo.origem-RESERVA {
+  background: #ffffff;
+}
+
+.motivo {
+  font-weight: 400;
+  border-style: dashed;
+}
+
+.contadores {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.contadores div {
+  padding: 0.5rem;
+  background: var(--fundo);
+  border: 1px solid var(--borda);
+}
+
+.contadores dt {
+  font-weight: 600;
+}
+
+.contadores dd {
+  margin: 0;
+  font-size: 1.8rem;
+  font-weight: 800;
+}
+
+.porque,
+.rastro {
+  margin: 0;
+  padding-left: 1.5rem;
+}
+
+.porque li,
+.rastro li {
+  margin: 0.3rem 0;
+}
+
+.rastro {
+  font-family: ui-monospace, Consolas, "Courier New", monospace;
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.cenarios {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.controles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+.acao {
+  padding: 0.6rem 1rem;
+  border: 3px solid var(--texto);
+  border-radius: 0.4rem;
+  background: var(--texto);
+  color: var(--fundo);
+  font-weight: 700;
+  text-align: left;
+}
+
+.acao.secundario,
+.acao.cenario {
+  background: var(--fundo);
+  color: var(--texto);
+}
+
+.acao:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.cenario-rotulo {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+.rolagem {
+  overflow-x: auto;
+}
+
+.tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.tabela caption {
+  text-align: left;
+  margin-bottom: 0.5rem;
+}
+
+.tabela th,
+.tabela td {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--borda);
+  text-align: left;
+  vertical-align: top;
+}
+
+.tabela thead th {
+  background: var(--texto);
+  color: var(--fundo);
+}
+
+.tabela tbody tr {
+  cursor: pointer;
+}
+
+.tabela tbody tr.escolhido {
+  outline: 3px solid var(--foco);
+  outline-offset: -3px;
+}
+
+.ver {
+  padding: 0.2rem 0.6rem;
+  border: 2px solid var(--texto);
+  border-radius: 0.3rem;
+  background: var(--fundo);
+  color: var(--texto);
+}
+
+.estado-EXPOSTO {
+  background: var(--vermelho);
+  color: #ffffff;
+}
+
+.estado-NEUTRALIZADO {
+  background: var(--amarelo);
+  color: #000000;
+}
+
+.estado-PERMITIDO {
+  background: var(--verde);
+  color: #ffffff;
+}
+
+.rodape {
+  padding: 1rem 1.5rem 2rem;
+  border-top: 2px solid var(--borda);
+}

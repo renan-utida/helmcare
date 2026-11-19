@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Risco Cidadão | HelmCare</title>
+  <link rel="stylesheet" href="painel.css">
+  <script src="painel.js" defer></script>
+</head>
+<body>
+  <a class="pular" href="#principal">Pular para o conteúdo</a>
+
+  <header class="topo">
+    <div>
+      <p class="marca">HelmCare</p>
+      <h1>Risco Cidadão</h1>
+      <p class="subtitulo">Como estão protegidos os dados de quem usa o capacete.</p>
+    </div>
+    <div class="modo" role="group" aria-labelledby="modo-titulo">
+      <p id="modo-titulo" class="modo-titulo">Modo do sistema</p>
+      <p id="modo-atual" class="modo-atual">carregando...</p>
+      <p id="modo-explicacao" class="modo-explicacao"></p>
+      <button id="botao-modo" type="button" class="acao botao-modo">Trocar modo</button>
+    </div>
+  </header>
+
+  <p id="status" class="status" role="status" aria-live="polite"></p>
+
+  <main id="principal" class="principal">
+    <section class="cartao destaque" aria-labelledby="titulo-semaforo">
+      <h2 id="titulo-semaforo">Situação dos seus dados</h2>
+      <div class="semaforo-linha">
+        <div id="semaforo" class="semaforo cor-carregando" role="img" aria-label="Carregando o índice">
+          <span id="icone" class="icone" aria-hidden="true">?</span>
+          <span id="indice" class="indice">--</span>
+          <span class="escala">de 100</span>
+        </div>
+        <div class="semaforo-texto">
+          <p id="rotulo" class="rotulo">Carregando...</p>
+          <p id="nome-icone" class="nome-icone"></p>
+          <p class="faixas">Verde: 0 a 29. Amarelo: 30 a 59. Vermelho: 60 a 100.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="cartao" aria-labelledby="titulo-mensagem">
+      <h2 id="titulo-mensagem">O que aconteceu</h2>
+      <p id="mensagem" class="mensagem" aria-live="polite">traduzindo...</p>
+      <p class="origem">
+        <span id="selo" class="selo" hidden></span>
+        <span id="motivo" class="motivo" hidden></span>
+      </p>
+    </section>
+
+    <section class="cartao" aria-labelledby="titulo-contadores">
+      <h2 id="titulo-contadores">Eventos considerados</h2>
+      <dl class="contadores">
+        <div><dt>Eventos</dt><dd id="c-eventos">0</dd></div>
+        <div><dt>Expostos</dt><dd id="c-expostos">0</dd></div>
+        <div><dt>Neutralizados</dt><dd id="c-neutralizados">0</dd></div>
+        <div><dt>Permitidos</dt><dd id="c-permitidos">0</dd></div>
+      </dl>
+    </section>
+
+    <section class="cartao" aria-labelledby="titulo-porque">
+      <h2 id="titulo-porque">Por que este índice</h2>
+      <ol id="porque" class="porque"></ol>
+    </section>
+
+    <section class="cartao largo" aria-labelledby="titulo-acoes">
+      <h2 id="titulo-acoes">Simular situações</h2>
+      <p class="ajuda">Cada botão reproduz um erro de código com dados simulados e mostra o que o sistema fez.</p>
+      <div id="cenarios" class="cenarios"></div>
+      <div class="controles">
+        <button id="botao-todos" type="button" class="acao">Executar todos</button>
+        <button id="botao-reiniciar" type="button" class="acao secundario">Reiniciar</button>
+        <button id="botao-atualizar" type="button" class="acao secundario">Atualizar</button>
+      </div>
+    </section>
+
+    <section class="cartao largo" aria-labelledby="titulo-eventos">
+      <h2 id="titulo-eventos">Últimos eventos</h2>
+      <div class="rolagem">
+        <table class="tabela">
+          <caption>Escolha um evento para ver o caminho que o dado fez.</caption>
+          <thead>
+            <tr>
+              <th scope="col">Hora</th>
+              <th scope="col">Cenário</th>
+              <th scope="col">Categoria</th>
+              <th scope="col">Destino</th>
+              <th scope="col">Estado</th>
+              <th scope="col">Regra</th>
+              <th scope="col">Caminho</th>
+            </tr>
+          </thead>
+          <tbody id="corpo-eventos"></tbody>
+        </table>
+      </div>
+      <p id="sem-eventos" class="ajuda">Nenhum evento ainda. Use os botões acima.</p>
+    </section>
+
+    <section class="cartao largo" aria-labelledby="titulo-rastro">
+      <h2 id="titulo-rastro">Caminho do dado</h2>
+      <p id="rastro-titulo" class="ajuda">Escolha um evento na tabela.</p>
+      <ol id="rastro" class="rastro"></ol>
+    </section>
+  </main>
+
+  <footer class="rodape">
+    <p>Todos os dados mostrados aqui são simulados. Nenhum valor pessoal aparece no painel: só categorias e valores mascarados.</p>
+  </footer>
+</body>
+</html>
