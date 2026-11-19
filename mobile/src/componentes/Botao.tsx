@@ -34,6 +34,8 @@ export interface BotaoProps {
    * por tela, sem perder a área de toque.
    */
   compacto?: boolean;
+  /** Botão que abre e fecha uma lista: o leitor de tela diz se ela está aberta (expandida). */
+  expandido?: boolean;
 }
 
 /**
@@ -52,6 +54,7 @@ export function Botao({
   accessibilityHint,
   alturaMinima,
   compacto = false,
+  expandido,
 }: BotaoProps) {
   const { cores, espaco, raio, medidas } = useTema();
   const inativo = desabilitado || carregando;
@@ -76,7 +79,13 @@ export function Botao({
       accessibilityLabel={accessibilityLabel ?? titulo}
       accessibilityHint={accessibilityHint}
       // Nas opções, `checked` dá o estado do papel "radio" e `selected` marca a escolhida.
-      accessibilityState={{ disabled: inativo, busy: carregando, checked: selecionado, selected: selecionado }}
+      accessibilityState={{
+        disabled: inativo,
+        busy: carregando,
+        checked: selecionado,
+        selected: selecionado,
+        expanded: expandido,
+      }}
       style={({ pressed }) => [
         styles.base,
         {

@@ -1,6 +1,6 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { View } from 'react-native';
+import { useCallback, useState, type ReactNode } from 'react';
+import { AccessibilityInfo, View } from 'react-native';
 
 import type { AlertaLocal } from '@/banco/alertaRepositorio';
 import type { OcorrenciaLocal } from '@/banco/ocorrenciaRepositorio';
@@ -30,8 +30,8 @@ import {
   textoEncerramentoAutomatico,
 } from '@/utils/datas';
 
-/** Quantos itens cada seção mostra (os mais recentes). */
-const LIMITE_POR_SECAO = 20;
+/** Quantos itens cada seção mostra fechada (os mais recentes). */
+const ITENS_FECHADA = 3;
 
 /** Cada estado do capacete em linguagem simples, com ícone, para a seção Alertas. */
 const TEXTO_ALERTA: Record<EstadoDispositivo, { texto: string; icone: NomeIcone }> = {
@@ -66,13 +66,46 @@ function tempoAteAceite(segundos: number | null): { texto: string; leitura: stri
   };
 }
 
-/** Título de uma seção, lido como cabeçalho, com a contagem quando a lista foi cortada. */
-function TituloSecao({ titulo, total }: { titulo: string; total: number }) {
+/** Props de uma seção do histórico. */
+interface SecaoHistoricoProps<T> {
+  titulo: string;
+  itens: T[];
+  /** Mostra os itens visíveis (os 3 mais recentes, ou todos com a seção aberta). */
+  renderizar: (itens: T[]) => ReactNode;
+  vazio: ReactNode;
+}
+
+/**
+ * Uma seção do histórico (Turnos, Alertas ou Ocorrências), o mesmo padrão nas três: o título
+ * (cabeçalho do leitor de tela), os 3 mais recentes e, com mais itens, "Ver mais (n)", que abre o
+ * resto; aberta, "Ver menos". O botão tem 48 dp, diz se a lista está aberta e a mudança é
+ * anunciada. O estado fica só na tela.
+ */
+function SecaoHistorico<T>({ titulo, itens, renderizar, vazio }: SecaoHistoricoProps<T>) {
+  const { espaco } = useTema();
+  const [aberta, setAberta] = useState(false);
+  const restantes = itens.length - ITENS_FECHADA;
+
+  function alternar() {
+    const agora = !aberta;
+    setAberta(agora);
+    AccessibilityInfo.announceForAccessibility(agora ? 'Lista aberta' : 'Lista fechada');
+  }
+
   return (
-    <View>
+    <View style={{ gap: espaco.medio }}>
       <Texto variante="subtitulo">{titulo}</Texto>
-      {total > LIMITE_POR_SECAO ? (
-        <Texto variante="legenda">{`Mostrando os ${LIMITE_POR_SECAO} mais recentes de ${total}.`}</Texto>
+      {itens.length === 0 ? vazio : renderizar(aberta ? itens : itens.slice(0, ITENS_FECHADA))}
+      {restantes > 0 ? (
+        <Botao
+          titulo={aberta ? 'Ver menos' : `Ver mais (${restantes})`}
+          variante="secundaria"
+          compacto
+          icone={aberta ? 'chevron-up' : 'chevron-down'}
+          aoPressionar={alternar}
+          expandido={aberta}
+          accessibilityLabel={aberta ? `Ver menos ${titulo.toLowerCase()}` : `Ver mais ${restantes} ${titulo.toLowerCase()}`}
+        />
       ) : null}
     </View>
   );
@@ -231,46 +264,50 @@ export default function Historico() {
         </View>
       </Cartao>
 
-      <View style={{ gap: espaco.medio }}>
-        <TituloSecao titulo="Turnos" total={dados.turnos.length} />
-        {dados.turnos.length === 0 ? (
+      <SecaoHistorico
+        titulo="Turnos"
+        itens={dados.turnos}
+        renderizar={(turnos) => turnos.map((turno) => <ItemTurno key={turno.id} turno={turno} />)}
+        vazio={
           <EstadoVazio titulo="Nenhum turno ainda" mensagem="Os turnos que você começar aparecem aqui." icone="speedometer-outline" />
-        ) : (
-          dados.turnos.slice(0, LIMITE_POR_SECAO).map((turno) => <ItemTurno key={turno.id} turno={turno} />)
-        )}
-      </View>
+        }
+      />
 
-      <View style={{ gap: espaco.medio }}>
-        <TituloSecao titulo="Alertas" total={dados.alertas.length} />
-        {dados.alertas.length === 0 ? (
+      <SecaoHistorico
+        titulo="Alertas"
+        itens={dados.alertas}
+        renderizar={(alertas) => (
+          <Cartao>
+            {alertas.map((alerta) => (
+              <ItemAlerta key={alerta.id} alerta={alerta} />
+            ))}
+          </Cartao>
+        )}
+        vazio={
           <EstadoVazio
             titulo="Nenhum alerta ainda"
             mensagem="As mudanças do capacete durante os turnos com proteção aparecem aqui."
             icone="shield-outline"
           />
-        ) : (
-          <Cartao>
-            {dados.alertas.slice(0, LIMITE_POR_SECAO).map((alerta) => (
-              <ItemAlerta key={alerta.id} alerta={alerta} />
-            ))}
-          </Cartao>
-        )}
-      </View>
+        }
+      />
 
-      <View style={{ gap: espaco.medio }}>
-        <TituloSecao titulo="Ocorrências" total={dados.ocorrencias.length} />
-        {dados.ocorrencias.length === 0 ? (
+      <SecaoHistorico
+        titulo="Ocorrências"
+        itens={dados.ocorrencias}
+        renderizar={(ocorrencias) =>
+          ocorrencias.map((ocorrencia) => (
+            <ItemOcorrencia key={`${ocorrencia.id}-${ocorrencia.papel}`} ocorrencia={ocorrencia} />
+          ))
+        }
+        vazio={
           <EstadoVazio
             titulo="Nenhuma ocorrência ainda"
             mensagem="Os pedidos de socorro e os chamados que você atendeu aparecem aqui."
             icone="medkit-outline"
           />
-        ) : (
-          dados.ocorrencias
-            .slice(0, LIMITE_POR_SECAO)
-            .map((ocorrencia) => <ItemOcorrencia key={`${ocorrencia.id}-${ocorrencia.papel}`} ocorrencia={ocorrencia} />)
-        )}
-      </View>
+        }
+      />
     </Tela>
   );
 }
