@@ -48,8 +48,7 @@ export default function Perfil() {
   // O erro guarda de qual entregador ele é, para não aparecer no perfil seguinte.
   const [falha, setFalha] = useState<{ entregadorId: string; erro: ErroApi } | null>(null);
   const [atualizando, setAtualizando] = useState(false);
-  // Dados e contatos começam escondidos ("•••••"); o olho de cada cartão mostra como a API devolve.
-  const [dadosVisiveis, setDadosVisiveis] = useState(false);
+  // Os contatos começam escondidos ("•••••"); o olho do cartão mostra como a API devolve.
   const [contatosVisiveis, setContatosVisiveis] = useState(false);
   // Atalho "Contatos de emergência" da Início: rola até a seção dos contatos, uma vez por pedido.
   const { secao, pedido } = useLocalSearchParams<{ secao?: string; pedido?: string }>();
@@ -135,25 +134,18 @@ export default function Perfil() {
 
       {dados ? (
         <>
-          <Cartao
-            titulo="Seus dados"
-            acao={<BotaoOlho visivel={dadosVisiveis} aoAlternar={() => setDadosVisiveis((atual) => !atual)} />}
-          >
+          {/* Sem olho: a API só devolve CPF, CNH, telefone e e-mail mascarados (seção 9), e o app
+              nunca desmascara, então não há o que mostrar a mais. Ver os dados completos precisa
+              de rota nova na API (melhoria futura). */}
+          <Cartao titulo="Seus dados">
             <Texto variante="legenda">
-              {dadosVisiveis
-                ? 'Mesmo à mostra, os números aparecem mascarados para proteger você.'
-                : 'Toque no olho para ver seus dados.'}
+              Por segurança, o app mostra só uma parte dos seus documentos, do telefone e do e-mail.
             </Texto>
-            <LinhaInfo rotulo="Nome" valor={dados.nome} oculto={!dadosVisiveis} />
-            <LinhaInfo rotulo="CPF" valor={dados.cpf} mascarado oculto={!dadosVisiveis} />
-            <LinhaInfo rotulo="CNH" valor={dados.cnh} mascarado oculto={!dadosVisiveis} />
-            <LinhaInfo rotulo="Telefone" valor={dados.telefone} mascarado oculto={!dadosVisiveis} />
-            <LinhaInfo
-              rotulo="E-mail"
-              valor={dados.email ?? 'Sem e-mail'}
-              mascarado={dados.email !== null}
-              oculto={!dadosVisiveis}
-            />
+            <LinhaInfo rotulo="Nome" valor={dados.nome} />
+            <LinhaInfo rotulo="CPF" valor={dados.cpf} mascarado />
+            <LinhaInfo rotulo="CNH" valor={dados.cnh} mascarado />
+            <LinhaInfo rotulo="Telefone" valor={dados.telefone} mascarado />
+            <LinhaInfo rotulo="E-mail" valor={dados.email ?? 'Sem e-mail'} mascarado={dados.email !== null} />
             <Botao
               titulo="Trocar telefone"
               variante="secundaria"
