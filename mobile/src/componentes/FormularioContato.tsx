@@ -5,7 +5,7 @@ import { useTema } from '@/contextos/TemaContext';
 import { entregadorServico } from '@/servicos/entregadorServico';
 import { converterErro } from '@/servicos/erros';
 import type { ContatoResposta } from '@/tipos/contrato';
-import { ehParentesco, gerarContatoSimulado, PARENTESCOS, type Parentesco } from '@/utils/dadosSimulados';
+import { ehParentesco, PARENTESCOS, type Parentesco } from '@/utils/parentescos';
 import { errosDosCampos, MENSAGEM_CONFIRA_CAMPOS, mensagemComum } from '@/utils/mensagensErro';
 import { validarNome, validarParentesco, validarTelefone } from '@/utils/validacao';
 
@@ -59,16 +59,6 @@ export function FormularioContato({
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
-  /** Preenche com um contato fictício (o contrato só aceita dados simulados). */
-  function preencherSimulado() {
-    const simulado = gerarContatoSimulado();
-    setNome(simulado.nome);
-    setTelefone(simulado.telefone);
-    setParentesco(simulado.parentesco);
-    setErros({});
-    setMensagem(null);
-  }
-
   async function salvar() {
     const novosErros: Partial<Record<CampoContato, string>> = {};
     const erroNome = validarNome(nome);
@@ -117,15 +107,7 @@ export function FormularioContato({
           tipo="informacao"
           mensagem="Por segurança, o telefone aparece mascarado. Digite o telefone completo de novo."
         />
-      ) : (
-        <Botao
-          titulo="Preencher com dados simulados"
-          variante="secundaria"
-          icone="shuffle"
-          aoPressionar={preencherSimulado}
-          accessibilityHint="Preenche o contato com dados fictícios, como pede o projeto"
-        />
-      )}
+      ) : null}
       <Campo rotulo="Nome do contato" valor={nome} aoMudar={setNome} erro={erros.nome} maxLength={120} />
       <Campo
         rotulo="Telefone do contato"
