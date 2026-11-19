@@ -5,22 +5,39 @@ O HelmCare guarda dados de quem está na rua trabalhando: documentos, telefone, 
 ## O que o módulo faz
 
 1. **Mapeamento de PII.** Um motor de parsing percorre payloads JSON, objetos aninhados e texto livre e aponta cada dado pessoal encontrado: CPF, CNH, RG, telefone, e-mail, nome, saúde, localização exata ou aproximada, senhas, tokens de acesso, o `qrToken` do capacete e chaves de API. CPF e CNH têm os dígitos verificadores conferidos, não só o formato. Cada achado traz o caminho do dado, a categoria, a regra que disparou, a confiança e a versão mascarada, nunca o valor original.
-2. **Taint Analysis.** Os dados marcados pelo motor são tratados como contaminados e acompanhados até as saídas do sistema (log, MQTT, resposta HTTP, armazenamento local do app). Uma saída insegura que recebe um dado contaminado é bloqueada e registrada como evidência.
+2. **Taint Analysis.** O dado pessoal é marcado na fonte (cadastro, ficha médica, ocorrência, login, dispositivo) e acompanhado até cada saída: log, mensagem de erro, push, MQTT, chamado ao voluntário, Cofre, persistência, documentação. Um guarda decide pela política da seção 9 do Contrato o que pode sair, para quem e em que forma; no modo PROTECAO ele bloqueia, redige, mascara ou arredonda antes de o dado sair, e no modo AUDITORIA só aponta. Cada decisão vira um evento de segurança com um rastro explicável, sem o valor original.
 3. **Tradução por IA e painel Risco Cidadão.** Cada falha encontrada é traduzida por um LLM em um alerta claro, que diz o que vazou, para onde e como corrigir, sem enviar ao LLM nenhum valor pessoal (só categoria, caminho e regra). O painel Risco Cidadão resume esses alertas num indicador de exposição dos dados do entregador.
 
 ## Estrutura
 
 ```
 cyber/
-  helmcare_cyber/pii/
-    categorias.py    enums Categoria, Confianca e Metodo
-    validadores.py   CPF, CNH, telefone, tipo sanguíneo e coordenadas
-    mascaras.py      máscaras do Contrato, redação e reconhecimento de valor já mascarado
-    regras.py        catálogo de regras (dados), nomes de campo e desempate dos 11 dígitos
-    motor.py         MotorPII, Achado e ValorProtegido
-    avaliacao.py     métricas do motor sobre um corpus rotulado
+  helmcare_cyber/
+    config.py          configuração lida de variáveis de ambiente
+    pii/
+      categorias.py    enums Categoria, Confianca e Metodo
+      validadores.py   CPF, CNH, telefone, tipo sanguíneo e coordenadas
+      mascaras.py      máscaras do Contrato, redação e reconhecimento de valor já mascarado
+      regras.py        catálogo de regras (dados), nomes de campo e desempate dos 11 dígitos
+      motor.py         MotorPII, Achado e ValorProtegido
+      avaliacao.py     métricas do motor sobre um corpus rotulado
+    taint/
+      modelo.py        Fonte, Destino, Destinatario, Acao, Modo, Estado e ContextoSaida
+      politica.py      tabela da política (seção 9) e os ids de regra TA-...
+      registro.py      TaintRegistry: valores das fontes, só em memória
+      rastro.py        Rastro e Passo (fonte, propagação, sanitizador, destino)
+      sanitizadores.py mascarar, redigir, bloquear, arredondar, hash_senha e projetar_campos
+      guarda.py        GuardaTaint: detecta, decide, aplica e gera eventos
+      filtro_log.py    filtro do logging e saída protegida para print
+    eventos/
+      modelo.py        EventoSeguranca
+      repositorio.py   RepositorioEventos (memória e JSONL opcional)
+    simulacao/
+      dados_simulados.py   payloads simulados no formato do Contrato
+      cenarios.py          cenários C1 a C11
   scripts/avaliar_motor.py   tabela de precisão e recall por categoria
-  tests/pii/                 testes pytest
+  scripts/demo.py            cenários C1 a C11 nos dois modos
+  tests/                     testes pytest (pii, taint, eventos, simulacao)
   tests/corpus/corpus_pii.json   corpus rotulado (positivos e negativos)
 ```
 
@@ -35,11 +52,18 @@ source .venv/Scripts/activate
 python -m pip install -r requirements.txt
 
 python -m pytest -q                              # todos os testes
-python -m pytest -q --cov=helmcare_cyber.pii     # com cobertura
+python -m pytest -q --cov=helmcare_cyber         # com cobertura
 python scripts/avaliar_motor.py                  # métricas sobre o corpus
+python scripts/demo.py                           # cenários do Taint Analysis
 ```
 
 As variáveis de ambiente esperadas estão em `.env.example`. A chave do LLM só é lida do ambiente e nunca fica em arquivo versionado.
+
+| Variável | Padrão | Uso |
+|---|---|---|
+| `CYBER_MODO` | `PROTECAO` | Modo do guarda criado por `criar_guarda()`. Valor desconhecido vira `PROTECAO` |
+| `CYBER_EVENTOS_JSONL` | vazio | Arquivo em que cada evento de segurança vira uma linha JSON. Vazio deixa os eventos só em memória |
+| `RISCO_JANELA_MIN` | `1440` | Janela, em minutos, do indicador Risco Cidadão |
 
 ## Uso do motor
 
@@ -54,6 +78,7 @@ copia, achados = motor.mascarar("Queda em -23.5641, -46.6525, contato (11) 98765
 
 - `varrer(dado)` aceita dict, list (aninhados), str com JSON e texto livre, e devolve uma lista de `Achado`.
 - `mascarar(dado)` devolve a cópia profunda mascarada e os achados, sem alterar a entrada. Para texto, a saída sai normalizada em NFKC; para JSON em texto, sai JSON.
+- `transformar(dado, substituir)` faz o mesmo percurso, mas quem decide o novo valor de cada achado é a função `substituir(achado, valor_atual)` (devolver `None` mantém o valor). É por ela que o guarda do Taint Analysis aplica a política no lugar exato de cada dado.
 - `Achado` tem `caminho`, `categoria`, `metodo` (`NOME_CAMPO` ou `VALOR`), `confianca` (`ALTA` ou `MEDIA`), `regra_id`, `dv_confere` (`True`, `False` ou `None`), `ja_mascarado` e `valor_mascarado`. `para_dict()` e `para_json()` só levam esses campos.
 
 ## Categorias e regras
@@ -143,13 +168,147 @@ O `Achado` guarda o valor original dentro de um `ValorProtegido`, só para uso i
 
 O corpus `tests/corpus/corpus_pii.json` tem casos positivos e negativos para todas as categorias, além de negativos de telemetria, GUID, timestamp e versão. `scripts/avaliar_motor.py` imprime verdadeiros positivos, falsos positivos, falsos negativos, precisão e recall por categoria, e falha se algum negativo de telemetria, GUID, timestamp ou versão for marcado. Todos os dados do corpus e dos testes são simulados: os CPFs e as CNHs foram inventados com dígitos verificadores válidos.
 
-## Limitações
+## Limitações do motor de PII
 
-- **Nome de pessoa em texto livre não é detectado.** Reconhecer "Fulano de Tal" no meio de uma frase exige reconhecimento de entidades (NER), que o motor não usa. O nome só é marcado pelo campo `nome`. O corpus mantém dois casos desse tipo como limitação conhecida, que aparecem como falso negativo de NOME na avaliação.
+- **Nome de pessoa em texto livre não é detectado pelo motor.** Reconhecer "Fulano de Tal" no meio de uma frase exige reconhecimento de entidades (NER), que o motor não usa. O nome só é marcado pelo campo `nome`. O corpus mantém dois casos desse tipo como limitação conhecida, que aparecem como falso negativo de NOME na avaliação. No Taint Analysis, o registro de taint cobre o caso mais comum: o nome que entrou por uma fonte é reconhecido pelo valor em qualquer saída.
 - Nomes de campo são comparados por igualdade depois da normalização: `telefoneContato` ou `cpfEntregador` não são reconhecidos pelo nome (o valor ainda passa pelas regras de texto).
 - Telefone escrito com ponto entre todos os grupos (`11.98765.4321`) tem o formato de um número de versão e não é marcado.
 - O léxico de saúde marca o termo com confiança MEDIA mesmo em uso técnico ("diagnóstico de rede").
 - No cálculo do segundo DV da CNH, quando o resto menos o desconto fica negativo, o motor soma 11 (implementação de referência em Python). Há implementações publicadas que tratam esse caso como CNH inválida; fora dele, todas concordam.
+
+## Taint Analysis
+
+O Taint Analysis segue o dado pessoal da fonte ao destino e decide, em cada saída, se ele pode passar. É uma verificação em tempo de execução: o guarda olha o que realmente está saindo, depois de todas as concatenações e f-strings do código.
+
+### Modelo
+
+| Elemento | O que é | Exemplos |
+|---|---|---|
+| Fonte | Onde o dado pessoal entra | `CADASTRO_ENTREGADOR`, `FICHA_MEDICA`, `CONTATO_EMERGENCIA`, `OCORRENCIA_SOS`, `TELEMETRIA_MQTT`, `LOGIN`, `DISPOSITIVO` |
+| Propagação | Como o dado anda pelo código | f-string em mensagem de log, objeto anexado a outro payload, valor repetido numa mensagem de erro |
+| Sanitizador | Função que torna o dado seguro | `mascarar`, `redigir`, `bloquear`, `arredondar_localizacao`, `hash_senha` (PBKDF2-HMAC-SHA256, 600 mil iterações), `projetar_campos` (lista branca de campos) |
+| Destino | Por onde o dado sai, e para quem | `LOG`, `MENSAGEM_ERRO`, `NOTIFICACAO_PUSH`, `MQTT_PAYLOAD`, `CHAMADO_VOLUNTARIO`, `COFRE_SOCORRISTA`, `PERSISTENCIA`, `DOCUMENTACAO_PUBLICA` e outros, com o `Destinatario` (próprio entregador, voluntário antes ou depois do aceite, contato de emergência, socorrista verificado na janela ou não autorizado, anônimo, outro usuário, sistema) |
+
+A detecção numa saída usa duas fontes de evidência:
+
+- o **motor de PII**, que reconhece formatos (CPF, telefone, e-mail, coordenadas) e nomes de campo;
+- o **registro de taint** (`TaintRegistry`), que guarda em memória os valores que entraram por uma fonte e os reconhece em qualquer saída, mesmo no meio de uma f-string. É ele que acha o nome do entregador numa linha de log. Documentos e telefones são reconhecidos em qualquer formatação (`48291736537` e `482.917.365-37` são o mesmo CPF). O registro nunca é gravado nem serializado.
+
+### Os dois modos
+
+| Modo | O que faz | Estado do dado que a política manda tratar |
+|---|---|---|
+| `PROTECAO` | Aplica a ação numa cópia do payload antes de ele sair | `NEUTRALIZADO` |
+| `AUDITORIA` | Deixa a saída passar intacta e só registra | `EXPOSTO` |
+
+Um dado que a política deixa passar fica `PERMITIDO` nos dois modos, assim como um valor que já estava na forma exigida (por exemplo, o CPF já mascarado na resposta ao próprio entregador). A decisão geral de uma saída é o pior estado entre os seus dados: `EXPOSTO`, depois `NEUTRALIZADO`, depois `PERMITIDO`.
+
+As ações são `PERMITIR`, `MASCARAR` (máscaras do Contrato), `ARREDONDAR` (2 casas, com 0,5 para cima), `REDIGIR` (`[REDIGIDO:CPF]`) e `BLOQUEAR` (`[BLOQUEADO:CPF]`).
+
+### Política
+
+A política fica em `taint/politica.py` como uma tabela de dados, com negação por padrão: toda combinação que não está na tabela é bloqueada. A ordem de avaliação é: valor já redigido, destinatário negado, linha do destino com o destinatário, linha do destino para qualquer destinatário e, por fim, a negação por padrão.
+
+| Regra | Destino | Destinatário | O que pode sair |
+|---|---|---|---|
+| TA-MASCARADO-01 | qualquer | qualquer | Valor já redigido (`[REDIGIDO:...]` ou `[BLOQUEADO:...]`), porque não sobra nada do dado |
+| TA-NEGADO-01 | qualquer | `SOCORRISTA_NAO_AUTORIZADO`, `ANONIMO`, `OUTRO_USUARIO` | Nada. Vence todas as regras abaixo |
+| TA-PROPRIO-01 | `RESPOSTA_PROPRIO_ENTREGADOR` | `PROPRIO_ENTREGADOR` | Saúde, telefone, nome e localização; CPF, CNH, RG e e-mail mascarados; nenhuma credencial |
+| TA-PROPRIO-02 | `RESPOSTA_PROPRIO_ENTREGADOR` | `PROPRIO_ENTREGADOR`, com `credencial_autorizada` | Token de acesso e `qrToken`, só no corpo do login, da renovação e do `POST /dispositivos` |
+| TA-VOLUNT-01 | `CHAMADO_VOLUNTARIO`, `NOTIFICACAO_PUSH` | `VOLUNTARIO_ANTES_ACEITE` | Só a localização: a aproximada como está e a exata arredondada para 2 casas |
+| TA-ACEITOU-01 | `CHAMADO_VOLUNTARIO`, `NOTIFICACAO_PUSH` | `VOLUNTARIO_QUE_ACEITOU` | Só a localização, inclusive a exata |
+| TA-CONTATO-01 | `CONTATO_EMERGENCIA`, ou `NOTIFICACAO_PUSH` | qualquer, ou `CONTATO_EMERGENCIA` | Só a localização, exata ou aproximada |
+| TA-COFRE-01 | `COFRE_SOCORRISTA` | `SOCORRISTA_VERIFICADO_NA_JANELA` | Os campos `tipoSanguineo`, `alergias` e `condicoesCriticas` |
+| TA-COFRE-02 | `COFRE_SOCORRISTA` | `SOCORRISTA_VERIFICADO_NA_JANELA` | Nome e telefone dentro de `$.contatos[n]` |
+| TA-COFRE-03 | `COFRE_SOCORRISTA` | `SOCORRISTA_VERIFICADO_NA_JANELA` | Nada além dos dois itens acima (medicamentos, nome, CPF, CNH, localização e credenciais do entregador são bloqueados) |
+| TA-LOG-01 | `LOG` | qualquer | Nada: todo dado pessoal é redigido, inclusive a localização aproximada |
+| TA-MQTT-01 | `MQTT_PAYLOAD` | qualquer | A coordenada, se o payload não tiver nenhuma identificação pessoal (só o código do dispositivo) |
+| TA-MQTT-02 | `MQTT_PAYLOAD` | qualquer | Nada, se houver identificação pessoal: o dado e a coordenada são bloqueados |
+| TA-PUBLICO-01 | `RESPOSTA_API_PUBLICA`, `MENSAGEM_ERRO`, `AUDITORIA`, `DOCUMENTACAO_PUBLICA` | qualquer | Nada |
+| TA-PERS-01 | `PERSISTENCIA` | qualquer | Tudo, menos senha em texto puro, token de acesso e segredo de API |
+| TA-PERS-02 | `PERSISTENCIA` | qualquer | Senha no formato de hash (`pbkdf2_sha256$...` ou o hash do ASP.NET Core Identity, que começa em `AQAAAA`) |
+| TA-PADRAO-01 | combinação fora da tabela | | Nada (negação por padrão) |
+
+Duas regras são do próprio guarda: TA-REG-01 identifica um achado feito pelo registro de taint, e TA-ERRO-01 marca uma saída bloqueada inteira por erro interno.
+
+**Canais autorizados.** São os usos legítimos que a política deixa passar e que também geram evento (`PERMITIDO`), como prova do uso correto: a localização exata para o voluntário que aceitou e para o contato de emergência, a ficha mínima e os contatos no Cofre para o socorrista verificado na janela, a coordenada no MQTT sem identificação pessoal, os tokens no corpo do login e o `qrToken` no `POST /dispositivos`, os próprios dados para o entregador e a senha como hash na persistência.
+
+### Guarda, rastro e eventos
+
+```python
+from helmcare_cyber.taint import ContextoSaida, Destinatario, Destino, Fonte, GuardaTaint, Modo
+
+guarda = GuardaTaint(modo=Modo.PROTECAO)
+guarda.registrar_fonte(Fonte.CADASTRO_ENTREGADOR, cadastro)
+resultado = guarda.verificar_saida(push, ContextoSaida(Destino.NOTIFICACAO_PUSH, Destinatario.VOLUNTARIO_ANTES_ACEITE))
+resultado.payload_seguro    # o que pode sair
+resultado.decisao_geral     # PERMITIDO, NEUTRALIZADO ou EXPOSTO
+print(resultado.rastro.para_texto())
+```
+
+`verificar_saida` nunca altera o payload recebido e nunca levanta exceção por causa do conteúdo. Se algo falhar por dentro, a saída sai bloqueada inteira (`[BLOQUEADO:ERRO_INTERNO]`) e o erro vai para o log só com o tipo da exceção, sem o conteúdo.
+
+O **rastro** lista os passos do dado, só com valores mascarados:
+
+```
+FONTE        CADASTRO_ENTREGADOR POST /entregadores campo $.cpf [CPF] = ***.***.***-37
+PROPAGACAO   f-string em mensagem de log: logger.info(f"cadastro {dados}")
+DESTINO      LOG para SISTEMA, REGRA TA-LOG-01, ACAO REDIGIR, NEUTRALIZADO [CPF, CNH, TELEFONE, EMAIL, NOME, SENHA]
+```
+
+Cada saída gera um **evento de segurança** por categoria e estado, com `id`, `ts` (UTC), `cenario`, `fonte`, `destino`, `destinatario`, `categoria`, `acao`, `estado`, `regraId`, `modo`, `quantidade` e `caminhos` (os campos agrupados) e o `rastro`. Os campos `mensagemCidadao` e `origemMensagem` ficam vazios para a tradução dos alertas. O evento não tem o valor original nem peso de risco: o peso é calculado pelo indicador Risco Cidadão. Os eventos ficam em memória no `RepositorioEventos` e, com `CYBER_EVENTOS_JSONL`, também num arquivo, um por linha.
+
+### Proteção do log
+
+```python
+from helmcare_cyber.taint.filtro_log import instalar_filtro, proteger_print
+
+instalar_filtro(logging.getLogger("helmcare.api"), guarda)
+logger.info(f"cadastro {dados}")      # sai com [REDIGIDO:CPF], [REDIGIDO:NOME]...
+
+with proteger_print(guarda):
+    print(f"senha={senha}")           # sai senha=[REDIGIDO:SENHA]
+```
+
+O filtro formata a mensagem (`msg % args`), passa pelo guarda com destino `LOG` e troca a mensagem pela versão segura. Um dict passado direto ao logger vai como estrutura, para os nomes de campo ajudarem. Em AUDITORIA, o log sai intacto e o evento fica `EXPOSTO`. Se o filtro falhar, a linha vira `[LOG BLOQUEADO: erro no filtro]`. O filtro não registra nada pelo próprio logging, para não entrar em recursão.
+
+### Cenários
+
+Cada cenário reproduz um erro de código num caminho de saída, com dados simulados, e passa pelas funções reais do guarda.
+
+| Id | Cenário | Rótulo | Destino e destinatário | PROTECAO | AUDITORIA |
+|---|---|---|---|---|---|
+| C1 | Cadastro em log por f-string | Simulado | `LOG`, `SISTEMA` | CPF, CNH, telefone, e-mail, senha e nome redigidos | `EXPOSTO` |
+| C2 | Senha impressa no log de login | Simulado | `LOG`, `SISTEMA` | E-mail e senha redigidos | `EXPOSTO` |
+| C3 | Erro de validação repete CPF e telefone | Simulado | `MENSAGEM_ERRO`, `PROPRIO_ENTREGADOR` | Bloqueados no `detail` e no `errors` | `EXPOSTO` |
+| C4 | Ficha médica no chamado ao voluntário | Simulado | `CHAMADO_VOLUNTARIO`, `VOLUNTARIO_ANTES_ACEITE` | Saúde bloqueada; localização aproximada permitida | `EXPOSTO` |
+| C5 | Identificação pessoal no payload MQTT | Simulado | `MQTT_PAYLOAD`, `SISTEMA` | Nome, telefone, CPF e coordenada bloqueados | `EXPOSTO` |
+| C6 | Push com localização exata antes do aceite | Simulado | `NOTIFICACAO_PUSH`, `VOLUNTARIO_ANTES_ACEITE` | Coordenada arredondada para 2 casas | `EXPOSTO` |
+| C7 | Localização exata nos canais autorizados | Simulado | `CHAMADO_VOLUNTARIO`, `VOLUNTARIO_QUE_ACEITOU` e `CONTATO_EMERGENCIA` | `PERMITIDO` | `PERMITIDO` |
+| C8 | Cofre com medicamentos por engano | Simulado | `COFRE_SOCORRISTA`, `SOCORRISTA_VERIFICADO_NA_JANELA` | Ficha mínima e contatos permitidos; medicamentos bloqueado | `EXPOSTO` |
+| C9 | Cofre para socorrista não autorizado | Simulado | `COFRE_SOCORRISTA`, `SOCORRISTA_NAO_AUTORIZADO` | Tudo bloqueado | `EXPOSTO` |
+| C10 | Senha em texto puro na persistência | Simulado | `PERSISTENCIA`, `SISTEMA` | Senha pura bloqueada; com `hash_senha`, permitida | `EXPOSTO` |
+| C11 | `qrToken` em documentação pública | Real (reproduzido com token simulado) | `DOCUMENTACAO_PUBLICA`, `ANONIMO` | `qrToken` bloqueado na legenda | `EXPOSTO` |
+
+O C11 reproduz um achado real de auditoria da documentação do projeto (o endereço `/cofre/{qrToken}` exposto num texto público), com um token inventado no lugar do original.
+
+### Demonstração
+
+```bash
+python scripts/demo.py                                  # C1 a C11 em AUDITORIA e depois em PROTECAO
+python scripts/demo.py --cenario C1                     # só o C1, nos dois modos
+python scripts/demo.py --cenario C6 --modo protecao     # um cenário num modo
+```
+
+Para cada cenário, o script mostra o id, o título, o rótulo, a fonte, o destino, a saída emitida, a decisão geral, as regras aplicadas e o rastro. O repositório de eventos é zerado entre os modos. A saída emitida em AUDITORIA mostra os valores simulados sem proteção, de propósito: é o "antes" de cada cenário.
+
+### Limitações do Taint Analysis
+
+- O guarda vê só as saídas que passam por ele (`verificar_saida`, o filtro de log e `proteger_print`). Um caminho de saída que não chama o guarda não é verificado: o rastreamento é em tempo de execução, não uma análise estática do código.
+- O registro de taint guarda só valores com 4 caracteres ou mais. O tipo sanguíneo (`O+`) é reconhecido pelo nome do campo ou pela palavra de contexto, não pelo registro.
+- O registro reconhece o valor como ele entrou (nomes sem diferenciar maiúsculas; documentos e telefones com qualquer separador). Um nome abreviado ou escrito de outro jeito não é reconhecido.
+- O registro vale para o processo em que os valores foram registrados: ele fica em memória e não é compartilhado.
+- Um valor de saúde comum registrado na ficha (como "Asma") passa a ser apontado em qualquer saída em que a palavra apareça. É um falso positivo que pende para o lado seguro.
 
 ## Regras de dados pessoais
 
