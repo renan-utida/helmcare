@@ -123,6 +123,16 @@ class TestTraduzir:
         assert primeira.selo is None
         assert len(falso.requisicoes) == 1
 
+    def test_cache_do_exposto_com_o_texto_novo(self):
+        # A chave do cache é a ConsultaTraducao: o texto novo da mensagem não muda nada nela.
+        falso = TransporteFalso(resposta=resposta_gemini(mensagem_json(BOA)))
+        tradutor = TradutorAlertas(cliente_com(falso))
+        assert tradutor.traduzir(OUTRA) == tradutor.traduzir(OUTRA) == Traducao(BOA, OrigemMensagem.IA)
+        assert len(falso.requisicoes) == 1
+        enviado = falso.corpos()[0]["contents"][0]["parts"][0]["text"]
+        assert "Onde apareceu de verdade: numa resposta aberta do sistema" in enviado
+        assert "o dado chegou a aparecer de verdade" in enviado
+
     def test_cache_por_consulta(self):
         falso = TransporteFalso(resposta=resposta_gemini(mensagem_json(BOA)))
         tradutor = TradutorAlertas(cliente_com(falso))
@@ -272,7 +282,7 @@ class TestEventosERisco:
     def test_traduzir_evento_usa_a_cor_dos_pontos(self, falso):
         TradutorAlertas(cliente_com(falso)).traduzir_evento(evento(estado=Estado.EXPOSTO))
         usuario = falso.corpos()[0]["contents"][0]["parts"][0]["text"]
-        assert usuario.endswith("Cor do semáforo: vermelho, perigo")  # 81 pontos
+        assert "Cor do semáforo: vermelho, perigo" in usuario.splitlines()  # 81 pontos
 
     def test_traduzir_evento_com_cor(self, falso):
         TradutorAlertas(cliente_com(falso)).traduzir_evento(evento(), CorSemaforo.AMARELO)
