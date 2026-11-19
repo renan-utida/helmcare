@@ -1,12 +1,14 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Alert } from 'react-native';
+import { AccessibilityInfo, Alert, View } from 'react-native';
 
 import { Aviso, type TipoAviso } from '@/componentes/Aviso';
 import { Botao } from '@/componentes/Botao';
 import { Carregando } from '@/componentes/Carregando';
 import { Cartao } from '@/componentes/Cartao';
-import { EstadoCapacete } from '@/componentes/EstadoCapacete';
+import { useAparenciaCapacete } from '@/componentes/EstadoCapacete';
+import { FaixaRisco, TEXTO_FAIXA } from '@/componentes/FaixaRisco';
+import { IconeEmCirculo } from '@/componentes/IconeEmCirculo';
 import { EstadoVazio } from '@/componentes/EstadoVazio';
 import { dadosDoTurno, IndiceRisco } from '@/componentes/IndiceRisco';
 import { LinhaInfo } from '@/componentes/LinhaInfo';
@@ -14,7 +16,9 @@ import { Tela } from '@/componentes/Tela';
 import { Texto } from '@/componentes/Texto';
 import { TrechosCriticos } from '@/componentes/TrechosCriticos';
 import { ALERTA_CALOR_C } from '@/config/constantes';
+import { useTema } from '@/contextos/TemaContext';
 import { useTurno, type TurnoAtual } from '@/contextos/TurnoContext';
+import { useMinhaPosicao } from '@/hooks/useMinhaPosicao';
 import { useTrechosCriticos } from '@/hooks/useTrechosCriticos';
 import { converterErro } from '@/servicos/erros';
 import { formatarDecimal, formatarDiaHora, jaPassou } from '@/utils/datas';
@@ -48,7 +52,7 @@ export default function TurnoAtivo() {
   return (
     <Tela>
       {avisoFinal ? (
-        <Aviso tipo={avisoFinal.tipo} mensagem={avisoFinal.mensagem} />
+        <Aviso tipo={avisoFinal.tipo} mensagem={avisoFinal.mensagem} fechavel aoFechar={() => setAvisoFinal(null)} />
       ) : (
         <EstadoVazio titulo="Nenhum turno em andamento" icone="speedometer-outline" />
       )}
@@ -63,6 +67,7 @@ export default function TurnoAtivo() {
 
 /** Turno aberto: horários, estado do capacete, Índice de Risco, trechos e encerramento. */
 function TurnoAberto({ turno, aoEncerrar }: { turno: TurnoAtual; aoEncerrar: (aviso: AvisoTela) => void }) {
+  const { espaco } = useTema();
   const { atualizarRisco, encerrar } = useTurno();
   const [atualizando, setAtualizando] = useState(false);
   const [semConexao, setSemConexao] = useState(false);
@@ -70,6 +75,7 @@ function TurnoAberto({ turno, aoEncerrar }: { turno: TurnoAtual; aoEncerrar: (av
   const [encerrando, setEncerrando] = useState(false);
   const { alerta, alertaSemConexao, emergencia } = useTurno();
   const trechos = useTrechosCriticos();
+  const posicao = useMinhaPosicao();
 
   // Calor: aviso quando o índice de calor é maior ou igual a ALERTA_CALOR_C (seção 5).
   const calorForte = alerta?.indiceCalorC != null && alerta.indiceCalorC >= ALERTA_CALOR_C;
@@ -156,6 +162,8 @@ function TurnoAberto({ turno, aoEncerrar }: { turno: TurnoAtual; aoEncerrar: (av
   }
 
   const dados = dadosDoTurno(turno);
+  const capacete = useAparenciaCapacete(turno.protecaoAtiva !== false ? (alerta?.estadoCapacete ?? null) : null);
+  const capaceteSemConexao = turno.protecaoAtiva !== false && alertaSemConexao;
   const horarioTerminou = turno.fimPrevisto !== null && jaPassou(turno.fimPrevisto);
 
   /** Abre a tela da emergência em andamento (alerta ou ocorrência da vítima). */
@@ -172,10 +180,38 @@ function TurnoAberto({ turno, aoEncerrar }: { turno: TurnoAtual; aoEncerrar: (av
       aoAtualizar={() => {
         void atualizar();
         void trechos.atualizar();
+        void posicao.atualizar();
       }}
       atualizando={atualizando}
     >
-      <Texto variante="titulo">Turno em andamento</Texto>
+      {/* Resumo no topo: o estado do capacete, a faixa e o Índice, lidos juntos. */}
+      <Cartao>
+        <View
+          accessible
+          accessibilityLabel={`Seu capacete: ${capacete.texto}.${
+            turno.indiceDisponivel ? ` Índice ${turno.indiceRisco} de 100, ${TEXTO_FAIXA[turno.faixaRisco].toLowerCase()}.` : ''
+          }${capaceteSemConexao ? ' Sem conexão: pode estar desatualizado.' : ''}`}
+          accessibilityLiveRegion="polite"
+          style={{ gap: espaco.medio }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: espaco.medio }}>
+            <IconeEmCirculo nome={capacete.icone} tom={capacete.tomCirculo} tamanho={56} />
+            <View style={{ flex: 1 }}>
+              <Texto variante="legenda">Seu capacete</Texto>
+              <Texto variante="subtitulo">{capacete.texto}</Texto>
+            </View>
+          </View>
+          {turno.indiceDisponivel ? (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: espaco.pequeno }}>
+              <FaixaRisco faixa={turno.faixaRisco} />
+              <Texto variante="rotulo">{`Índice ${turno.indiceRisco} de 100`}</Texto>
+            </View>
+          ) : null}
+          {capaceteSemConexao ? (
+            <Texto variante="legenda">Sem conexão: o estado do capacete pode estar desatualizado.</Texto>
+          ) : null}
+        </View>
+      </Cartao>
 
       {calorForte && alerta?.indiceCalorC != null ? (
         <Aviso
@@ -184,13 +220,9 @@ function TurnoAberto({ turno, aoEncerrar }: { turno: TurnoAtual; aoEncerrar: (av
         />
       ) : null}
 
-      {emergencia ? (
-        <Botao
-          titulo={emergencia.tipo === 'alerta' ? 'Abrir o alerta de queda' : 'Abrir a ocorrência'}
-          variante="perigo"
-          icone="alert-circle"
-          aoPressionar={abrirEmergencia}
-        />
+      {/* Só com SOS em andamento (o alerta de queda abre sozinho). */}
+      {emergencia?.tipo === 'ocorrencia' ? (
+        <Botao titulo="Abrir a ocorrência" variante="perigo" icone="alert-circle" aoPressionar={abrirEmergencia} />
       ) : null}
 
       {semConexao ? (
@@ -205,7 +237,7 @@ function TurnoAberto({ turno, aoEncerrar }: { turno: TurnoAtual; aoEncerrar: (av
 
       {/* Turno restaurado pela sessão (aberto em outro aparelho ou antes do login): a API não
           devolve os horários, então o cartão mostra só que o turno está em andamento. */}
-      <Cartao>
+      <Cartao titulo="Horários">
         {turno.inicio !== null && turno.fimPrevisto !== null ? (
           <>
             <LinhaInfo rotulo="Começou" valor={formatarDiaHora(turno.inicio)} />
@@ -219,12 +251,7 @@ function TurnoAberto({ turno, aoEncerrar }: { turno: TurnoAtual; aoEncerrar: (av
         ) : null}
       </Cartao>
 
-      <EstadoCapacete
-        estado={turno.protecaoAtiva !== false ? (alerta?.estadoCapacete ?? null) : null}
-        semConexao={turno.protecaoAtiva !== false && alertaSemConexao}
-      />
-
-      <Cartao>
+      <Cartao titulo="Risco do turno">
         {turno.indiceDisponivel ? (
           <IndiceRisco dados={dados} anunciarMudancas />
         ) : (
@@ -233,13 +260,14 @@ function TurnoAberto({ turno, aoEncerrar }: { turno: TurnoAtual; aoEncerrar: (av
         <Texto variante="legenda">Puxe a tela para baixo para atualizar o Índice.</Texto>
       </Cartao>
 
-      <TrechosCriticos estado={trechos} />
+      <TrechosCriticos estado={trechos} posicao={posicao} />
 
       {aviso ? <Aviso tipo={aviso.tipo} mensagem={aviso.mensagem} /> : null}
       {aviso && emergencia ? (
         <Botao
           titulo={emergencia.tipo === 'alerta' ? 'Abrir o alerta' : 'Abrir a ocorrência'}
           variante="secundaria"
+          compacto
           aoPressionar={abrirEmergencia}
         />
       ) : null}
