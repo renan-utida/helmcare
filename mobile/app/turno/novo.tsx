@@ -41,7 +41,13 @@ function explicarEPedirNotificacoes(): Promise<void> {
       'Para avisar você de uma queda percebida pelo capacete, do socorro a caminho e de calor forte, mesmo com o app minimizado, o HelmCare precisa mandar notificações.',
       [
         { text: 'Agora não', style: 'cancel', onPress: () => resolver() },
-        { text: 'Permitir', onPress: () => void pedirPermissao().finally(() => resolver()) },
+        {
+          text: 'Permitir',
+          onPress: () =>
+            void pedirPermissao()
+              .catch(() => false)
+              .finally(() => resolver()),
+        },
       ],
       { cancelable: true, onDismiss: () => resolver() },
     );

@@ -22,6 +22,13 @@ import type { FaixaRisco } from '@/tipos/contrato';
 /** Canal Android dos alertas do HelmCare, de alta importância (som, vibração e banner). */
 export const CANAL_ALERTAS = 'alertas';
 
+/**
+ * Verdadeiro depois que o canal "alertas" foi criado. Se a criação falhar, as notificações vão
+ * para o canal padrão do Expo (`trigger: null`), porque no Android uma notificação num canal que
+ * não existe não aparece.
+ */
+let canalCriado = false;
+
 /** Para onde a notificação leva quando a pessoa toca nela. */
 export type DestinoNotificacao =
   | { tela: 'alerta' }
@@ -35,29 +42,50 @@ export type PermissaoNotificacao = 'nao-pedida' | 'concedida' | 'negada';
 /**
  * Prepara as notificações ao abrir o app: com o app aberto, a notificação também aparece no topo
  * (banner e lista), e no Android o canal "alertas" é criado com importância alta.
+ *
+ * O canal leva só o nome e a importância. Com o `vibrationPattern`, o Expo Go do SDK 58 rejeitava
+ * a chamada com um NullPointerException ("getClass() on a null object reference") na conversão da
+ * lista para o módulo nativo dele. A importância alta já vibra com o padrão do sistema. E nada
+ * aqui pode deixar uma promessa rejeitada: qualquer falha só faz as notificações usarem o canal
+ * padrão, e o app funciona igual, sem erro no LogBox.
  */
 export async function configurarNotificacoes(): Promise<void> {
-  setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowBanner: true,
-      shouldShowList: true,
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-    }),
-  });
-  if (Platform.OS === 'android') {
+  try {
+    setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+      }),
+    });
+  } catch {
+    // Sem o handler, a notificação só não aparece no topo com o app aberto.
+  }
+  if (Platform.OS !== 'android') {
+    return;
+  }
+  try {
     await setNotificationChannelAsync(CANAL_ALERTAS, {
       name: 'Alertas do HelmCare',
       importance: AndroidImportance.HIGH,
-      vibrationPattern: [0, 400, 200, 400],
     });
+    canalCriado = true;
+  } catch {
+    // Sem o canal próprio: as notificações saem no canal padrão (veja `notificar`).
+    canalCriado = false;
   }
 }
 
-/** Lê a permissão sem pedir nada. */
+/** Lê a permissão sem pedir nada. Nunca rejeita. */
 export async function lerPermissao(): Promise<PermissaoNotificacao> {
-  const { status } = await getPermissionsAsync();
-  return status === 'granted' ? 'concedida' : status === 'undetermined' ? 'nao-pedida' : 'negada';
+  try {
+    const { status } = await getPermissionsAsync();
+    return status === 'granted' ? 'concedida' : status === 'undetermined' ? 'nao-pedida' : 'negada';
+  } catch {
+    // Sem como ler a permissão: segue sem notificar, e o turno começa normalmente.
+    return 'negada';
+  }
 }
 
 /** Pede a permissão ao sistema. Devolve se ficou concedida. */
@@ -74,8 +102,8 @@ async function notificar(titulo: string, corpo: string, destino: DestinoNotifica
     }
     await scheduleNotificationAsync({
       content: { title: titulo, body: corpo, sound: true, data: { destino } },
-      // `channelId` sem horário: aparece na hora, no canal de alta importância (no iOS, o canal é ignorado).
-      trigger: { channelId: CANAL_ALERTAS },
+      // Na hora: no canal "alertas" quando ele existe; senão, `null` (o canal padrão do Expo).
+      trigger: canalCriado ? { channelId: CANAL_ALERTAS } : null,
     });
   } catch {
     // Notificar é um extra: uma falha aqui nunca atrapalha o alerta nem o SOS.

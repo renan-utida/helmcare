@@ -32,11 +32,14 @@ export function useNotificacoesTocadas(): void {
       guardar(resposta.notification.request.identifier, destinoDaResposta(resposta)),
     );
     // App aberto pelo toque numa notificação (estava fechado): lê a última resposta.
-    void getLastNotificationResponseAsync().then((resposta) => {
-      if (resposta) {
-        guardar(resposta.notification.request.identifier, destinoDaResposta(resposta));
-      }
-    });
+    // Nenhuma promessa fica sem tratamento: uma falha aqui só deixa de abrir a tela da notificação.
+    getLastNotificationResponseAsync()
+      .then((resposta) => {
+        if (resposta) {
+          guardar(resposta.notification.request.identifier, destinoDaResposta(resposta));
+        }
+      })
+      .catch(() => undefined);
     return () => assinatura.remove();
   }, []);
 
