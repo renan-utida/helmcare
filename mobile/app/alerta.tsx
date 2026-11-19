@@ -284,7 +284,7 @@ export default function Alerta() {
             {alertaSemConexao ? (
               <Aviso tipo="atencao" mensagem="Sem conexão: o estado do alerta pode estar desatualizado." />
             ) : null}
-            {mensagem ? <Aviso tipo={mensagem.tipo} mensagem={mensagem.texto} /> : null}
+            {mensagem ? <Aviso tipo={mensagem.tipo} mensagem={mensagem.texto} fechavel={mensagem.tipo === 'sucesso'} /> : null}
 
             {!sosEnviado ? (
               <View style={{ gap: espaco.pequeno }}>

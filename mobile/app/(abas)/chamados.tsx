@@ -218,7 +218,7 @@ export default function Chamados() {
         </Texto>
       </Cartao>
 
-      {mensagem ? <Aviso tipo={mensagem.tipo} mensagem={mensagem.texto} /> : null}
+      {mensagem ? <Aviso tipo={mensagem.tipo} mensagem={mensagem.texto} fechavel={mensagem.tipo === 'sucesso'} /> : null}
 
       {rede.disponivel ? (
         <View style={{ gap: espaco.medio }}>
