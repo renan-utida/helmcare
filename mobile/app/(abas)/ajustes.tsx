@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable } from 'react-native';
+import { Alert, Linking, Pressable } from 'react-native';
 
 import { Aviso, type TipoAviso } from '@/componentes/Aviso';
 import { Botao } from '@/componentes/Botao';
@@ -14,6 +14,7 @@ import { Texto } from '@/componentes/Texto';
 import { DESCRICAO_ORIGEM_URL, normalizarUrl } from '@/config/urlApi';
 import { useSessao } from '@/contextos/SessaoContext';
 import { converterErro } from '@/servicos/erros';
+import { diagnosticarNotificacoes, pedirPermissao } from '@/servicos/notificacoes';
 import { saudeServico } from '@/servicos/saudeServico';
 import { invalidarAcessoParaTeste, invalidarRenovacaoParaTeste } from '@/servicos/testeSessaoDev';
 import { MENSAGEM_ERRO_GENERICO } from '@/utils/mensagensErro';
@@ -40,7 +41,55 @@ export default function Ajustes() {
   const [testando, setTestando] = useState(false);
   const [salvando, setSalvando] = useState(false);
 
-  /** Ações de teste da renovação e do fim da sessão (só em __DEV__, pelo toque longo na versão). */
+  /**
+   * Ações de teste (só em __DEV__, pelo toque longo na versão). O Android mostra no máximo 3
+   * botões num Alert: o primeiro escolhe entre o teste da notificação e os testes da sessão.
+   */
+  function abrirTestesDeDesenvolvimento() {
+    if (!__DEV__) {
+      return;
+    }
+    Alert.alert('Testes (desenvolvimento)', 'Escolha o teste.', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Testar notificação', onPress: () => void testarNotificacao() },
+      { text: 'Testes da sessão', onPress: abrirTestesDaSessao },
+    ]);
+  }
+
+  /**
+   * "Testar notificação": dispara "Teste do HelmCare" com `trigger: null` e mostra a permissão, o
+   * canal e o resultado do envio (só estados e códigos de erro, nenhum dado pessoal). Com a
+   * permissão negada, oferece pedir de novo ou, se o Android não deixa mais pedir, abrir os ajustes.
+   */
+  async function testarNotificacao() {
+    if (!__DEV__) {
+      return;
+    }
+    const resultado = await diagnosticarNotificacoes();
+    const linhaPermissao =
+      'erro' in resultado.permissao
+        ? `Permissão: erro ao ler (${resultado.permissao.erro})`
+        : `Permissão: ${resultado.permissao.status} (pode pedir de novo: ${resultado.permissao.podePedirDeNovo ? 'sim' : 'não'})`;
+    const linhaCanal =
+      resultado.canal.tipo === 'criado'
+        ? 'Canal "alertas": criado'
+        : resultado.canal.tipo === 'falhou'
+          ? `Canal "alertas": não criado (erro: ${resultado.canal.erro ?? 'sem código'})`
+          : 'Canal "alertas": não se aplica (não é Android)';
+    const linhaEnvio = 'id' in resultado.envio ? `Envio do teste: ok (id ${resultado.envio.id})` : `Envio do teste: erro (${resultado.envio.erro})`;
+    const linhaUltimo = `Último erro antes do teste: ${resultado.ultimoErroAntes ?? 'nenhum'}`;
+    const negada = !('erro' in resultado.permissao) && resultado.permissao.status !== 'granted';
+    const podePedir = !('erro' in resultado.permissao) && resultado.permissao.podePedirDeNovo;
+    const botoes: Parameters<typeof Alert.alert>[2] = [{ text: 'OK', style: 'cancel' }];
+    if (negada && podePedir) {
+      botoes.push({ text: 'Pedir permissão', onPress: () => void pedirPermissao().then(() => testarNotificacao()) });
+    } else if (negada) {
+      botoes.push({ text: 'Abrir os ajustes do app', onPress: () => void Linking.openSettings() });
+    }
+    Alert.alert('Teste de notificação', [linhaPermissao, linhaCanal, linhaEnvio, linhaUltimo].join('\n'), botoes);
+  }
+
+  /** Ações de teste da renovação e do fim da sessão (só em __DEV__). */
   function abrirTestesDaSessao() {
     if (!__DEV__ || !contaAtiva) {
       return;
@@ -156,10 +205,10 @@ export default function Ajustes() {
       </Cartao>
 
       <Cartao titulo="Sobre o app">
-        {/* Só no desenvolvimento, o toque longo na versão abre as ações de teste da sessão.
+        {/* Só no desenvolvimento, o toque longo na versão abre as ações de teste (notificação e sessão).
             Fora do __DEV__, a linha é só texto: nenhuma ação aparece. */}
         <Pressable
-          onLongPress={__DEV__ ? abrirTestesDaSessao : undefined}
+          onLongPress={__DEV__ ? abrirTestesDeDesenvolvimento : undefined}
           accessibilityRole="text"
           accessibilityLabel={`Versão do app: ${VERSAO_APP}`}
         >
