@@ -15,7 +15,7 @@
 | Disciplina | Pasta | Links |
 |---|---|---|
 | Arquitetura Orientada a Serviços (SOA) e Web Services | [`servico-risco/`](servico-risco/) | *(a preencher)* |
-| Cybersecurity | [`cyber/`](cyber/) | *(a preencher)* |
+| Cybersecurity | [`cyber/`](cyber/) | Vídeo: [youtu.be/PSRhGlnmjcI](https://youtu.be/PSRhGlnmjcI) |
 | C# Software Development | [`api/`](api/) | *(a preencher)* |
 | Inteligência Artificial & Machine Learning | [`ml/`](ml/) | Vídeo: *(a preencher)* |
 | Mobile Development & IoT | [`mobile/`](mobile/) | Vídeo: [youtu.be/qUZFudiXW_Q](https://youtu.be/qUZFudiXW_Q) |
@@ -293,6 +293,8 @@ A **proteção dos dados do entregador**.
 - **Taint Analysis:** rastreia esses dados desde a coleta e bloqueia vazamentos em saídas inseguras (logs, respostas da API, notificações push, payloads MQTT e chamados enviados aos voluntários). Os únicos canais autorizados são o Cofre médico (socorrista verificado, SOS ativo, tempo limitado) e o envio da localização ao contato de emergência.
 - **Tradução via IA:** um LLM traduz as falhas técnicas em alertas claros para o cidadão. Exemplo: *"Sua ficha médica poderia aparecer no registro do sistema. Isso já foi bloqueado."*
 - **Dashboard:** indicador **Risco Cidadão** atualizado.
+
+Detalhes, evidências e como rodar: [`cyber/README.md`](cyber/README.md). Vídeo do painel: [youtu.be/PSRhGlnmjcI](https://youtu.be/PSRhGlnmjcI).
 
 ### Testing, Compliance & QA (`/docs`)
 - **Features no Azure Boards:** detecção de queda, cancelamento, SOS escalonado, rede de voluntários, Cofre médico, Índice de Risco do Turno, alerta de calor e cadastro, cada uma com descrição e critérios de aceite.

@@ -375,7 +375,7 @@ Cópia no repositório: [docs/video/helmcare-app-mobile.mp4](docs/video/helmcare
 - **"Sair" não revoga no servidor:** o "Sair" apaga os tokens do celular, mas o contrato não tem rota de logout, então o token de renovação continua válido até vencer.
 - **Histórico depois do "Sair":** o histórico local da conta continua no celular e volta quando a mesma conta entra de novo (ele não tem dado pessoal).
 - **Só notificação local:** não há push remoto. Com o app minimizado, só o alerta do turno continua sendo consultado, como melhor esforço, porque o Android pode pausar o app.
-- **QR Code no print e no vídeo:** o QR que aparece no print 14-qr-capacete.png e no vídeo é de um capacete do banco de desenvolvimento local, com dados simulados. Ele aponta para um IP de rede privada e não abre nada fora da rede do autor. Num ambiente real, o QR é credencial e não seria publicado.
+- **QR Code do print 14:** o QR aparece tarjado, porque o qrToken é uma credencial. O token que aparecia no print e no vídeo foi trocado no banco de desenvolvimento e não abre mais o Cofre.
 
 ---
 
