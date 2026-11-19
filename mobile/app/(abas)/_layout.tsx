@@ -71,20 +71,27 @@ function iconeDaAba(nome: NomeIcone, corReserva: string) {
 }
 
 /**
- * Rótulo de uma aba. Com 5 abas e a fonte no máximo, "Histórico" e "Chamados" não cabem na
- * largura de uma aba: o texto cresce com a fonte do sistema e, só quando passaria da largura,
- * encolhe até 60% para caber inteiro (em vez de terminar em reticências).
+ * Largura do maior rótulo ("Histórico") em "em" (múltiplos do tamanho da fonte), em Roboto
+ * negrito, com folga. Serve para saber até onde os rótulos podem crescer sem passar da aba.
  */
-function rotuloDaAba(texto: string, corReserva: string) {
+const LARGURA_EM_DO_MAIOR_ROTULO = 4.3;
+
+/**
+ * Rótulo de uma aba. Antes, cada rótulo encolhia sozinho para caber (`adjustsFontSizeToFit`), e
+ * "Chamados", a palavra mais larga, saía menor e fora da linha de base das outras. Agora os 5
+ * usam o mesmo estilo, sem encolher, e crescem com a fonte do sistema até o mesmo limite
+ * (`maxFontSizeMultiplier`, igual para os cinco): quando o maior rótulo enche a aba, todos param
+ * de crescer juntos. Assim os 5 têm sempre o mesmo tamanho e a mesma linha de base.
+ */
+function rotuloDaAba(texto: string, corReserva: string, multiplicadorMaximo: number) {
   function RotuloAba({ color }: { color: ColorValue }) {
     return (
       <Texto
-        variante="legenda"
+        variante="aba"
         corPersonalizada={typeof color === 'string' ? color : corReserva}
         numberOfLines={1}
-        adjustsFontSizeToFit
-        minimumFontScale={0.6}
-        style={{ fontWeight: '700' }}
+        maxFontSizeMultiplier={multiplicadorMaximo}
+        centralizado
       >
         {texto}
       </Texto>
@@ -94,12 +101,14 @@ function rotuloDaAba(texto: string, corReserva: string) {
 }
 
 /** As 5 abas, na ordem da barra, com o ícone de cada uma. */
-const ABAS: { nome: string; titulo: string; icone: NomeIcone }[] = [
-  { nome: 'inicio', titulo: 'Início', icone: 'home' },
-  { nome: 'chamados', titulo: 'Chamados', icone: 'people' },
-  { nome: 'historico', titulo: 'Histórico', icone: 'time' },
-  { nome: 'perfil', titulo: 'Perfil', icone: 'person-circle' },
-  { nome: 'ajustes', titulo: 'Ajustes', icone: 'settings' },
+const ABAS: { nome: string; titulo: string; rotulo: string; icone: NomeIcone }[] = [
+  { nome: 'inicio', titulo: 'Início', rotulo: 'Início', icone: 'home' },
+  // "Chamados" não cabe na largura de uma aba com a fonte no máximo, mesmo sem espaço nas
+  // laterais: o rótulo da aba é "Rede", e o título da tela continua "Rede de socorro".
+  { nome: 'chamados', titulo: 'Rede de socorro', rotulo: 'Rede', icone: 'people' },
+  { nome: 'historico', titulo: 'Histórico', rotulo: 'Histórico', icone: 'time' },
+  { nome: 'perfil', titulo: 'Perfil', rotulo: 'Perfil', icone: 'person-circle' },
+  { nome: 'ajustes', titulo: 'Ajustes', rotulo: 'Ajustes', icone: 'settings' },
 ];
 
 /**
@@ -114,9 +123,13 @@ export default function LayoutAbas() {
   const { chamados } = useChamados();
   const quantidadeChamados = chamados?.length ?? 0;
   const insets = useSafeAreaInsets();
-  const { fontScale } = useWindowDimensions();
-  // Ícone + texto da legenda escalado (com folga de 1,4 por linha) + respiro em cima e embaixo.
-  const alturaConteudo = medidas.icone + tipografia.legenda.fontSize * fontScale * 1.4 + espaco.medio;
+  const { fontScale, width } = useWindowDimensions();
+  // Até quanto os rótulos crescem: o maior rótulo ocupa no máximo a largura de uma aba.
+  const larguraAba = width / ABAS.length;
+  const multiplicadorRotulo = Math.max(1, larguraAba / (tipografia.aba.fontSize * LARGURA_EM_DO_MAIOR_ROTULO));
+  const escalaRotulo = Math.min(fontScale, multiplicadorRotulo);
+  // Ícone + rótulo escalado (com folga de 1,4 por linha) + respiro em cima e embaixo.
+  const alturaConteudo = medidas.icone + tipografia.aba.fontSize * escalaRotulo * 1.4 + espaco.medio;
   const alturaBarra = Math.max(medidas.alturaBotao + espaco.pequeno, alturaConteudo) + insets.bottom;
 
   return (
@@ -131,6 +144,8 @@ export default function LayoutAbas() {
         headerRightContainerStyle: { paddingRight: espaco.pequeno },
         tabBarActiveTintColor: cores.abaAtiva,
         tabBarInactiveTintColor: cores.abaInativa,
+        // Sem espaço nas laterais de cada item: a largura inteira da aba fica para o rótulo.
+        tabBarItemStyle: { paddingHorizontal: 0 },
         tabBarStyle: {
           backgroundColor: cores.superficie,
           // Faixa laranja da marca no topo da barra: só enfeite, não carrega informação.
@@ -154,7 +169,7 @@ export default function LayoutAbas() {
             options={{
               title: aba.titulo,
               tabBarIcon: iconeDaAba(aba.icone, cores.abaInativa),
-              tabBarLabel: rotuloDaAba(aba.titulo, cores.abaInativa),
+              tabBarLabel: rotuloDaAba(aba.rotulo, cores.abaInativa, multiplicadorRotulo),
               // Número de chamados no ícone; o número também vai em palavras no rótulo abaixo.
               tabBarBadge: selo,
               // O selo da biblioteca tem altura fixa de 18 dp: com `height: 'auto'`, ele cresce
