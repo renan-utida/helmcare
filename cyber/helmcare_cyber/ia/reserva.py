@@ -1,7 +1,8 @@
 """Reserva por tabela: a frase usada quando a IA não responde, não tem chave ou erra o formato.
 
-A frase é montada com os mesmos dicionários do prompt, então diz a mesma
-coisa que a IA diria, sem rede e sem variação. As estruturas evitam
+A frase é montada com os mesmos dicionários do prompt (no EXPOSTO, a ação
+está no próprio molde), então diz a mesma coisa que a IA diria, sem rede e
+sem variação. As estruturas evitam
 concordância de gênero (aparecer, usar), porque o tema pode ser "seu CPF" ou
 "sua senha". O painel mostra o selo "modelo de reserva" junto dessas frases,
 para a pessoa saber que o texto não veio da IA.
@@ -32,7 +33,12 @@ SELO_RESERVA = "modelo de reserva"
 MENSAGEM_SEM_EVENTOS = "Tudo certo: seus dados estão protegidos e nada importante aconteceu."
 
 _MODELOS = {
-    Estado.EXPOSTO: "{T} {apareceu} {onde}, e o sistema {acao}. A equipe precisa corrigir isso o quanto antes.",
+    # O EXPOSTO tem a ação escrita no próprio molde: "apareceu" já diz que o dado
+    # saiu de verdade, e o texto longo do prompt repetiria isso na mesma frase.
+    Estado.EXPOSTO: (
+        "{T} {apareceu} {onde}, e o sistema não conseguiu impedir, só registrou o ocorrido. "
+        "A equipe precisa corrigir isso o quanto antes."
+    ),
     Estado.NEUTRALIZADO: (
         "{T} {poderia} ter aparecido {onde}, mas o sistema {acao} antes que saísse. "
         "Seus dados continuam protegidos, e a equipe só precisa corrigir o código."

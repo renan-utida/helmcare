@@ -63,8 +63,23 @@ DESCRICAO_ACAO_NEUTRALIZADA: dict[Acao, str] = {
     Acao.MASCARAR: "escondeu parte da informação",
     Acao.ARREDONDAR: "deixou o local apenas aproximado",
 }
-DESCRICAO_EXPOSTO = "não conseguiu impedir, só registrou o ocorrido"
+# EXPOSTO é um fato, não uma possibilidade: o texto diz que o dado apareceu de
+# verdade, para a mensagem da IA não falar em "poderia ter sido visto".
+DESCRICAO_EXPOSTO = "não conseguiu impedir: o dado chegou a aparecer de verdade, e o sistema só registrou o ocorrido"
 DESCRICAO_PERMITIDO = "liberou, porque o canal é autorizado"
+
+# Rótulo da linha do "onde": hipótese nos estados tratados, fato no EXPOSTO.
+ROTULO_ONDE = "Onde poderia aparecer"
+ROTULO_ONDE_EXPOSTO = "Onde apareceu de verdade"
+
+# Só no EXPOSTO: o tom acolhedor do prompt do sistema não pode virar
+# tranquilização de quem teve o dado exposto. A correção pela equipe é o que a
+# reserva também anuncia, então não é uma ação inventada.
+ROTULO_TOM = "Tom da mensagem"
+ORIENTACAO_TOM_EXPOSTO = (
+    "séria, sem frases de tranquilização como fique tranquilo ou não se preocupe, "
+    "e dizendo que a equipe vai corrigir o problema"
+)
 
 DESCRICAO_COR: dict[CorSemaforo, str] = {
     CorSemaforo.VERDE: "verde, tudo protegido",
@@ -92,12 +107,18 @@ def descricao_acao(acao: Acao, estado: Estado) -> str:
 
 
 def montar_mensagem_usuario(consulta: ConsultaTraducao) -> str:
-    """Quatro linhas rotuladas, todas vindas dos dicionários acima."""
-    return "\n".join(
-        (
-            f"Em risco: {DESCRICAO_CATEGORIA[consulta.categoria]}",
-            f"Onde poderia aparecer: {DESCRICAO_DESTINO[consulta.destino]}",
-            f"O que o sistema fez: {descricao_acao(consulta.acao, consulta.estado)}",
-            f"Cor do semáforo: {DESCRICAO_COR[consulta.cor]}",
-        )
-    )
+    """Linhas rotuladas, todas vindas dos textos fixos acima (nunca de um valor).
+
+    Quatro linhas nos estados NEUTRALIZADO e PERMITIDO; no EXPOSTO, uma quinta
+    linha pede tom sério, sem tranquilização.
+    """
+    exposto = consulta.estado is Estado.EXPOSTO
+    linhas = [
+        f"Em risco: {DESCRICAO_CATEGORIA[consulta.categoria]}",
+        f"{ROTULO_ONDE_EXPOSTO if exposto else ROTULO_ONDE}: {DESCRICAO_DESTINO[consulta.destino]}",
+        f"O que o sistema fez: {descricao_acao(consulta.acao, consulta.estado)}",
+        f"Cor do semáforo: {DESCRICAO_COR[consulta.cor]}",
+    ]
+    if exposto:
+        linhas.append(f"{ROTULO_TOM}: {ORIENTACAO_TOM_EXPOSTO}")
+    return "\n".join(linhas)

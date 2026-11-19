@@ -7,6 +7,7 @@ O HelmCare guarda dados de quem está na rua trabalhando: documentos, telefone, 
 1. **Mapeamento de PII.** Um motor de parsing percorre payloads JSON, objetos aninhados e texto livre e aponta cada dado pessoal encontrado: CPF, CNH, RG, telefone, e-mail, nome, saúde, localização exata ou aproximada, senhas, tokens de acesso, o `qrToken` do capacete e chaves de API. CPF e CNH têm os dígitos verificadores conferidos, não só o formato. Cada achado traz o caminho do dado, a categoria, a regra que disparou, a confiança e a versão mascarada, nunca o valor original.
 2. **Taint Analysis.** O dado pessoal é marcado na fonte (cadastro, ficha médica, ocorrência, login, dispositivo) e acompanhado até cada saída: log, mensagem de erro, push, MQTT, chamado ao voluntário, Cofre, persistência, documentação. Um guarda decide pela política da seção 9 do Contrato o que pode sair, para quem e em que forma; no modo PROTECAO ele bloqueia, redige, mascara ou arredonda antes de o dado sair, e no modo AUDITORIA só aponta. Cada decisão vira um evento de segurança com um rastro explicável, sem o valor original.
 3. **Tradução por IA e painel Risco Cidadão.** Cada evento de segurança é traduzido por um LLM numa frase calma, para uma pessoa leiga, que diz o que poderia ter acontecido com os dados e o que o sistema fez. Ao LLM vão só a categoria, o destino, a ação, o estado e a cor, nunca um valor. A saída do LLM é validada, e uma reserva por tabela responde quando não há chave ou o LLM falha. O indicador Risco Cidadão resume os eventos num índice de 0 a 100 com semáforo, rótulo e ícone.
+4. **API e painel.** Uma API local expõe o motor, os cenários e o Risco Cidadão, com um interceptador que varre e mascara o dado de entrada antes do log e do banco. O painel executivo mostra o semáforo, a mensagem para o cidadão e o caminho de cada evento, numa página que funciona sem internet.
 
 ## Estrutura
 
@@ -42,11 +43,20 @@ cyber/
       reserva.py           frases de reserva por tabela, motivos e origem da mensagem
       cliente_llm.py       cliente do Gemini (httpx), chave só no cabeçalho
       tradutor.py          validação da saída, cache, disjuntor e tradução de eventos e do risco
+    api/
+      app.py               criar_app: estado, rotas, painel e controles de segurança
+      rotas.py             rotas em /cyber/v1
+      interceptador.py     interceptador de entrada e o cadastro de demonstração
+      seguranca.py         cabeçalhos, erros sem eco e limite de corpo
+      estado.py, banco.py  estado da instância e banco simulado em memória
+    painel/
+      index.html, painel.js, painel.css   painel Risco Cidadão (sem dependência externa)
   scripts/avaliar_motor.py   tabela de precisão e recall por categoria
   scripts/demo.py            cenários C1 a C11 nos dois modos
   scripts/demo_risco.py      Risco Cidadão de cada situação, com a mensagem
   scripts/testar_ia.py       três traduções de exemplo e a repetição pelo cache
-  tests/                     testes pytest (pii, taint, eventos, simulacao, risco, ia)
+  scripts/servir.py          sobe a API e o painel em 127.0.0.1:8100
+  tests/                     testes pytest (pii, taint, eventos, simulacao, risco, ia, api)
   tests/corpus/corpus_pii.json   corpus rotulado (positivos e negativos)
 ```
 
@@ -66,6 +76,7 @@ python scripts/avaliar_motor.py                  # métricas sobre o corpus
 python scripts/demo.py                           # cenários do Taint Analysis
 python scripts/demo_risco.py                     # Risco Cidadão, só com a reserva (sem rede)
 python scripts/testar_ia.py --sem-dotenv         # tradução sem carregar o cyber/.env
+python scripts/servir.py                         # API e painel em 127.0.0.1:8100
 ```
 
 As variáveis de ambiente esperadas estão em `.env.example`. Para usar a tradução por IA, copie o arquivo para `cyber/.env` e preencha a chave e o modelo; o `.env` é ignorado pelo Git. A biblioteca só lê `os.environ`: quem carrega o `cyber/.env` são os scripts (`testar_ia.py` sem `--sem-dotenv` e `demo_risco.py --com-ia`), pela função `carregar_dotenv()`, que nunca sobrescreve uma variável que já existe no ambiente e nunca imprime o conteúdo. A chave não entra na `Config`.
@@ -329,14 +340,17 @@ Cada evento de segurança vira uma frase curta para uma pessoa leiga de 60 anos,
 
 ### O que vai ao LLM e o que nunca vai
 
-O LLM recebe só a classificação do evento, em cinco campos (`ConsultaTraducao`): categoria, destino, ação, estado e cor do semáforo. Cada campo vira um texto fixo em linguagem simples, e a mensagem enviada tem quatro linhas:
+O LLM recebe só a classificação do evento, em cinco campos (`ConsultaTraducao`): categoria, destino, ação, estado e cor do semáforo. Cada campo vira um texto fixo em linguagem simples. A mensagem enviada tem quatro linhas e, no estado `EXPOSTO`, uma quinta, sobre o tom:
 
 ```
 Em risco: o código do QR do seu capacete
-Onde poderia aparecer: num documento público
-O que o sistema fez: não conseguiu impedir, só registrou o ocorrido
+Onde apareceu de verdade: num documento público
+O que o sistema fez: não conseguiu impedir: o dado chegou a aparecer de verdade, e o sistema só registrou o ocorrido
 Cor do semáforo: amarelo, atenção
+Tom da mensagem: séria, sem frases de tranquilização como fique tranquilo ou não se preocupe, e dizendo que a equipe vai corrigir o problema
 ```
+
+No estado `EXPOSTO`, a mensagem trata o vazamento como fato ("Onde apareceu de verdade"), para a resposta não falar em "poderia ter sido visto", e pede tom sério: tranquilizar quem teve o dado exposto contradiria o alerta. Nos estados `NEUTRALIZADO` e `PERMITIDO`, a segunda linha é "Onde poderia aparecer", não há linha de tom e vale o tom calmo e acolhedor do prompt do sistema.
 
 Nunca vão ao LLM: o valor do dado (nem mascarado), o payload, o rastro, o caminho do campo, o id do evento ou qualquer dado do entregador. A chave vai só no cabeçalho `x-goog-api-key`, nunca na URL nem no corpo. Nenhuma mensagem de erro do cliente mostra a chave ou a URL; de uma resposta de erro, só entra a mensagem do Google (`error.message`), numa linha, com até 150 caracteres e com a chave trocada por `***`. Os testes enviam os eventos dos 11 cenários nos dois modos e conferem que nenhum valor simulado aparece no que sai para o LLM.
 
@@ -425,6 +439,67 @@ python scripts/testar_ia.py                # carrega cyber/.env: usa o Gemini, s
 ```
 
 `testar_ia.py` diz se a chave está configurada (sim ou não, nunca a chave), mostra o modelo, traduz uma consulta de cada cor e repete a primeira para mostrar o cache. Os dois scripts mostram o motivo da reserva com o diagnóstico, como `motivo da reserva: ERRO_HTTP (503: ...)`. Os dois scripts saem com código 0 também quando caem na reserva.
+
+## API e painel
+
+### Como subir
+
+```bash
+python scripts/servir.py                  # carrega cyber/.env e sobe em 127.0.0.1:8100
+python scripts/servir.py --sem-dotenv     # sem o arquivo: as mensagens saem da reserva
+python scripts/servir.py --porta 8200     # outra porta; --host muda o endereço de escuta
+```
+
+O script diz se a chave está configurada (sim ou não, nunca a chave), mostra o modelo e o modo inicial e imprime os endereços do painel (`/painel/`) e do Swagger (`/docs`). Por padrão, escuta só em `127.0.0.1`: a API não fica visível fora da máquina, e o script avisa quando outro endereço é usado. A fábrica `criar_app()` não carrega o `.env` nem fala com a rede; tudo que ela usa pode ser injetado, e os testes rodam com tradutor falso. As rotas em `/cyber/v1`, o painel em `/painel` e a porta 8100 são decisões locais do módulo, fora do Contrato de Integração.
+
+### Rotas
+
+| Método | Rota | O que faz |
+|---|---|---|
+| GET | `/cyber/v1/saude` | Estado do serviço: modo, se a IA está configurada, o modelo, se o disjuntor está aberto e a quantidade de eventos. Nunca a chave |
+| POST | `/cyber/v1/pii/analisar` | Varre um JSON qualquer e devolve os achados (caminho, categoria, método, confiança, regra e valor mascarado) |
+| POST | `/cyber/v1/demo/entregadores` | Cadastro de demonstração, passando pelo interceptador (abaixo) |
+| GET | `/cyber/v1/simulacoes` | Lista dos cenários C1 a C11, com título e rótulo |
+| POST | `/cyber/v1/simulacoes/{cenario}` | Executa um cenário no modo atual e devolve a decisão geral, as regras, os estados e o rastro. A saída emitida nunca vem |
+| POST | `/cyber/v1/simulacoes/todas` | Executa os 11 cenários |
+| GET, PUT | `/cyber/v1/modo` | Lê ou troca o modo (`{"modo": "AUDITORIA"}` ou `PROTECAO`) |
+| GET | `/cyber/v1/eventos?limite=50` | Últimos eventos (até 200), os mais recentes primeiro, com o rastro mascarado. Com `traduzir=true`, cada evento vem com a mensagem para o cidadão |
+| GET | `/cyber/v1/risco-cidadao` | Risco Cidadão da janela `RISCO_JANELA_MIN` e a mensagem: `texto`, `origem` (`IA` ou `RESERVA`), `selo` (vazio para IA, "modelo de reserva" na reserva) e `motivo` (só na reserva). Com `traduzir=false`, responde na hora, sem a mensagem |
+| POST | `/cyber/v1/reiniciar` | Limpa os eventos, o registro de taint e o banco simulado. O cache do tradutor continua |
+
+Todas as rotas são síncronas: o FastAPI as roda numa thread, e a chamada ao LLM (até cerca de 17 s no pior caso) não trava as outras requisições.
+
+### Interceptador de entrada
+
+O `POST /cyber/v1/demo/entregadores` recebe o cadastro do entregador no formato do Contrato (`nome`, `cpf`, `cnh`, `telefone`, `email` e `senha`, com as validações da seção 3) e passa por uma dependência do FastAPI, o interceptador, antes de chegar ao handler:
+
+1. o motor de PII marca cada campo pessoal;
+2. os valores entram no registro de taint (fonte `CADASTRO_ENTREGADOR`), para serem reconhecidos mesmo concatenados num texto;
+3. em PROTECAO, o handler recebe uma cópia com as máscaras do Contrato e a senha já como hash; em AUDITORIA, recebe o original, para o vazamento aparecer.
+
+O handler faz o que um código descuidado faria: `logger.info(f"cadastro recebido {dados}")`, grava no banco simulado e responde. O logger tem nome próprio, não propaga para o logger do servidor e tem o filtro do guarda instalado: em PROTECAO, a linha sai mascarada e redigida; em AUDITORIA, sai como está e gera um evento `EXPOSTO`. O banco recebe a senha só como hash, nos dois modos. A resposta passa pelo guarda (destino `RESPOSTA_PROPRIO_ENTREGADOR`) e, por fim, pelas máscaras do motor: a resposta HTTP nunca leva valor original, em nenhum modo, e AUDITORIA mostra o vazamento no log e nos eventos. A resposta traz o resumo do interceptador (categorias, quantidade e valores mascarados), a decisão de cada saída e o rastro.
+
+### Painel
+
+O painel em `/painel/` é uma página só, em HTML, CSS e JavaScript puros, sem CDN, sem fonte externa e sem nenhum endereço de fora: funciona sem internet. Ele mostra:
+
+- o modo atual em destaque e o botão para trocar;
+- o semáforo com o índice, o rótulo por extenso e o ícone (a cor nunca aparece sozinha);
+- a mensagem para o cidadão, com o selo "IA" ou "modelo de reserva" e, na reserva, o motivo; enquanto a tradução não chega, aparece "traduzindo...";
+- os contadores (eventos, expostos, neutralizados e permitidos) e o "por que este índice", com os itens repetidos agrupados;
+- a tabela dos últimos eventos; escolher uma linha mostra o caminho do dado (fonte, propagação, sanitizador e destino, com regra e ação);
+- um botão por cenário, com o rótulo Real ou Simulado, e os botões Executar todos, Reiniciar e Atualizar.
+
+Não há atualização automática: o painel atualiza depois de cada ação e no botão Atualizar. O semáforo chega primeiro (`traduzir=false`) e a mensagem depois, sem travar a página. Os botões ficam desabilitados enquanto uma ação roda, e uma falha de conexão aparece como mensagem clara. A página usa fonte grande, alto contraste, foco visível, rótulos para leitores de tela e um atalho para pular ao conteúdo. Todo texto vindo do servidor entra na página como texto (`textContent`), nunca como HTML.
+
+### Controles de segurança da API
+
+- **Nenhum eco do valor recebido.** Um corpo inválido responde 422 com `{"erro": "requisicao invalida", "campos": [...]}`, só com os caminhos dos campos (uma chave de JSON com cara de documento também sai mascarada). O padrão do FastAPI devolveria o valor recebido, o que vazaria um CPF. Rota ou cenário inexistente responde 404 com `{"erro": "nao encontrado"}`.
+- **Erro interno sem detalhe.** Qualquer exceção vira 500 com `{"erro": "falha interna"}`, e o log do servidor registra só o tipo da exceção.
+- **Limite de corpo de 64 KB.** Acima disso, 413 antes de a rota ler o corpo, inclusive quando o corpo chega em partes, sem tamanho declarado.
+- **Cabeçalhos em toda resposta:** `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` e `X-Frame-Options: DENY`; `Cache-Control: no-store` nas rotas da API; e, no painel, `Content-Security-Policy` só com a própria origem (`default-src 'self'`), sem script nem estilo inline. O Swagger em `/docs` carrega os arquivos dele de fora e fica sem essa política; é a única página que precisa de internet.
+- **Sem CORS:** o painel é servido pela própria API, então nenhuma outra origem é liberada.
+- **Escuta local por padrão** (`127.0.0.1`).
 
 ## Regras de dados pessoais
 

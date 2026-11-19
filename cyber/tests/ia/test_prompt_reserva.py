@@ -49,7 +49,11 @@ class TestDescricoes:
     @pytest.mark.parametrize(
         "acao, estado, esperado",
         [
-            (Acao.BLOQUEAR, Estado.EXPOSTO, "não conseguiu impedir, só registrou o ocorrido"),
+            (
+                Acao.BLOQUEAR,
+                Estado.EXPOSTO,
+                "não conseguiu impedir: o dado chegou a aparecer de verdade, e o sistema só registrou o ocorrido",
+            ),
             (Acao.REDIGIR, Estado.PERMITIDO, "liberou, porque o canal é autorizado"),
             (Acao.PERMITIR, Estado.NEUTRALIZADO, "liberou, porque o canal é autorizado"),
             (Acao.BLOQUEAR, Estado.NEUTRALIZADO, "bloqueou a informação"),
@@ -74,10 +78,40 @@ class TestPrompt:
                                                  Estado.EXPOSTO, CorSemaforo.AMARELO))
         assert texto.splitlines() == [
             "Em risco: o código do QR do seu capacete",
-            "Onde poderia aparecer: num documento público",
-            "O que o sistema fez: não conseguiu impedir, só registrou o ocorrido",
+            "Onde apareceu de verdade: num documento público",
+            "O que o sistema fez: não conseguiu impedir: o dado chegou a aparecer de verdade, e o sistema só "
+            "registrou o ocorrido",
             "Cor do semáforo: amarelo, atenção",
+            "Tom da mensagem: séria, sem frases de tranquilização como fique tranquilo ou não se preocupe, "
+            "e dizendo que a equipe vai corrigir o problema",
         ]
+
+    def test_exposto_fala_de_fato_e_nao_de_possibilidade(self):
+        for acao in Acao:
+            texto = montar_mensagem_usuario(consulta(Categoria.SAUDE, Destino.LOG, acao, Estado.EXPOSTO))
+            assert "poderia" not in texto
+            assert "aparecer de verdade" in texto and "Onde apareceu de verdade:" in texto
+
+    @pytest.mark.parametrize("cor", list(CorSemaforo))
+    def test_exposto_pede_tom_serio_sem_tranquilizar(self, cor):
+        linhas = montar_mensagem_usuario(consulta(Categoria.SAUDE, Destino.LOG, Acao.BLOQUEAR, Estado.EXPOSTO, cor)).splitlines()
+        assert len(linhas) == 5
+        assert linhas[-1].startswith("Tom da mensagem: séria, sem frases de tranquilização")
+        assert "a equipe vai corrigir o problema" in linhas[-1]
+
+    @pytest.mark.parametrize("estado", [Estado.NEUTRALIZADO, Estado.PERMITIDO])
+    def test_estados_tratados_continuam_como_hipotese(self, estado):
+        texto = montar_mensagem_usuario(consulta(estado=estado))
+        assert texto.splitlines()[1] == "Onde poderia aparecer: nos registros internos do sistema"
+        assert "de verdade" not in texto
+
+    @pytest.mark.parametrize("estado", [Estado.NEUTRALIZADO, Estado.PERMITIDO])
+    def test_estados_tratados_mantem_o_tom_acolhedor(self, estado):
+        # Sem a linha de tom: vale o tom calmo e acolhedor do prompt do sistema.
+        for acao in Acao:
+            texto = montar_mensagem_usuario(consulta(Categoria.SAUDE, Destino.LOG, acao, estado))
+            assert len(texto.splitlines()) == 4
+            assert "Tom da mensagem" not in texto and "tranquiliza" not in texto
 
     def test_sem_categoria(self):
         assert montar_mensagem_usuario(consulta(None)).startswith("Em risco: uma informação do sistema")
@@ -129,6 +163,15 @@ class TestReserva:
     )
     def test_modelos(self, estado, acao, esperado):
         assert frase_reserva(consulta(Categoria.SENHA, Destino.LOG, acao, estado)) == esperado
+
+    def test_reserva_do_exposto_nao_mudou_com_o_texto_do_prompt(self):
+        # O molde do EXPOSTO tem a ação escrita nele, sem repetir o texto longo enviado ao LLM.
+        frase = frase_reserva(consulta(Categoria.QR_TOKEN, Destino.DOCUMENTACAO_PUBLICA, Acao.BLOQUEAR, Estado.EXPOSTO))
+        assert frase == (
+            "O código do QR do seu capacete apareceu num documento público, e o sistema não conseguiu impedir, "
+            "só registrou o ocorrido. A equipe precisa corrigir isso o quanto antes."
+        )
+        assert "de verdade" not in frase
 
     def test_concordancia_no_plural(self):
         exposto = frase_reserva(consulta(Categoria.SAUDE, Destino.RESPOSTA_API_PUBLICA, Acao.BLOQUEAR, Estado.EXPOSTO))
