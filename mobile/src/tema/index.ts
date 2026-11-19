@@ -1,4 +1,4 @@
-import { coresClaras, coresEscuras, type Cores } from './cores';
+import { coresClaras, coresEscuras, PALETAS, type Cores, type PaletaClara, type PaletaEscura } from './cores';
 import { espaco, medidas, raio } from './espacamentos';
 import { tipografia } from './tipografia';
 
@@ -20,3 +20,10 @@ export const temaClaro: Tema = { esquema: 'claro', cores: coresClaras, tipografi
 
 /** Tema escuro. */
 export const temaEscuro: Tema = { esquema: 'escuro', cores: coresEscuras, tipografia, espaco, raio, medidas };
+
+/** Monta o tema do modo com a paleta escolhida (as fontes e os espaços são os mesmos). */
+export function montarTema(modo: 'claro' | 'escuro', paleta: PaletaClara | PaletaEscura): Tema {
+  const lista: readonly { id: string; cores: Cores }[] = PALETAS[modo];
+  const cores = lista.find((item) => item.id === paleta)?.cores ?? (modo === 'claro' ? coresClaras : coresEscuras);
+  return { esquema: modo, cores, tipografia, espaco, raio, medidas };
+}

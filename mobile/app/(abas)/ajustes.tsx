@@ -7,13 +7,12 @@ import { Aviso, type TipoAviso } from '@/componentes/Aviso';
 import { Botao } from '@/componentes/Botao';
 import { Campo } from '@/componentes/Campo';
 import { Cartao } from '@/componentes/Cartao';
-import { GrupoOpcoes } from '@/componentes/GrupoOpcoes';
+import { EscolhaAparencia } from '@/componentes/EscolhaAparencia';
 import { LinhaInfo } from '@/componentes/LinhaInfo';
 import { Tela } from '@/componentes/Tela';
 import { Texto } from '@/componentes/Texto';
 import { DESCRICAO_ORIGEM_URL, normalizarUrl } from '@/config/urlApi';
 import { useSessao } from '@/contextos/SessaoContext';
-import { PREFERENCIAS_TEMA, usePreferenciaTema, type PreferenciaTema } from '@/contextos/TemaContext';
 import { converterErro } from '@/servicos/erros';
 import { saudeServico } from '@/servicos/saudeServico';
 import { invalidarAcessoParaTeste, invalidarRenovacaoParaTeste } from '@/servicos/testeSessaoDev';
@@ -29,20 +28,12 @@ interface ResultadoTeste {
 /** Versão do app, do app.json. */
 const VERSAO_APP = Constants.expoConfig?.version ?? 'desconhecida';
 
-/** Texto de cada opção de aparência. */
-const TEXTO_PREFERENCIA: Record<PreferenciaTema, string> = {
-  sistema: 'Igual ao celular',
-  claro: 'Claro',
-  escuro: 'Escuro',
-};
-
 /**
  * Aba Ajustes: endereço da API (automático ou manual, salvo na tabela `preferencia`),
  * teste de conexão pelo `GET /saude`, aparência (tema) e o atalho para as contas do aparelho.
  */
 export default function Ajustes() {
   const { urlApi, definirUrlManual, contaAtiva, sessao } = useSessao();
-  const { preferencia, definirPreferencia } = usePreferenciaTema();
   const [urlDigitada, setUrlDigitada] = useState(urlApi.origem === 'manual' ? urlApi.url : '');
   const [erroUrl, setErroUrl] = useState<string | null>(null);
   const [resultado, setResultado] = useState<ResultadoTeste | null>(null);
@@ -126,7 +117,15 @@ export default function Ajustes() {
         <LinhaInfo rotulo="Endereço em uso" valor={urlApi.url} selecionavel />
         <LinhaInfo rotulo="De onde veio" valor={DESCRICAO_ORIGEM_URL[urlApi.origem]} />
         <Botao titulo="Testar conexão" icone="pulse" aoPressionar={testarConexao} carregando={testando} />
-        {resultado ? <Aviso tipo={resultado.tipo} mensagem={resultado.mensagem} /> : null}
+        {/* Resultado do teste e "Endereço salvo" confirmam uma ação: fecham pelo X e somem ao sair. */}
+        {resultado ? (
+          <Aviso
+            tipo={resultado.tipo}
+            mensagem={resultado.mensagem}
+            fechavel={resultado.tipo === 'sucesso' || resultado.tipo === 'informacao'}
+            aoFechar={() => setResultado(null)}
+          />
+        ) : null}
       </Cartao>
 
       <Cartao titulo="Endereço manual">
@@ -153,14 +152,7 @@ export default function Ajustes() {
       </Cartao>
 
       <Cartao titulo="Aparência">
-        <GrupoOpcoes
-          rotulo="Cores do app"
-          opcoes={PREFERENCIAS_TEMA}
-          selecionada={preferencia}
-          aoSelecionar={(opcao) => void definirPreferencia(opcao)}
-          textoDe={(opcao) => TEXTO_PREFERENCIA[opcao]}
-          colunas={1}
-        />
+        <EscolhaAparencia />
       </Cartao>
 
       <Cartao titulo="Sobre o app">
