@@ -5,5 +5,7 @@ __pycache__/
 .coverage
 htmlcov/
 dados/
-evidencias/*.mp4
+evidencias/**/*.mp4
+!evidencias/video/video-dashboard.mp4
 *.zip
+dist/
