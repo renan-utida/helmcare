@@ -130,7 +130,7 @@ export function EscolhaAparencia() {
                 key={paleta.id}
                 onPress={() => escolherPaleta(paleta.id, paleta.nome)}
                 accessibilityRole="radio"
-                accessibilityLabel={`Paleta ${paleta.nome}`}
+                accessibilityLabel={`Paleta ${paleta.nome}${selecionada ? ', em uso' : ''}`}
                 accessibilityState={{ checked: selecionada, selected: selecionada }}
                 style={({ pressed }) => ({
                   flexDirection: 'row',
@@ -146,30 +146,35 @@ export function EscolhaAparencia() {
                   opacity: pressed ? 0.85 : 1,
                 })}
               >
-                {/* Amostras: fundo, superfície, cor principal e laranja da marca (só desenho). */}
-                <View
-                  accessible={false}
-                  importantForAccessibility="no-hide-descendants"
-                  style={{ flexDirection: 'row', gap: 4 }}
-                >
-                  {[paleta.cores.fundo, paleta.cores.superficie, paleta.cores.primaria, paleta.cores.destaque].map((amostra, indice) => (
-                    <View
-                      key={indice}
-                      style={{
-                        width: 24,
-                        height: 24,
-                        borderRadius: 12,
-                        backgroundColor: amostra,
-                        borderWidth: 1,
-                        borderColor: cores.borda,
-                      }}
-                    />
-                  ))}
+                {/* As amostras e o nome quebram linha entre si, nunca no meio da palavra: com a fonte
+                    no máximo, o nome desce inteiro para baixo das amostras. */}
+                <View style={{ flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: espaco.pequeno }}>
+                  {/* Amostras: fundo, superfície, cor principal e laranja da marca (só desenho). */}
+                  <View
+                    accessible={false}
+                    importantForAccessibility="no-hide-descendants"
+                    style={{ flexDirection: 'row', gap: 4 }}
+                  >
+                    {[paleta.cores.fundo, paleta.cores.superficie, paleta.cores.primaria, paleta.cores.destaque].map((amostra, indice) => (
+                      <View
+                        key={indice}
+                        style={{
+                          width: 24,
+                          height: 24,
+                          borderRadius: 12,
+                          backgroundColor: amostra,
+                          borderWidth: 1,
+                          borderColor: cores.borda,
+                        }}
+                      />
+                    ))}
+                  </View>
+                  <Texto variante="rotulo" style={{ maxWidth: '100%' }}>
+                    {paleta.nome}
+                  </Texto>
                 </View>
-                <Texto variante="rotulo" style={{ flex: 1 }}>
-                  {paleta.nome}
-                </Texto>
-                {selecionada ? <MarcaEmUso /> : null}
+                {/* Só o ícone na paleta em uso: o estado já vai pelo accessibilityState e pelo rótulo. */}
+                {selecionada ? <Icone nome="checkmark-circle" cor={cores.aviso.sucesso.icone} tamanho={28} /> : null}
               </Pressable>
             );
           })}
