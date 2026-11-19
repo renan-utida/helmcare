@@ -53,7 +53,7 @@ Cada modo gera 31 eventos de segurança, e os 11 cenários terminam "conforme o 
 
 ## 4. Achado real: o `qrToken` do print 14
 
-**Onde está.** O `mobile/README.md` publica o print `mobile/docs/prints/14-qr-capacete.png`, a tela "QR Code do seu capacete". O QR Code da imagem codifica o endereço da página do Cofre com o `qrToken` de um capacete do banco de desenvolvimento. O token não aparece como texto na imagem, mas qualquer leitor de QR Code o recupera. O próprio `mobile/README.md` informa que o mesmo QR aparece também no vídeo do app.
+**Onde está.** O `mobile/README.md` publica o print `mobile/docs/prints/14-qr-capacete.png`, a tela "QR Code do seu capacete". O QR Code da imagem codifica o endereço da página do Cofre com o `qrToken` de um capacete do banco de desenvolvimento. O token não aparece como texto na imagem, mas qualquer leitor de QR Code o recupera. O vídeo do app mostra outro QR Code, com um segundo `qrToken` real.
 
 **Risco: baixo.** Pela seção 9 do Contrato, o `qrToken` é credencial e só deveria aparecer no QR Code do capacete, no endereço da página e na resposta do `POST /dispositivos`. Aqui ele saiu num documento público. O risco é baixo porque:
 
@@ -61,22 +61,34 @@ Cada modo gera 31 eventos de segurança, e os 11 cenários terminam "conforme o 
 - o endereço aponta para um IP de rede privada, que não abre nada fora da rede do autor;
 - o QR sozinho não abre a ficha: o acesso ao Cofre exige login de um socorrista verificado, vale só dentro de uma janela de emergência com prazo (`TTL_ACESSO_COFRE_MIN`) e cada tentativa fica registrada na auditoria (seções 5 e 7 do Contrato).
 
-**Correção.** A frente do Mobile troca a imagem por uma versão sem o token. O histórico do Git continua com a imagem antiga; limpá-lo (reescrever o histórico) é opcional, dado o risco baixo, e exigiria coordenação com todo o repositório.
+**Correção.** Corrigido em 19/11/2026; o registro está na seção 5. Limpar o histórico do Git (reescrevê-lo) continua opcional, porque o token da imagem antiga não vale mais, e exigiria coordenação com todo o repositório.
 
 **Recomendação preventiva.** Antes de publicar documentação, varrer textos e imagens em busca de credenciais: o motor de PII do módulo reconhece o caminho `/cofre/{token}` em texto (regra PII-QR-02), e QR Codes em imagens precisam de conferência manual ou tarja.
 
 **Evidências.** A Figura P16 do relatório é o print 14 com tarja preta opaca sobre todo o QR Code (a única região em que o token aparece), e a imagem original nunca foi copiada para o módulo de Cybersecurity. As Figuras P17a e P17b mostram o teste da API que garante que o `qrToken` não sai no ProblemDetails nem no log do tratador. O cenário C11 reproduz o achado com um token simulado.
 
-## 5. Real e Simulado
+## 5. Registro de remediação
+
+| Achado | Onde | Status | Data da correção |
+|---|---|---|---|
+| Dois `qrToken` reais expostos no projeto Mobile | QR Code do print `mobile/docs/prints/14-qr-capacete.png` e QR Code do vídeo do app | Corrigido | 19/11/2026 |
+
+**Achado.** Dois `qrToken` reais estavam expostos no projeto Mobile. Um aparecia no print `docs/prints/14-qr-capacete.png` (o QR Code do print codifica o token) e outro no QR que aparece no vídeo do app. O `qrToken` é credencial: com ele um socorrista acessa a ficha médica pelo Cofre.
+
+**Correção, registrada em 19/11/2026.** Os dois tokens foram trocados no banco de desenvolvimento, então os valores que aparecem nessas duas mídias deixaram de valer. O print 14 foi substituído por uma versão com tarja preta opaca sobre o QR Code. O histórico do Git do Mobile ainda guarda a versão antiga do print, mas o token dela não vale mais.
+
+**Observação.** O relatório do Cyber usa só a versão tarjada (figura P16). O registro da troca dos tokens foi feito a partir da informação da coordenação do projeto; o módulo de Cyber não acessa o banco do C#.
+
+## 6. Real e Simulado
 
 | Item | Tipo | O que mostra |
 |---|---|---|
 | C11 qrToken em documentação pública | Real, reproduzido com token simulado | Um achado de fato da documentação do projeto (seção 4) |
 | C1 a C10 | Simulado | O que o módulo barraria se um desenvolvedor cometesse esse erro de código; são simulações, não ocorrências encontradas |
 
-## 6. Conclusão e limitações
+## 7. Conclusão e limitações
 
-A API C# já protege as saídas mais sensíveis ao `qrToken` (log de requisição, escopos, ProblemDetails e log do tratador), com 12 testes dedicados. O módulo de Cybersecurity acrescenta uma camada que reconhece dados pessoais em qualquer saída e aplica a política da seção 9 com negação por padrão, e os onze cenários mostram o comportamento esperado nos dois modos. O único achado real foi o `qrToken` dentro do QR Code de um print publicado, de risco baixo, com correção encaminhada à frente do Mobile.
+A API C# já protege as saídas mais sensíveis ao `qrToken` (log de requisição, escopos, ProblemDetails e log do tratador), com 12 testes dedicados. O módulo de Cybersecurity acrescenta uma camada que reconhece dados pessoais em qualquer saída e aplica a política da seção 9 com negação por padrão, e os onze cenários mostram o comportamento esperado nos dois modos. O único achado real foi o `qrToken` exposto em mídias publicadas do Mobile (o QR Code do print 14 e o do vídeo do app), de risco baixo e já corrigido (seção 5).
 
 Limitações:
 
