@@ -134,3 +134,19 @@ export function validarSenha(senha: string): string | null {
   if (senha === '') return 'Crie uma senha.';
   return regrasDaSenha(senha).every((regra) => regra.atendida) ? null : 'A senha ainda não segue todas as regras.';
 }
+
+/**
+ * Confere um telefone digitado com o telefone mascarado que a API mostra (por exemplo,
+ * "(11) *****-5678"), comparando só o DDD e os 4 últimos números, porque a API nunca manda o
+ * número inteiro. É uma confirmação contra engano (a pessoa digitar o número de outro lugar), não
+ * uma verificação de identidade: o código por SMS fica como melhoria futura.
+ */
+export function confereComTelefoneMascarado(digitado: string, mascarado: string): boolean {
+  const numeros = somenteDigitos(digitado);
+  const dddMascarado = mascarado.match(/^\((\d{2})\)/)?.[1];
+  const finalMascarado = mascarado.match(/(\d{4})\D*$/)?.[1];
+  if (!dddMascarado || !finalMascarado || numeros.length < 10) {
+    return false;
+  }
+  return numeros.slice(0, 2) === dddMascarado && numeros.slice(-4) === finalMascarado;
+}
