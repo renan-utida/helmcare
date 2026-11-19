@@ -6,7 +6,7 @@ O HelmCare guarda dados de quem está na rua trabalhando: documentos, telefone, 
 
 1. **Mapeamento de PII.** Um motor de parsing percorre payloads JSON, objetos aninhados e texto livre e aponta cada dado pessoal encontrado: CPF, CNH, RG, telefone, e-mail, nome, saúde, localização exata ou aproximada, senhas, tokens de acesso, o `qrToken` do capacete e chaves de API. CPF e CNH têm os dígitos verificadores conferidos, não só o formato. Cada achado traz o caminho do dado, a categoria, a regra que disparou, a confiança e a versão mascarada, nunca o valor original.
 2. **Taint Analysis.** O dado pessoal é marcado na fonte (cadastro, ficha médica, ocorrência, login, dispositivo) e acompanhado até cada saída: log, mensagem de erro, push, MQTT, chamado ao voluntário, Cofre, persistência, documentação. Um guarda decide pela política da seção 9 do Contrato o que pode sair, para quem e em que forma; no modo PROTECAO ele bloqueia, redige, mascara ou arredonda antes de o dado sair, e no modo AUDITORIA só aponta. Cada decisão vira um evento de segurança com um rastro explicável, sem o valor original.
-3. **Tradução por IA e painel Risco Cidadão.** Cada falha encontrada é traduzida por um LLM em um alerta claro, que diz o que vazou, para onde e como corrigir, sem enviar ao LLM nenhum valor pessoal (só categoria, caminho e regra). O painel Risco Cidadão resume esses alertas num indicador de exposição dos dados do entregador.
+3. **Tradução por IA e painel Risco Cidadão.** Cada evento de segurança é traduzido por um LLM numa frase calma, para uma pessoa leiga, que diz o que poderia ter acontecido com os dados e o que o sistema fez. Ao LLM vão só a categoria, o destino, a ação, o estado e a cor, nunca um valor. A saída do LLM é validada, e uma reserva por tabela responde quando não há chave ou o LLM falha. O indicador Risco Cidadão resume os eventos num índice de 0 a 100 com semáforo, rótulo e ícone.
 
 ## Estrutura
 
@@ -35,9 +35,18 @@ cyber/
     simulacao/
       dados_simulados.py   payloads simulados no formato do Contrato
       cenarios.py          cenários C1 a C11
+    risco/
+      risco_cidadao.py     índice de 0 a 100, semáforo, pesos e fatores
+    ia/
+      prompt.py            consulta, descrições em linguagem simples e prompt do sistema
+      reserva.py           frases de reserva por tabela, motivos e origem da mensagem
+      cliente_llm.py       cliente do Gemini (httpx), chave só no cabeçalho
+      tradutor.py          validação da saída, cache, disjuntor e tradução de eventos e do risco
   scripts/avaliar_motor.py   tabela de precisão e recall por categoria
   scripts/demo.py            cenários C1 a C11 nos dois modos
-  tests/                     testes pytest (pii, taint, eventos, simulacao)
+  scripts/demo_risco.py      Risco Cidadão de cada situação, com a mensagem
+  scripts/testar_ia.py       três traduções de exemplo e a repetição pelo cache
+  tests/                     testes pytest (pii, taint, eventos, simulacao, risco, ia)
   tests/corpus/corpus_pii.json   corpus rotulado (positivos e negativos)
 ```
 
@@ -55,12 +64,16 @@ python -m pytest -q                              # todos os testes
 python -m pytest -q --cov=helmcare_cyber         # com cobertura
 python scripts/avaliar_motor.py                  # métricas sobre o corpus
 python scripts/demo.py                           # cenários do Taint Analysis
+python scripts/demo_risco.py                     # Risco Cidadão, só com a reserva (sem rede)
+python scripts/testar_ia.py --sem-dotenv         # tradução sem carregar o cyber/.env
 ```
 
-As variáveis de ambiente esperadas estão em `.env.example`. A chave do LLM só é lida do ambiente e nunca fica em arquivo versionado.
+As variáveis de ambiente esperadas estão em `.env.example`. Para usar a tradução por IA, copie o arquivo para `cyber/.env` e preencha a chave e o modelo; o `.env` é ignorado pelo Git. A biblioteca só lê `os.environ`: quem carrega o `cyber/.env` são os scripts (`testar_ia.py` sem `--sem-dotenv` e `demo_risco.py --com-ia`), pela função `carregar_dotenv()`, que nunca sobrescreve uma variável que já existe no ambiente e nunca imprime o conteúdo. A chave não entra na `Config`.
 
 | Variável | Padrão | Uso |
 |---|---|---|
+| `GEMINI_API_KEY` | vazio | Chave da tradução dos alertas. Sem ela, as mensagens saem da reserva por tabela |
+| `GEMINI_MODEL` | vazio | Modelo do Gemini (sem valor padrão no código). Sem ele, também vale a reserva |
 | `CYBER_MODO` | `PROTECAO` | Modo do guarda criado por `criar_guarda()`. Valor desconhecido vira `PROTECAO` |
 | `CYBER_EVENTOS_JSONL` | vazio | Arquivo em que cada evento de segurança vira uma linha JSON. Vazio deixa os eventos só em memória |
 | `RISCO_JANELA_MIN` | `1440` | Janela, em minutos, do indicador Risco Cidadão |
@@ -309,6 +322,109 @@ Para cada cenário, o script mostra o id, o título, o rótulo, a fonte, o desti
 - O registro reconhece o valor como ele entrou (nomes sem diferenciar maiúsculas; documentos e telefones com qualquer separador). Um nome abreviado ou escrito de outro jeito não é reconhecido.
 - O registro vale para o processo em que os valores foram registrados: ele fica em memória e não é compartilhado.
 - Um valor de saúde comum registrado na ficha (como "Asma") passa a ser apontado em qualquer saída em que a palavra apareça. É um falso positivo que pende para o lado seguro.
+
+## Tradução por IA e Risco Cidadão
+
+Cada evento de segurança vira uma frase curta para uma pessoa leiga de 60 anos, e o conjunto dos eventos vira o indicador Risco Cidadão, um número de 0 a 100 com semáforo.
+
+### O que vai ao LLM e o que nunca vai
+
+O LLM recebe só a classificação do evento, em cinco campos (`ConsultaTraducao`): categoria, destino, ação, estado e cor do semáforo. Cada campo vira um texto fixo em linguagem simples, e a mensagem enviada tem quatro linhas:
+
+```
+Em risco: o código do QR do seu capacete
+Onde poderia aparecer: num documento público
+O que o sistema fez: não conseguiu impedir, só registrou o ocorrido
+Cor do semáforo: amarelo, atenção
+```
+
+Nunca vão ao LLM: o valor do dado (nem mascarado), o payload, o rastro, o caminho do campo, o id do evento ou qualquer dado do entregador. A chave vai só no cabeçalho `x-goog-api-key`, nunca na URL nem no corpo. Nenhuma mensagem de erro do cliente mostra a chave ou a URL; de uma resposta de erro, só entra a mensagem do Google (`error.message`), numa linha, com até 150 caracteres e com a chave trocada por `***`. Os testes enviam os eventos dos 11 cenários nos dois modos e conferem que nenhum valor simulado aparece no que sai para o LLM.
+
+### Validação da saída
+
+A resposta do LLM é tratada como não confiável. `validar_mensagem` aceita só JSON com a chave `mensagem` (uma cerca ` ```json ` é tolerada) e recusa a mensagem vazia, com mais de 280 caracteres, com mais de 2 frases, com travessão, com termo técnico (PII, log, logs, payload, MQTT, API, token, hash, endpoint, JSON, taint, como palavra inteira) ou em que o motor de PII encontre qualquer dado pessoal. Uma resposta recusada não entra no cache.
+
+### Reserva, cache e disjuntor
+
+Quando não há chave ou modelo, quando o LLM falha ou quando a resposta é recusada, a mensagem sai da **reserva por tabela**: uma frase montada com os mesmos textos da consulta, sempre igual para a mesma consulta. O painel mostra o selo **"modelo de reserva"** junto dessas frases. A tradução informa a origem (`IA` ou `RESERVA`) e, na reserva, o motivo: `SEM_CHAVE`, `TIMEOUT`, `ERRO_HTTP`, `ERRO_REDE`, `RESPOSTA_INVALIDA` ou `DISJUNTOR`. Numa falha do LLM, o motivo vem com o diagnóstico, por exemplo `ERRO_HTTP (503: The model is overloaded.)`, para saber se foi sobrecarga do serviço, limite de uso ou modelo errado.
+
+| Estado | Frase de reserva |
+|---|---|
+| `EXPOSTO` | "{Tema} apareceu {onde}, e o sistema não conseguiu impedir, só registrou o ocorrido. A equipe precisa corrigir isso o quanto antes." |
+| `NEUTRALIZADO` | "{Tema} poderia ter aparecido {onde}, mas o sistema {ação} antes que saísse. Seus dados continuam protegidos, e a equipe só precisa corrigir o código." |
+| `PERMITIDO` | "O sistema usou {tema} {onde}, porque esse é um caminho autorizado. Não há nada a fazer." |
+
+Os verbos concordam em número com o tema ("seus dados de saúde apareceram"). Toda combinação de categoria, destino, estado e ação passa na mesma validação das respostas do LLM. Sem nenhum evento que pese, a mensagem é "Tudo certo: seus dados estão protegidos e nada importante aconteceu."
+
+O **cache** guarda as respostas válidas do LLM por consulta: a mesma combinação de categoria, destino, ação, estado e cor não chama o LLM de novo. Falhas passageiras do serviço (HTTP 429, 500, 502, 503 e 504) ganham **uma nova tentativa** depois de 1 s; erros do pedido (400, 401, 403 e 404), tempo esgotado e falha de conexão não repetem. São no máximo 2 tentativas de até 8 s cada, então uma consulta nunca passa de 17 s. O **disjuntor** abre por 60 s depois de um tempo esgotado, de uma falha de rede ou de um erro HTTP que continuou depois da nova tentativa; enquanto ele está aberto, a tradução vai direto para a reserva, para o painel não esperar o tempo limite a cada evento. Uma resposta recusada não abre o disjuntor. Cache e disjuntor são seguros para uso entre threads.
+
+### Risco Cidadão
+
+```
+pontos do evento = 10 x peso da categoria x fator do destino x fator do estado
+volume = min(25, 2 x (N - 1)), N = pares (destino, fonte) distintos entre os eventos que pesam
+índice = min(100, pior evento + volume), arredondado com 0,5 para cima
+```
+
+O pior evento puxa o índice, porque um único vazamento de saúde já é perigo; o volume soma pouco e tem teto, para mostrar que o problema se espalhou sem esconder a gravidade do pior. Só entram os eventos da janela `RISCO_JANELA_MIN` (padrão 1440 minutos). As contas usam `Decimal`, então 10 x 9 x 0,9 x 0,3 dá exatamente 24,3.
+
+| Categoria | Peso |
+|---|---|
+| `SENHA` | 10 |
+| `SAUDE` | 9 |
+| `TOKEN_ACESSO`, `SEGREDO_API` | 8 |
+| `LOCALIZACAO_EXATA`, `CPF`, `CNH`, `RG` | 7 |
+| `TELEFONE`, `EMAIL`, `NOME` | 5 |
+| `QR_TOKEN` | 4 (sozinho, o QR não abre a ficha: o Cofre exige socorrista verificado e janela aberta) |
+| `LOCALIZACAO_APROXIMADA` | 2 |
+| Sem categoria (erro interno do guarda, TA-ERRO-01) | 5 |
+
+| Destino | Fator |
+|---|---|
+| `RESPOSTA_API_PUBLICA`, `MENSAGEM_ERRO`, `MQTT_PAYLOAD`, `DOCUMENTACAO_PUBLICA` | 1,0 |
+| `CHAMADO_VOLUNTARIO`, `NOTIFICACAO_PUSH`, `COFRE_SOCORRISTA`, `CONTATO_EMERGENCIA`, `RESPOSTA_PROPRIO_ENTREGADOR` | 0,9 |
+| `AUDITORIA` | 0,6 |
+| `LOG` | 0,5 |
+| `PERSISTENCIA` | 0,4 |
+
+| Estado | Fator |
+|---|---|
+| `EXPOSTO` | 1,0 |
+| `NEUTRALIZADO` | 0,3 |
+| `PERMITIDO` | 0 (uso legítimo de canal autorizado: não pesa e não conta no volume) |
+
+| Faixa | Cor | Rótulo | Ícone |
+|---|---|---|---|
+| 0 a 29 | `VERDE` | Seus dados estão protegidos | `OK` |
+| 30 a 59 | `AMARELO` | Atenção: houve tentativa de vazamento | `ATENCAO` |
+| 60 a 100 | `VERMELHO` | Perigo: dado sensível exposto | `PERIGO` |
+
+O painel mostra o rótulo e o ícone junto da cor, para quem não distingue cores. O resultado (`RiscoCidadao.para_dict()`) traz também o pior evento, o volume, a janela, os contadores (eventos, neutralizados, expostos e permitidos) e o "por quê": até 3 eventos que mais pesaram, do maior para o menor e, no empate, do mais recente, só com categoria, destino, estado e pontos. A mensagem do painel traduz o evento que mais pesou, com a cor do índice geral.
+
+**Calibração** (conferida por teste, com os eventos reais dos cenários):
+
+| Situação | Pior evento | Volume | Índice | Cor |
+|---|---|---|---|---|
+| Sem eventos | 0 | 0 | 0 | `VERDE` |
+| Senha redigida em log (NEUTRALIZADO), como no C1 | 15 | 0 | 15 | `VERDE` |
+| Saúde exposta em resposta pública | 90 | 0 | 90 | `VERMELHO` |
+| Senha exposta em log | 50 | 0 | 50 | `AMARELO` |
+| `qrToken` exposto em documentação pública (C11 em AUDITORIA) | 40 | 0 | 40 | `AMARELO` |
+| C1 a C10 em PROTECAO (8 pares) | 24,3 | 14 | 38 | `AMARELO` |
+| C1 a C10 em AUDITORIA | 81 | 14 | 95 | `VERMELHO` |
+| C1 a C11 em AUDITORIA (9 pares) | 81 | 16 | 97 | `VERMELHO` |
+
+### Como rodar
+
+```bash
+python scripts/demo_risco.py               # cada situação com índice, cor, por quê e mensagem de reserva (sem rede)
+python scripts/demo_risco.py --com-ia      # o mesmo, carregando cyber/.env e usando o Gemini
+
+python scripts/testar_ia.py --sem-dotenv   # sem carregar cyber/.env: mostra a reserva
+python scripts/testar_ia.py                # carrega cyber/.env: usa o Gemini, se houver chave e modelo
+```
+
+`testar_ia.py` diz se a chave está configurada (sim ou não, nunca a chave), mostra o modelo, traduz uma consulta de cada cor e repete a primeira para mostrar o cache. Os dois scripts mostram o motivo da reserva com o diagnóstico, como `motivo da reserva: ERRO_HTTP (503: ...)`. Os dois scripts saem com código 0 também quando caem na reserva.
 
 ## Regras de dados pessoais
 
