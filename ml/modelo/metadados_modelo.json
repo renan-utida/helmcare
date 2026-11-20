@@ -836,7 +836,7 @@
     ]
   },
   "treino": {
-    "fonte": "Infosiga SP e INMET A701 (São Paulo, Mirante), dados públicos reais",
+    "fonte": "Infosiga SP (alvo e calendário). O INMET A701 entrou na análise e no teste das variáveis do tempo (Itens 3 a 9), mas não no modelo final",
     "periodoFinal": "2019-01-01 a 2025-12-31",
     "horasFinal": 61368,
     "sinistrosGravesFinal": 13028,
