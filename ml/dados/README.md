@@ -106,4 +106,17 @@ Os horários do INMET estão em **UTC** e são convertidos para o horário de Br
 ---
 
 ## Tratamentos aplicados
-*(a preencher)*
+
+Todos os tratamentos estão no notebook, com as conferências nas saídas de cada item.
+
+| Tratamento | Detalhe |
+|---|---|
+| Fuso horário | As horas do INMET (UTC) são convertidas para `America/Sao_Paulo`, que já trata o horário de verão: os registros até 16/02/2019 ficam em UTC-2 e os demais em UTC-3 |
+| Alinhamento do INMET | O registro do INMET da hora h+1 resume a hora h. Por isso, cada hora local recebe o registro feito ao fim dela (ajuste de 1 hora) |
+| Hora duplicada | O fim do horário de verão gera 1 hora local duplicada, resolvida pela média dos dois registros |
+| Faixas físicas | Chuva de 0 a 150 mm/h, temperatura de -5 a 45 °C e umidade de 1% a 100%. Nenhum valor ficou fora dessas faixas |
+| Horas sem tempo completo | As 723 horas sem chuva, temperatura ou umidade (1,18% das 61.368) ficam fora do treino e do teste |
+| Sinistros sem hora | Os 89 sinistros do alvo sem hora utilizável ficam fora da base horária; entram 13.028 |
+| Feriados | Pela regra registrada no `ml/modelo/metadados_modelo.json`: nacionais e estaduais de SP pela biblioteca `holidays`, mais os municipais da capital (25/01, Corpus Christi e 20/11) e o Carnaval, com a lista de 180 datas de 2019 a 2030 |
+| Dados pessoais | A base horária (`processados/base_horaria.parquet`) só tem contagens agregadas, tempo e calendário, sem nenhum dado pessoal, identificador, logradouro ou coordenada |
+| Coordenadas de rodovia | Os sinistros de rodovia (por exemplo, a SP 270) são registrados no ponto do quilômetro, com precisão de cerca de 1 km. Isso afeta só os trechos críticos, não o modelo |
