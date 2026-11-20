@@ -39,7 +39,16 @@ Exemplo: `08/11 - Domínio da API: "Crie as entidades do domínio seguindo o Con
  
 ## Inteligência Artificial & Machine Learning
  
-*(a preencher)*
+- 07/11 - Kickoff do notebook: "Cada item tem Markdown explicando antes do código e uma discussão depois dos outputs, sem travessões. Estime o tempo das etapas pesadas, salve os resultados para retomar de onde parou e confira o relatório e as figuras contra os outputs"
+- 07/11 - Rubrica e roteiro: "Leia o PDF da atividade, monte o mapa da rubrica e proponha os itens do notebook"; aprovei os 13 itens com o alvo, o ano fora do modelo e a regra de feriados
+- 08/11 - Discussões com números reais: "Seguem os outputs deste item: escreva a discussão só com os números que saíram"
+- 08/11 - Validação do alvo: "Confira o alvo contra os números oficiais de mortes no trânsito da capital em 2025"
+- 14/11 - Itens 6 a 9: "Divisão temporal, linhas de base, grade de 27 combinações com dobras anuais só no treino e análise de overfitting"
+- 14/11 - Decisão da central: "O modelo exportado usa só o calendário, justificado por robustez e parcimônia, já que o tempo não melhorou a validação"
+- 14/11 - Item 10: "Grade do calendário lado a lado com a de 7 variáveis, os 4 artefatos do Contrato, o P95 calculado dos dois jeitos, os trechos críticos, o teste do exemplo do Contrato e a função hora a hora do turno"
+- 14/11 - Ajustes de figura: "Corrija a legenda do 9.1 e ponha o mapa do OpenStreetMap ao fundo dos trechos críticos"
+- 19/11 - Item 11: "Leitura para o cidadão e conferência das coordenadas da SP 270, com a regra de suspeita definida antes de olhar os dados"
+- 19/11 - Fechamento: "Relatório, READMEs, requirements e roteiro do vídeo"
  
 ## Mobile Development & IoT
 

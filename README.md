@@ -17,7 +17,7 @@
 | Arquitetura Orientada a Serviços (SOA) e Web Services | [`servico-risco/`](servico-risco/) | *(a preencher)* |
 | Cybersecurity | [`cyber/`](cyber/) | Vídeo: [youtu.be/PSRhGlnmjcI](https://youtu.be/PSRhGlnmjcI) |
 | C# Software Development | [`api/`](api/) | *(a preencher)* |
-| Inteligência Artificial & Machine Learning | [`ml/`](ml/) | Vídeo: *(a preencher)* |
+| Inteligência Artificial & Machine Learning | [`ml/`](ml/) | Vídeo: [youtu.be/A4nlPggXHcY](https://youtu.be/A4nlPggXHcY) |
 | Mobile Development & IoT | [`mobile/`](mobile/) | Vídeo: [youtu.be/qUZFudiXW_Q](https://youtu.be/qUZFudiXW_Q) |
 | Operating Systems | [`infra/`](infra/) | Vídeo: *(a preencher)* |
 | Physical Computing: IoT & IoB | [`iot/`](iot/) | Wokwi: *(a preencher)* - Vídeo: *(a preencher)* |
@@ -270,12 +270,12 @@ Acessibilidade: fontes grandes, alto contraste, botões grandes, linguagem simpl
 Detalhes, prints das telas e como rodar: [`mobile/README.md`](mobile/README.md). Vídeo da demonstração: [youtu.be/qUZFudiXW_Q](https://youtu.be/qUZFudiXW_Q).
 
 ### Inteligência Artificial & Machine Learning (`/ml`)
-- **Pergunta de ML:** quantos sinistros graves envolvendo motocicletas são esperados em São Paulo em cada faixa horária, dadas as condições de tempo (chuva e temperatura)?
-- **Dados reais e públicos:** Infosiga SP (Detran-SP), sinistros com motocicletas na capital, a partir de 2019 (quando a base passa a incluir os não fatais), cruzados com o INMET (estação automática A701, Mirante de Santana), hora a hora.
-- **Modelo:** XGBoost, com pelo menos 10 combinações de 3 hiperparâmetros e validação cruzada apenas no treino.
-- **Avaliação:** métricas de treino e teste lado a lado (MAE, RMSE), comparação com uma linha de base (média histórica por hora) e discussão de overfitting.
-- **Leitura para o cidadão:** em quais horários e condições o risco aumenta, e o limite do modelo (sinistros também refletem o volume de motos circulando).
-- **Entregáveis:** notebook executado, `dados/README.md`, `requirements.txt`, `RELATORIO_ML.md` (2 a 4 páginas) e vídeo de até 5 min.
+- **Pergunta de ML:** quantos sinistros graves com moto são esperados em cada hora local da cidade de São Paulo, segundo o calendário? E as condições do tempo medidas pelo INMET mudam essa expectativa?
+- **Dados reais e públicos:** Infosiga SP (Detran-SP), sinistros com motocicletas na capital de 2019 a 2025 (a base inclui os não fatais a partir de 2019), agregados por hora local: 13.028 sinistros graves com moto em 61.368 horas. O tempo horário do INMET (estação automática A701, Mirante de Santana) entrou na análise e no teste das variáveis, mas não no modelo final.
+- **Modelo:** XGBoost com objetivo `count:poisson`, escolhido em duas grades de 27 combinações de 3 hiperparâmetros, com validação cruzada em 5 dobras anuais só no treino (2019 a 2024) e teste em 2025.
+- **Avaliação:** deviance de Poisson em treino, validação e teste lado a lado, comparada com a linha de base (média por hora e dia da semana), mais a discussão de overfitting. No teste, **0,7429** contra **0,7485** da linha de base. O tempo foi testado e não melhorou o modelo (0,7427 com ele), por isso o modelo exportado usa **só o calendário** (hora, dia da semana, mês e feriado). O componente sinistro do Índice usa o **P95 único de 0,322927**.
+- **Leitura para o cidadão:** numa quinta-feira de novembro, as 18h têm 4,0 vezes o risco esperado das 3h; no fim de semana, o risco fica alto também de madrugada. Limites: sem dado de exposição (quantas motos circulam), previsão média da cidade e localização por quilômetro dos sinistros da SP 270 nos trechos críticos.
+- **Entregáveis:** [notebook executado](ml/GS_HelmCare_IA_and_ML.ipynb), [`dados/README.md`](ml/dados/README.md), [`requirements.txt`](ml/requirements.txt), [`RELATORIO_ML.md`](ml/RELATORIO_ML.md) e [vídeo de até 5 min](https://youtu.be/A4nlPggXHcY).
 
 ### Operating Systems (`/infra`)
 A **infraestrutura Linux** (VM Debian), provisionada por Shell Script.
@@ -418,6 +418,7 @@ Nenhum dado pessoal real é utilizado no protótipo.
 - Terceira camada da rede de socorro
 - Integração real com o SAMU e com as plataformas de entrega
 - Nível de bateria com reserva exclusiva para o SOS *(caso não entre no protótipo)*
+- Agrupar os sinistros de rodovia por quilômetro nos trechos críticos (os sinistros da SP 270 são registrados no ponto do quilômetro)
 
 ---
 
