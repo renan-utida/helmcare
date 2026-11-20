@@ -10,7 +10,19 @@ Exemplo: `08/11 - Domínio da API: "Crie as entidades do domínio seguindo o Con
 
 ## Arquitetura Orientada a Serviços (SOA) e Web Services
  
-*(a preencher)*
+- 14/11 - Plano do serviço: "Monte o plano do Serviço de Risco da SOA com a rubrica do PDF, o Contrato de Integração e o modelo de README que o professor aprovou no cantina-soa."
+- 14/11 - Guia do Claude Code: "Monte o servico-risco/CLAUDE.md com as decisões do Contrato 1.10, ajustado para Windows, Git Bash e segredos."
+- 14/11 - Rodada 1: "Rodada 1 do servico-risco: esqueleto, domínio do índice com testes unitários, previsor XGBoost e leitura dos artefatos do modelo."
+- 14/11 - Rodada 2: "Rodada 2: banco com SQLAlchemy, migrações Alembic, carga dos trechos críticos, serviços de aplicação, rotas, erros em problem+json, saúde, OpenAPI e testes."
+- 14/11 - Degradação: "Se o modelo ou o banco falharem no startup, o serviço sobe mesmo assim e responde 503 só nas rotas afetadas, e a API em C# usa a versão simulada."
+- 14/11 - Explicação do índice: "A explicação sai em uma frase, na ordem chuva, histórico do horário e calor, sem dizer que a chuva causa sinistros."
+- 14/11 - Regras de git: "Commits e PRs sem nenhuma linha de atribuição, e mande todos os comandos de git de uma vez, incluindo PR e merge."
+- 14/11 - Integração com a API: "Revise a chamada da API em C# ao Serviço de Risco, com tempo limite de 3 s e reserva simulada, e atualize o contrato para a versão 1.12."
+- 14/11 - Rodada 3: "Rodada 3: README final, evidências (pytest com cobertura, Alembic, banco, chamada real, Swagger e integração com a API) e auditoria item por item contra a rubrica do PDF."
+- 15/11 - Linhas sem cobertura: "Explique no README as linhas que ficaram sem cobertura e cubra as que não exigem mexer no código."
+- 15/11 - Prints do Swagger: "Explique melhor o que fazer para tirar os prints 09 e 10 do Swagger."
+- 15/11 - Fechamento da SOA: "Veja se ficou tudo certo, se concluímos a SOA, e monte a mensagem para o chat principal."
+- 19/11 - Conferência final: "Conferência final antes da entrega: ajustar o README para a previsão real da Open-Meteo, o logo do HelmCare e o Contrato 1.17."
  
 ## Cybersecurity
  

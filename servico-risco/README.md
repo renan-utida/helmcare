@@ -1,3 +1,5 @@
+<p align="center"><img src="../docs/marca/logo-horizontal.png" alt="Logo do HelmCare: um capacete de moto com uma linha de batimento cardíaco na viseira" width="420"></p>
+
 # Arquitetura Orientada a Serviços (SOA) e Web Services: Serviço de Risco do HelmCare
 
 Esta é a entrega da disciplina Arquitetura Orientada a Serviços (SOA) e Web Services, do Prof. Thiago Dourado, na Global Solution 2026.2 da FIAP (Engenharia de Software, turma 3ESPW, tema CitizenTech), feita individualmente por Renan Dias Utida (RM 558540), dentro do projeto HelmCare.
@@ -36,7 +38,7 @@ O Serviço de Risco é um serviço web independente, em Python e FastAPI, que ca
 | Entrega | Global Solution 2026.2, tema CitizenTech |
 | Projeto | HelmCare |
 | Repositório | https://github.com/renan-utida/helmcare (este serviço fica na pasta `servico-risco/`) |
-| Contrato | [`docs/contrato-integracao.md`](../docs/contrato-integracao.md), versão 1.12 |
+| Contrato | [`docs/contrato-integracao.md`](../docs/contrato-integracao.md), versão 1.17 (a seção 8, do Serviço de Risco, não muda desde a 1.12) |
 
 **Tecnologias:** Python 3.13.17, FastAPI 0.163, Uvicorn 0.54, Pydantic 2.14 e pydantic-settings 2.16, SQLAlchemy 2.1 (síncrono), psycopg 3.3, Alembic 1.20, PostgreSQL 17.6 (Docker), XGBoost 3.4.1, NumPy 2.4.6, holidays 0.108, pytest 9.2 com pytest-cov e httpx, ruff 0.17. As versões exatas estão em `requirements.txt` e `requirements-dev.txt`.
 
@@ -133,7 +135,7 @@ sequenceDiagram
     participant SR as Serviço de Risco
     participant DB as PostgreSQL helmcare_risco
     App->>API: POST /api/v1/turnos
-    API->>API: previsão do tempo do turno (IPrevisaoTempo)
+    API->>API: previsão do tempo do turno (Open-Meteo, ou a reserva simulada)
     API->>SR: POST /risco/v1/indice-turno (tempo limite de 3 s, sem novas tentativas)
     alt serviço responde 200 no formato do contrato
         SR->>SR: horas do turno, previsão do XGBoost, chuva e calor
@@ -295,7 +297,7 @@ As URLs são `SecretStr`: não aparecem em log, nem no `alembic.ini`. O `.env` t
 
 ## Endpoints e documentação
 
-Base local: `http://127.0.0.1:8000/risco/v1`. As regras completas estão na seção 8 do [Contrato 1.12](../docs/contrato-integracao.md).
+Base local: `http://127.0.0.1:8000/risco/v1`. As regras completas estão na seção 8 do [Contrato 1.17](../docs/contrato-integracao.md).
 
 | Método | Rota | Respostas |
 |---|---|---|
@@ -424,7 +426,7 @@ A sessão é aberta e fechada por requisição (`obter_sessao` em `app/api/depen
 
 ## Resiliência e degradação
 
-Transcrição da seção 8 do Contrato 1.12 ("Degradação" e "Na API principal").
+Transcrição da seção 8 do Contrato 1.17 (sem mudanças desde a 1.12), partes "Degradação" e "Na API principal".
 
 O serviço sobe mesmo que o modelo ou o banco falhem na inicialização, e cada rota responde conforme o que falta:
 
@@ -456,7 +458,7 @@ Em nenhum desses casos o processo cai. Os testes de `tests/api/test_inicializaca
 
 ## Integração de ponta a ponta com a API em C#
 
-Em 14/11/2026, a API principal chamou este serviço de verdade. A seção completa do `api/README.md` está copiada em [`evidencias/07-integracao-api-csharp.md`](evidencias/07-integracao-api-csharp.md), e o log do uvicorn dessas chamadas aparece no print [`evidencias/08-print-uvicorn-chamadas-da-api.png`](evidencias/08-print-uvicorn-chamadas-da-api.png).
+Em 14/11/2026, a API principal chamou este serviço de verdade. A seção completa do `api/README.md` está copiada em [`evidencias/07-integracao-api-csharp.md`](evidencias/07-integracao-api-csharp.md), e o log do uvicorn dessas chamadas aparece no print [`evidencias/08-print-uvicorn-chamadas-da-api.png`](evidencias/08-print-uvicorn-chamadas-da-api.png). A evidência é de 14/11/2026, quando a previsão do tempo da API ainda era fixa. Desde o Contrato 1.17, ela vem da Open-Meteo, sem mudar o formato da requisição ao serviço.
 
 | Passo | Situação | Resultado |
 |---|---|---|
@@ -481,14 +483,14 @@ Os 2154 ms do passo 9 são o tempo até a conexão recusada no Windows, abaixo d
 
 | Princípio | Onde aparece no projeto | Evidência |
 |---|---|---|
-| Contrato padronizado | Rotas, campos, enums e erros seguem a seção 8 do Contrato 1.12. Os esquemas Pydantic de `app/api/esquemas.py` publicam o JSON em camelCase (`alias_generator=to_camel`), e `app/api/erros.py` padroniza os erros em `application/problem+json` (RFC 9457), com `type` apontando para a seção do RFC 9110, como no ASP.NET. O OpenAPI 3.1 é gerado a partir do código | `tests/api/test_erros_e_openapi.py` (`test_openapi_tres_rotas_sob_risco_v1`, `test_openapi_campos_em_camel_case`, `test_openapi_erros_em_problem_json_e_sem_422`, `test_openapi_exemplo_de_referencia_na_requisicao_e_resposta`); `evidencias/06-openapi.json` |
+| Contrato padronizado | Rotas, campos, enums e erros seguem a seção 8 do Contrato 1.17. Os esquemas Pydantic de `app/api/esquemas.py` publicam o JSON em camelCase (`alias_generator=to_camel`), e `app/api/erros.py` padroniza os erros em `application/problem+json` (RFC 9457), com `type` apontando para a seção do RFC 9110, como no ASP.NET. O OpenAPI 3.1 é gerado a partir do código | `tests/api/test_erros_e_openapi.py` (`test_openapi_tres_rotas_sob_risco_v1`, `test_openapi_campos_em_camel_case`, `test_openapi_erros_em_problem_json_e_sem_422`, `test_openapi_exemplo_de_referencia_na_requisicao_e_resposta`); `evidencias/06-openapi.json` |
 | Baixo acoplamento | O domínio declara as portas em `app/dominio/portas.py` (`PrevisorSinistros`, `Relogio`, `RepositorioTrechosCriticos`, `RepositorioCalculos`, todas `typing.Protocol`), e a infraestrutura as implementa sem herança. A API em C# conhece só a URL base e o contrato HTTP, não o Python, o modelo ou o banco | `tests/dominio/test_dependencias_dominio.py`; os fakes de `tests/fakes/` substituem as implementações reais sem mudar o domínio nem a aplicação |
 | Abstração | A resposta expõe só `indiceRisco`, `faixaRisco`, `componentes` e `explicacao` (`IndiceTurnoSaida`). As previsões por hora, o P95 e a versão do modelo ficam só no histórico. O `500` é genérico, e a validação não repete o valor recebido | `test_erro_inesperado_500_generico_sem_stack_trace`, `test_indice_turno_json_invalido_400_sem_ecoar_corpo`; `evidencias/05-chamada-real-servico.txt` |
 | Reuso | O mesmo serviço atende o índice do `POST /api/v1/turnos` e a lista do `GET /api/v1/trechos-criticos`. A regra `validar_turno` do domínio (`app/dominio/horas_turno.py`) é usada pelo esquema da requisição (`IndiceTurnoEntrada`) e pelo `ServicoIndiceTurno` | `evidencias/07-integracao-api-csharp.md` (as duas rotas da API chamando o serviço); `test_indice_turno_*` em `tests/api/test_rota_indice_turno.py` |
 | Autonomia | Processo próprio (uvicorn na porta 8000), banco próprio (`helmcare_risco` num `compose.yaml` separado, na porta 5433, com volume próprio), venv, dependências e migrações próprios. O serviço sobe e calcula o índice mesmo com o banco ou o modelo fora (degradação) | `tests/api/test_inicializacao.py` (`test_inicializar_modelo_ausente_e_sem_banco_sobe_degradado`, `test_inicializar_banco_fora_do_ar_sobe_e_carga_falha_sem_vazar_senha`); `test_indice_turno_historico_falha_continua_200` |
 | Ausência de estado | Não há sessão de usuário. O modelo é carregado uma vez no startup (`lifespan` em `app/main.py`) e depois só é lido. A sessão do banco é aberta e fechada por requisição (`obter_sessao`). O histórico só é escrito e nunca é lido para responder | `test_obter_sessao_com_fabrica_abre_sessao_e_monta_repositorios_sql`; `evidencias/04-banco-tabelas.txt` |
 | Descoberta | Swagger em `/risco/v1/docs`, esquema em `/risco/v1/openapi.json`, `/risco/v1/saude` para o monitoramento, prefixo versionado `/risco/v1` e URL base configurável na API (`ServicoRisco:UrlBase`) | `test_docs_swagger_disponivel_sob_prefixo`; `evidencias/06-openapi.json`, `09-swagger-visao-geral.png` e `10-swagger-post-executado.png` |
-| Composição | A API em C# compõe três partes no `POST /api/v1/turnos`: a previsão do tempo (`IPrevisaoTempo`, hoje com a `PrevisaoTempoSimulada`, de valores fixos), este serviço e a reserva simulada (`ServicoRiscoComReserva`). Dentro do serviço, o índice compõe o modelo (50%), a chuva (25%) e o calor (25%) | `evidencias/07-integracao-api-csharp.md`; `test_calcular_resultado_indice_exemplo_referencia_84_70_0_60_alto` |
+| Composição | A API em C# compõe três partes no `POST /api/v1/turnos`: a previsão do tempo (`IPrevisaoTempo`, vinda da Open-Meteo pela `PrevisaoTempoOpenMeteo`, com a `PrevisaoTempoSimulada` como reserva pela `PrevisaoTempoComReserva`), este serviço e a reserva simulada do índice (`ServicoRiscoComReserva`). Dentro do serviço, o índice compõe o modelo (50%), a chuva (25%) e o calor (25%) | `evidencias/07-integracao-api-csharp.md`; `test_calcular_resultado_indice_exemplo_referencia_84_70_0_60_alto` |
 
 ## Testes e cobertura
 
@@ -546,7 +548,7 @@ O domínio está com 100% de cobertura. O `ruff check .` e o `ruff format --chec
 **Decisões**
 
 - **SQLAlchemy síncrono e rotas `def`:** a previsão do XGBoost usa CPU e bloqueia. Com rotas `def`, o FastAPI roda cada requisição num pool de threads, sem travar o servidor. O driver síncrono (psycopg 3) deixa o código mais simples do que a versão assíncrona, sem perda para este volume.
-- **Degradação com 503 em vez de não subir:** o serviço sobe sem modelo ou sem banco e responde 503 só nas rotas que dependem do que falta (seção 8 do Contrato 1.12). A API em C# trata o 503 como falha e usa a versão simulada.
+- **Degradação com 503 em vez de não subir:** o serviço sobe sem modelo ou sem banco e responde 503 só nas rotas que dependem do que falta (seção 8 do Contrato 1.17). A API em C# trata o 503 como falha e usa a versão simulada.
 - **Histórico que não bloqueia:** o entregador precisa do índice mais do que o serviço precisa do histórico. Se a gravação falhar, a resposta continua 200.
 - **400 no lugar de 422:** o tratador de validação do FastAPI foi substituído, e o OpenAPI não lista 422, para seguir o quadro de códigos do contrato.
 - **Média ponderada das horas do turno**, com um único arredondamento no fim (seção 8.1 do contrato). O pico não se perde: a explicação cita a hora de maior risco.
@@ -558,7 +560,7 @@ O domínio está com 100% de cobertura. O `ruff check .` e o `ruff format --chec
 
 - **Sem autenticação no protótipo**, porque só a API na mesma máquina chama o serviço (nginx e rede local). Em produção entrariam mTLS ou JWT entre serviços, limite de requisições e rede restrita.
 - **Versão simulada da API** com a tabela de novembro sem feriado: em feriados e em outros meses, o índice simulado pode diferir do serviço.
-- **Previsão do tempo fixa na API:** hoje a API em C# repassa a `PrevisaoTempoSimulada` (7 mm/h, 24 °C e 85%), então o índice muda pelo horário, e não pelo tempo real.
+- **Previsão de reserva fixa na API:** a API busca a previsão real na Open-Meteo. Só quando ela falha, demora mais de 3 s, responde algo inválido ou não cobre as horas do turno (ou na configuração de previsão simulada forçada, usada em testes e demonstração), a API usa a `PrevisaoTempoSimulada` (7 mm/h, 24 °C e 85%). Nesse caso, o índice muda só pelo horário.
 - **XGBoost síncrono em rotas `def`:** o limite de requisições simultâneas é o do pool de threads do servidor. Não houve teste de carga.
 - **Sem rota de consulta do histórico:** o histórico serve à auditoria no banco, conforme o contrato.
 - **Feriados fora de 2019 a 2030** seguem a regra da biblioteca `holidays` mais as datas municipais, não a lista conferida do notebook.
