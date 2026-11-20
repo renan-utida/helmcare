@@ -1,0 +1,19 @@
+# HelmCare, IA e ML: bibliotecas do notebook GS_HelmCare_IA_and_ML.ipynb
+# Ambiente: Python 3.13, Google Colab
+# Versões fixas: as do Item 0.1 do notebook executado.
+# Com ">=": as demais bibliotecas de terceiros importadas no notebook.
+# O google.colab (montagem do Drive no Item 0.2) já vem no Colab e não é instalado por pip.
+
+pandas==2.2.3
+numpy==2.4.6
+scikit-learn==1.6.1
+xgboost==3.4.1
+matplotlib==3.10.0
+seaborn==0.13.2
+pyarrow==23.0.1
+holidays==0.108
+
+scipy>=1.13
+python-dateutil>=2.8
+psutil>=5.9
+contextily>=1.6
