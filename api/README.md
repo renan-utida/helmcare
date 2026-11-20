@@ -2,24 +2,148 @@
 
 O núcleo do sistema, em ASP.NET Core. Recebe os eventos do capacete via MQTT, orquestra o SOS escalonado, gerencia a rede de voluntários, mede o indicador de impacto e serve a página web do Cofre médico. Também funciona como porta de entrada do app, repassando as chamadas ao Serviço de Risco.
 
-> Status: em construção.
+> Status: entregue. A API está completa no contrato 1.17, com 908 testes MSTest aprovados e o build sem avisos.
+
+| | |
+|---|---|
+| Disciplina | C# Software Development |
+| Professor | Prof. Rafael Cassiolato |
+| Aluno | Renan Dias Utida (RM 558540, 3ESPW) |
+| Pasta | [github.com/renan-utida/helmcare/tree/main/api](https://github.com/renan-utida/helmcare/tree/main/api) |
+| Contrato | [docs/contrato-integracao.md](../docs/contrato-integracao.md) (versão 1.17) |
 
 ## Tecnologias
 
 ASP.NET Core - Entity Framework Core (com migrations) - LINQ - async/await - injeção de dependência - MSTest - Scalar/Swagger - PostgreSQL
 
 ## Como executar
-*(a preencher)*
+
+Roteiro para o Git Bash, com todos os comandos a partir da pasta `api/`.
+
+**1. Pré-requisitos.** O .NET SDK 10 (o `global.json` pede o `10.0.100` ou uma versão mais nova do .NET 10) e o Docker Desktop, com o Docker Compose:
+
+```bash
+dotnet --version
+docker compose version
+```
+
+**2. Banco.** O `compose.yaml` sobe só o PostgreSQL 17.6 (banco `helmcare_api`, usuário `helmcare`, em `127.0.0.1:5432`). A senha vem do `api/.env`, que nunca é versionado:
+
+```bash
+cp .env.example .env
+# Edite o .env e preencha POSTGRES_PASSWORD com uma senha local (ex.: gerada com openssl rand -base64 24).
+docker compose up -d
+docker compose ps
+```
+
+Espere o contêiner ficar `healthy`.
+
+**3. Connection string.** Ela tem a senha, então nunca fica nos `appsettings*.json`. Em Development, vai no user-secrets, com a mesma senha do `.env` no lugar de `SUA_SENHA_DO_ENV`:
+
+```bash
+dotnet user-secrets set ConnectionStrings:HelmCareApi "Host=127.0.0.1;Port=5432;Database=helmcare_api;Username=helmcare;Password=SUA_SENHA_DO_ENV" --project src/HelmCare.Api
+```
+
+Nos outros ambientes, a connection string vem da variável `ConnectionStrings__HelmCareApi`. Sem ela, a API não sobe e diz o que falta.
+
+**4. Migrations.** O `dotnet-ef` é uma ferramenta local (`dotnet-tools.json`):
+
+```bash
+dotnet tool restore
+dotnet ef database update --project src/HelmCare.Api
+```
+
+**5. API.** Sobe em `http://localhost:5000`, no ambiente Development (perfil `http` do `launchSettings.json`):
+
+```bash
+dotnet run --project src/HelmCare.Api
+curl http://localhost:5000/api/v1/saude
+```
+
+O `/api/v1/saude` responde `Healthy` quando o banco está acessível. Para o app no celular, na mesma rede Wi-Fi, a API precisa ouvir em todas as interfaces:
+
+```bash
+dotnet run --project src/HelmCare.Api -- --urls "http://0.0.0.0:5000"
+```
+
+O app usa então `http://<IP do computador>:5000` (o IPv4 aparece no `ipconfig`). No Windows, o firewall precisa liberar a entrada na porta 5000.
+
+**6. Testes.** Não precisam de banco, rede, broker nem Docker:
+
+```bash
+dotnet test HelmCare.slnx
+```
+
+**Dependências externas.**
+
+- **Serviço de Risco** ([`servico-risco/`](../servico-risco/)): é opcional. Sem ele, o `POST /api/v1/turnos` calcula o Índice de Risco pela versão simulada, com a mesma regra, e só o `GET /api/v1/trechos-criticos` responde `503` ([Integração com o Serviço de Risco](#integração-com-o-serviço-de-risco)). Com ele no ar em `http://127.0.0.1:8000` (o roteiro está no README dele), a API o usa sem nenhuma configuração.
+- **Previsão do tempo:** a previsão real vem da Open-Meteo, que não pede chave, só acesso à internet. Se ela falhar, o turno usa a previsão simulada, e o `GET /api/v1/clima` responde `503` ([Previsão do tempo e clima](#previsão-do-tempo-e-clima)).
+- **MQTT:** a API se conecta ao broker público `broker.hivemq.com`. Com `Mqtt__Habilitado=false`, ela sobe sem o broker.
+
+## Contas de demonstração
+
+As contas da demonstração são criadas na API local, em Development, sempre com dados simulados. O `HelmCare.Api.http` tem os mesmos pedidos, prontos para o VS Code ou o Visual Studio.
+
+**Entregador.** O cadastro é a rota pública do app, `POST /api/v1/entregadores`, que cria a conta (papel `ENTREGADOR`) e responde `201`, com o e-mail e os documentos mascarados:
+
+```bash
+curl -i -X POST http://localhost:5000/api/v1/entregadores \
+  -H "Content-Type: application/json" \
+  -d '{"nome":"Entregador Simulado","email":"entregador@exemplo.com","senha":"Senha123","cpf":"111.444.777-35","cnh":"12345678900","telefone":"(11) 91234-5678"}'
+```
+
+O token vem do login:
+
+```bash
+curl -X POST http://localhost:5000/api/v1/entregadores/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"entregador@exemplo.com","senha":"Senha123"}'
+```
+
+**Socorristas.** A rota de desenvolvimento `POST /api/v1/dev/socorristas` cria o socorrista e a conta (papel `SOCORRISTA`). A demonstração usa um verificado, que acessa o Cofre, e um não verificado, que recebe `403`:
+
+```bash
+curl -i -X POST http://localhost:5000/api/v1/dev/socorristas \
+  -H "Content-Type: application/json" \
+  -d '{"nome":"Socorrista Simulado","registroProfissional":"COREN-SP 000001","organizacao":"SAMU Simulado","verificado":true,"email":"socorrista@exemplo.com","senha":"Senha123"}'
+
+curl -i -X POST http://localhost:5000/api/v1/dev/socorristas \
+  -H "Content-Type: application/json" \
+  -d '{"nome":"Socorrista Pendente","registroProfissional":"COREN-SP 000002","organizacao":"SAMU Simulado","verificado":false,"email":"socorrista.pendente@exemplo.com","senha":"Senha123"}'
+```
+
+O socorrista entra pelo `POST /api/v1/socorristas/login` ou pela página do Cofre. Um e-mail repetido dá `409`.
+
+As rotas de desenvolvimento (`/api/v1/dev/socorristas` e `/api/v1/dev/entregadores/{id}/conta`) só existem em Development. Fora dele, elas não são mapeadas (`404`) nem aparecem no Scalar.
 
 ## Documentação dos endpoints
-*(a preencher: link do Scalar/Swagger)*
+
+Com a API rodando em Development:
+
+| O quê | Endereço |
+|---|---|
+| Scalar (documentação interativa) | [http://localhost:5000/scalar/v1](http://localhost:5000/scalar/v1) |
+| Documento OpenAPI | [http://localhost:5000/openapi/v1.json](http://localhost:5000/openapi/v1.json) |
+
+O `Program.cs` só mapeia os dois em Development (`MapOpenApi` e `MapScalarApiReference`); nos outros ambientes, eles não existem. O endereço `/scalar` redireciona para o Scalar.
+
+O documento é gerado dos controllers e dos comentários XML e tem o esquema bearer (`Bearer`, HTTP). No Scalar, as rotas que exigem login aparecem com o cadeado e as públicas sem ele. Para testar uma rota protegida, cole o `accessToken` do login no campo de autenticação do Scalar. O token é opaco, do Identity, e não um JWT.
 
 ## Evidências
-*(a preencher)*
+
+As evidências de cada parte ficam no fim da seção correspondente, com as requisições, as respostas e os logs. As imagens estão em [`evidencias/`](evidencias/):
+
+| Imagem | O que mostra | Seção |
+|---|---|---|
+| [`sos-escalonado-hivemq.png`](evidencias/sos-escalonado-hivemq.png) | O cliente web do HiveMQ com o SOS do capacete HC-0001, o `SOCORRO_A_CAMINHO` do aceite, o `ENCERRAR` e o SOS repetido com o comando refeito | [SOS escalonado](#sos-escalonado) |
+| [`identidade-sos-hivemq.png`](evidencias/identidade-sos-hivemq.png) | O mesmo fluxo de SOS, aceite e encerramento no HiveMQ, com as rotas já exigindo login | [Identidade e autorização](#identidade-e-autorização) |
+| [`cofre-pagina.png`](evidencias/cofre-pagina.png) | A página do Cofre médico no navegador, com a ficha mínima, os contatos para ligar, a contagem regressiva e o botão do SAMU 192 | [Cofre médico](#cofre-médico) |
+
+As seções de [integração com o Serviço de Risco](#integração-com-o-serviço-de-risco) e de [previsão do tempo e clima](#previsão-do-tempo-e-clima) têm evidências só em texto.
 
 ## Endpoints
 
-Seção 7 do [contrato de integração](../docs/contrato-integracao.md). A documentação interativa fica em *(a preencher)*.
+Seção 7 do [contrato de integração](../docs/contrato-integracao.md). A documentação interativa fica em [http://localhost:5000/scalar/v1](http://localhost:5000/scalar/v1), com a API rodando em Development.
 
 ## Integração com o Serviço de Risco
 
