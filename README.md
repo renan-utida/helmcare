@@ -14,9 +14,9 @@
 
 | Disciplina | Pasta | Links |
 |---|---|---|
-| Arquitetura Orientada a Serviços (SOA) e Web Services | [`servico-risco/`](servico-risco/) | *(a preencher)* |
+| Arquitetura Orientada a Serviços (SOA) e Web Services | [`servico-risco/`](servico-risco/) | README: [servico-risco/README.md](servico-risco/README.md) - Swagger: `/risco/v1/docs`, com o serviço rodando |
 | Cybersecurity | [`cyber/`](cyber/) | Vídeo: [youtu.be/PSRhGlnmjcI](https://youtu.be/PSRhGlnmjcI) |
-| C# Software Development | [`api/`](api/) | *(a preencher)* |
+| C# Software Development | [`api/`](api/) | README: [api/README.md](api/README.md) - Scalar: `/scalar/v1`, com a API rodando em Development |
 | Inteligência Artificial & Machine Learning | [`ml/`](ml/) | Vídeo: [youtu.be/A4nlPggXHcY](https://youtu.be/A4nlPggXHcY) |
 | Mobile Development & IoT | [`mobile/`](mobile/) | Vídeo: [youtu.be/qUZFudiXW_Q](https://youtu.be/qUZFudiXW_Q) |
 | Operating Systems | [`infra/`](infra/) | Vídeo: *(a preencher)* |
@@ -187,8 +187,8 @@ O alerta continua se **pelo menos um** destes sinais for verdadeiro nos segundos
 | Componente | Peso | Fonte |
 |---|---|---|
 | Risco de sinistro grave na faixa horária | 50% | Modelo de ML treinado com o histórico do Infosiga por horário (os dados do INMET foram testados e não melhoraram a previsão) |
-| Chuva prevista no turno | 25% | Previsão do tempo (API pública ou mock) |
-| Índice de calor | 25% | Previsão + DHT22 do capacete |
+| Chuva prevista no turno | 25% | Previsão horária da Open-Meteo (a maior chuva do turno), com reserva simulada se ela falhar |
+| Índice de calor | 25% | Previsão horária da Open-Meteo (a hora de maior índice de calor do turno). Durante o turno, o DHT22 do capacete dispara o aviso de calor a partir de 32 °C |
 
 Faixas: **0 a 25** Baixo - **26 a 50** Moderado - **51 a 75** Alto - **76 a 100** Muito alto. Os pesos ficam documentados e são configuráveis.
 
