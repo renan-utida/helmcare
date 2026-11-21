@@ -20,7 +20,7 @@
 | Inteligência Artificial & Machine Learning | [`ml/`](ml/) | Vídeo: [youtu.be/A4nlPggXHcY](https://youtu.be/A4nlPggXHcY) |
 | Mobile Development & IoT | [`mobile/`](mobile/) | Vídeo: [youtu.be/qUZFudiXW_Q](https://youtu.be/qUZFudiXW_Q) |
 | Operating Systems | [`infra/`](infra/) | Vídeo: *(a preencher)* |
-| Physical Computing: IoT & IoB | [`iot/`](iot/) | Wokwi: *(a preencher)* - Vídeo: *(a preencher)* |
+| Physical Computing: IoT & IoB | [`iot/`](iot/) | Wokwi: [wokwi.com/projects/480131497227238401](https://wokwi.com/projects/480131497227238401) - Vídeo: [youtu.be/S3Cd3qKf7WY](https://youtu.be/S3Cd3qKf7WY) |
 | Testing, Compliance & Quality Assurance | [`docs/`](docs/) | Azure Boards: *(a preencher)* - Pitch: *(a preencher)* |
 
 Contrato de integração entre as partes: [`docs/contrato-integracao.md`](docs/contrato-integracao.md)
