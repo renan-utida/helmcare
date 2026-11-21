@@ -47,7 +47,26 @@ Exemplo: `08/11 - Domínio da API: "Crie as entidades do domínio seguindo o Con
  
 ## C# Software Development
  
-*(a preencher)*
+- 08/11 - Commits manuais: "Chat, vou mandar o pedido da Etapa 1 para ele. Não quero que ele faça commits por conta própria, pode deixar que eu faço manualmente aqui."
+- 08/11 - Pedidos ao Claude Code (etapas 1 a 4): solução em camadas, domínio com a máquina de estados da Ocorrencia, EF Core com a primeira migration e testes MSTest, seguindo o api/CLAUDE.md.
+- 08/11 - Resumo para a central: "Chat, veja se está tudo certo para mandarmos para o Chat principal tudo o que fizemos?"
+- 12/11 - Indicador de impacto (central): "MUDANÇA DE CONTRATO aprovada como proposta. Mantenha o cálculo isolado no método único, como você propôs, e cubra com testes MSTest. No README da API, explique a regra em duas linhas, porque é uma boa decisão de projeto para mostrar ao professor."
+- 14/11 - Integração com o Serviço de Risco: "Chat, voltando para a API. Já estou na feature/api-integracao-risco, criada a partir da main atualizada. Escopo desta rodada: fecha a tarefa API C# chamando o Serviço de Risco, cujo entregável é o índice calculado de ponta a ponta. Como sempre: primeiro o plano da rodada, depois o pedido para o Claude Code seguindo o api/CLAUDE.md."
+- 14/11 - Pedido ao Claude Code (Serviço de Risco): cliente HTTP com reserva na versão simulada, simulada alinhada ao modelo real, GET /trechos-criticos e a evidência com o serviço no ar e fora.
+- 15/11 - SOS escalonado: "Chat, vamos para a tarefa de Quinta (12/11), API: SOS escalonado (camada 1, camada 2 após 60 s sem aceite, aceite e cronômetro). Como sempre: mande a branch no começo, depois o plano da etapa, e só então o pedido para o Claude Code seguindo o api/CLAUDE.md. Pode quebrar em rodadas se ficar grande."
+- 15/11 - Pedidos ao Claude Code (SOS escalonado, rodadas 1 e 2): rede de voluntários, escalonamento em segundo plano, aceite, cancelar e encerrar, comando refeito no SOS repetido e aviso simulado ao contato, com o SOS publicado no HiveMQ.
+- 15/11 - Revisão da rodada: "Chat, segue a rodada 1, veja se ele fez tudo certo e conforme esperado?"
+- 15/11 - Print no README: "Quer adicionar esses prints (ou um desses) no README de C# já, chat? Só que trocaríamos o nome e criaríamos uma pasta evidencias/ para jogar ele(s)."
+- 16/11 - Identidade e Cofre: "Nova etapa: Identidade e Cofre. Decisão nova da central: o entregador passa a ter login com senha na própria API. Isto é MUDANÇA DE CONTRATO. Proponha o desenho no plano, com as rotas, os payloads e os nomes dos campos, que a central publica a 1.15 antes do merge."
+- 17/11 - Pedido da rodada 1: "A central publicou o contrato 1.15, já commitado como o primeiro commit da feature/api-identidade. Pode montar o pedido da rodada 1 para o Claude Code."
+- 17/11 - Pedidos ao Claude Code (identidade): Identity com token bearer, login, renovação e sessão, autorização em todas as rotas, pedidos do app e a migration Identidade, e depois o ponta a ponta com um SOS real.
+- 17/11 - Ambiente para o Claude Code: "Tem que deixar algo rodando ou nada rodando para ele executar?"
+- 17/11 - Cofre médico: "Pode abrir a rodada 2, o Cofre. Se algo do contrato não fechar, MUDANÇA DE CONTRATO antes de codar. A rodada 3 (Open-Meteo e GET /clima) fica fora por enquanto. Tenho uma dúvida: é fácil implementação? Ou algo que mexeria muito no todo?"
+- 17/11 - Pedidos ao Claude Code (Cofre): login do socorrista, janela de acesso, auditoria, página web e a migration Cofre, e depois o ponta a ponta com o print da página no celular.
+- 17/11 - Ajuste do critério: "Se rodada/etapa estiver se referindo a algo no APP, sem problema, mas se for algo da nossa rotina de código aqui, aí acho que precisava remover."
+- 17/11 - Print do Cofre: "Nomeei como cofre-pagina-app e cofre-pagina-web. Vê se você acha bom ter esse web, ou só o app (que é um mobile)."
+- 17/11 - Pedido ao Claude Code (clima): previsão real pela Open-Meteo no turno com reserva e previsão simulada forçada, GET /clima com cache de 10 min e 503, e o ponta a ponta com a internet real.
+- 17/11 - Turno de teste preso: "Me passe um comando único de psql pelo docker exec, no banco de desenvolvimento helmcare_api, que mostre antes quantos turnos abertos essa conta tem, feche só esse turno, com o fim igual ao início, sem apagar nada, e confira depois que a conta ficou sem turno aberto."
  
 ## Inteligência Artificial & Machine Learning
  
