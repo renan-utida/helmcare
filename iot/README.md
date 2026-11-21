@@ -13,6 +13,7 @@
 | **Professor** | Yan Gabriel Coelho |
 | **Global Solution** | 2026.2, CitizenTech |
 | **Projeto no Wokwi** | https://wokwi.com/projects/480131497227238401 |
+| **Vídeo** | https://youtu.be/S3Cd3qKf7WY |
 
 ---
 
@@ -40,6 +41,8 @@
 12. [Resumo dos resultados](#12-resumo-dos-resultados)
 13. [Problemas encontrados e decisões de projeto](#13-problemas-encontrados-e-decisões-de-projeto)
 14. [Limitações da simulação](#14-limitações-da-simulação)
+15. [Vídeo](#15-vídeo)
+16. [Apresentação e prints](#16-apresentação-e-prints)
 
 ---
 
@@ -643,6 +646,46 @@ Na prática, os tempos do capacete ficaram quase iguais aos reais, o que deixa a
 - **Como a API lida com esse atraso:** a API nunca compara o `ts` do capacete com o relógio do servidor. Pelo Contrato v1.7, o indicador de impacto (tempo da queda até o primeiro aceite) é medido em **dois trechos, cada um no próprio relógio**: o trecho do capacete (da queda ao fim da contagem, os dois no relógio do capacete) e o trecho do servidor (da criação da ocorrência ao aceite, os dois no relógio do servidor). Assim, o atraso do Wokwi nunca entra no indicador.
 - **Sensores simulados:** o potenciômetro faz o papel do GPS do celular, e o slide switch, do sensor IR de presença na espuma. Na solução real, o capacete usaria o celular por Bluetooth e teria um chip de IoT próprio como canal reserva.
 - **Coordenadas fixas:** o capacete envia sempre a região da Av. Paulista (-23.5641, -46.6525), como define o Contrato.
+
+[Voltar ao sumário](#sumário)
+
+---
+
+## 15. Vídeo
+
+Vídeo de até 4 minutos com a demonstração no Wokwi, o HiveMQ e o app do HelmCare na mesma corrida: **[youtu.be/S3Cd3qKf7WY](https://youtu.be/S3Cd3qKf7WY)**
+
+Cópia no repositório: [apresentacao/apresentacao_iot.mp4](apresentacao/apresentacao_iot.mp4) (3:42, 1920x1080, com legendas curtas sobre cada etapa).
+
+[Voltar ao sumário](#sumário)
+
+---
+
+## 16. Apresentação e prints
+
+| Arquivo | Conteúdo |
+|---|---|
+| [`apresentacao/APRESENTACAO_IOT.pdf`](apresentacao/APRESENTACAO_IOT.pdf) | Os slides de abertura e de encerramento do vídeo |
+| [`apresentacao/prints/`](apresentacao/prints/) | Um quadro de cada etapa do vídeo |
+
+**Roteiro do vídeo:**
+
+| Tempo | Etapa | O que aparece |
+|---|---|---|
+| 0:00 | O problema | O entregador de moto, principal vítima fatal do trânsito de SP |
+| 0:22 | O circuito | Cada componente e o papel dele; por que é IoT e IoB |
+| 1:18 | Turno iniciado | O app inicia o turno, a API publica `ARMAR` e o aviso de calor aparece no OLED e no app |
+| 1:38 | Queda cancelada | Impacto, observação, contagem e cancelamento pelo botão do capacete |
+| 2:10 | Queda real | SOS por MQTT, chamado no app do voluntário, aceite e "Socorro a caminho!" no OLED, em 00:43 da queda ao aceite |
+| 3:01 | Teste pelo HiveMQ | O `ENCERRAR` publicado à mão e a volta para `ARMADO` |
+| 3:17 | Encerramento | Sem o capacete, não existe SOS |
+
+| | |
+|---|---|
+| ![Turno iniciado: ARMADO e aviso de calor](apresentacao/prints/03-cena3-armado-e-aviso-de-calor.png) | ![SOS ATIVO no OLED](apresentacao/prints/06-cena5-sos-ativo.png) |
+| ![Chamado no app do voluntário](apresentacao/prints/07-cena5-chamado-do-voluntario.png) | ![Socorro a caminho no OLED](apresentacao/prints/08-cena5-socorro-a-caminho.png) |
+
+[Voltar ao sumário](#sumário)
 
 ---
 
