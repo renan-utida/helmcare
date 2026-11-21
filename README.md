@@ -21,7 +21,7 @@
 | Mobile Development & IoT | [`mobile/`](mobile/) | Vídeo: [youtu.be/qUZFudiXW_Q](https://youtu.be/qUZFudiXW_Q) |
 | Operating Systems | [`infra/`](infra/) | Vídeo: *(a preencher)* |
 | Physical Computing: IoT & IoB | [`iot/`](iot/) | Wokwi: [wokwi.com/projects/480131497227238401](https://wokwi.com/projects/480131497227238401) - Vídeo: [youtu.be/S3Cd3qKf7WY](https://youtu.be/S3Cd3qKf7WY) |
-| Testing, Compliance & Quality Assurance | [`docs/`](docs/) | Azure Boards: *(a preencher)* - Pitch: *(a preencher)* |
+| Testing, Compliance & Quality Assurance | [`docs/`](docs/) | Azure DevOps: [dev.azure.com/RM558540-HelmCare-3ESPW/HelmCare](https://dev.azure.com/RM558540-HelmCare-3ESPW/HelmCare) - Pitch: [youtu.be/aCjWAEcS8iI](https://youtu.be/aCjWAEcS8iI) - Relatório: [PDF](docs/HelmCare_Testing_GS_RM558540.pdf) |
 
 Contrato de integração entre as partes: [`docs/contrato-integracao.md`](docs/contrato-integracao.md)
 
