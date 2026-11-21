@@ -82,8 +82,6 @@ Exemplo: `08/11 - Domínio da API: "Crie as entidades do domínio seguindo o Con
 *(a preencher)*
  
 ## Physical Computing: IoT & IoB
- 
-## Physical Computing: IoT & IoB
 
 - 06/11 - Leitura dos materiais: "Vou te mandar os materiais do semestre passado e deste semestre de Physical Computing, incluindo os checkpoints. Por enquanto, só leia e confirme que entendeu."
 - 06/11 - Resumo de estudo: "Monte um resumo do que vimos no geral nas aulas e nos checkpoints, para a gente se preparar para a Global Solution."
@@ -99,9 +97,22 @@ Exemplo: `08/11 - Domínio da API: "Crie as entidades do domínio seguindo o Con
 - 11/11 - README final: "Atualize o README de forma completa e intuitiva, com os prints, um sumário no começo, um link para voltar ao topo no fim de cada seção e o meu nome e a disciplina numa tabela."
 - 12/11 - Horários e desempenho: "Explique no README que os horários estão em UTC, confira se o OLED é redesenhado sem necessidade e meça o desempenho da simulação antes e depois dos ajustes."
 - 12/11 - Resultado das medições: "Este é o resultado do teste de desempenho. Atualize o README e me mande os arquivos alterados e os comandos de git de uma vez."
-- 19/11 - Roteiro e plano B: "Monte o roteiro do vídeo de até 4 minutos, o checklist de gravação e um plano B pelo HiveMQ caso a API não suba.
+- 19/11 - Roteiro e plano B: "Monte o roteiro do vídeo de até 4 minutos, o checklist de gravação e um plano B pelo HiveMQ caso a API não suba."
 - 19/11 - Entrega: "Tudo cumprido do que foi solicitado? Monte o .txt do entregável e a mensagem para a Central."
  
 ## Testing, Compliance & Quality Assurance
  
-*(a preencher)*
+- 04/11 - Contexto da disciplina: "Preciso de ajuda com a GS de Testing, Compliance and QA do Prof. Salatiel. Vou te mandar os materiais do Prof. Thiago, os checkpoints e as aulas do Salatiel. Por enquanto, só leia e confirme que entendeu."
+- 06/11 - Enunciado e plano: "Este é o enunciado da GS e o projeto HelmCare. Mapeie o que a disciplina pede (Features e Test Cases no Azure) e proponha o plano, seguindo a Ficha e o Contrato."
+- 06/11 - Projeto no Azure: "Como crio o projeto HelmCare no Azure DevOps com processo Scrum e adiciono o professor como Admin?"
+- 07/11 - Estrutura do backlog: "Proponha os Épicos, as Features e os PBIs do HelmCare no padrão do material do professor, com critérios de aceite."
+- 08/11 - Cadastro do backlog: "Habilitei o nível de Épicos. Me guie para cadastrar os Épicos, as Features e os PBIs no Azure Boards, com título, descrição e critérios de aceite."
+- 16/11 - Test Cases: "Monte os Test Cases funcionais, positivos e negativos, caixa-preta, com objetivo, preparação, entradas, saídas esperadas e passos, cobrindo cada PBI."
+- 17/11 - Ajuste ao Contrato: "O Contrato foi para a versão 1.17. Liste as correções necessárias no backlog e nos Test Cases do Azure e me diga como aplicá-las."
+- 18/11 - Test Plan e rastreabilidade: "Como organizo os Test Cases no Azure Test Plans, com a suite estática, as suites por PBI e o vínculo Tested By?"
+- 20/11 - Relatório em PDF: "Monte o briefing para o Claude Code gerar o PDF de entrega com os prints das Features e dos Test Cases e o link do Azure, e confira se cobre toda a rubrica."
+- 20/11 - Roteiro do pitch: "Monte o roteiro falado do pitch de até 4 minutos, no método Observar, Escutar, Definir, Organizar, Construir e Contar, com o texto para eu gravar."
+- 21/11 - Montagem do pitch: "Quero um pitch dinâmico e cinematográfico, com transições, imagens de impacto, dados na tela, o símbolo da marca no canto e uma animação final. Escreva as mensagens para o Claude Code montar o vídeo."
+- 21/11 - Revisão do vídeo: "Assisti ao v1 e anotei os ajustes: logo com o nome na abertura e no fechamento, linhas do diagrama na borda das caixas, selo de imagem ilustrativa menor e 2 segundos a mais no final."
+- 21/11 - Publicação no YouTube: "Gere o título, a descrição com os créditos, as tags, os capítulos e a miniatura do vídeo."
+- 21/11 - README de QA e entrega: "Atualize o README de QA, o link do pitch no relatório e no README raiz, regenere o PDF e organize a pasta docs/pitch."

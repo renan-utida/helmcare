@@ -11,7 +11,7 @@
 <p>FIAP, Global Solution 2026.2 (CitizenTech)</p>
 <div class="links">
 <p><strong>Azure DevOps:</strong> <a href="https://dev.azure.com/RM558540-HelmCare-3ESPW/HelmCare">https://dev.azure.com/RM558540-HelmCare-3ESPW/HelmCare</a></p>
-<p><strong>Pitch (YouTube):</strong> {{LINK_PITCH}}</p>
+<p><strong>Pitch (YouTube):</strong> <a href="https://youtu.be/aCjWAEcS8iI">https://youtu.be/aCjWAEcS8iI</a></p>
 <p><strong>Repositório:</strong> <a href="https://github.com/renan-utida/helmcare">https://github.com/renan-utida/helmcare</a>, pasta <a href="https://github.com/renan-utida/helmcare/tree/main/docs">docs/</a></p>
 </div>
 <p class="rodape-capa">Entrega: 19/11/2026</p>
@@ -791,7 +791,7 @@ Os 30 Test Cases estão definidos no Azure Test Plans e permanecem no estado Not
 
 | Item | Link |
 |---|---|
-| Pitch (YouTube) | {{LINK_PITCH}} |
+| Pitch (YouTube) | <https://youtu.be/aCjWAEcS8iI> |
 | Azure DevOps | <https://dev.azure.com/RM558540-HelmCare-3ESPW/HelmCare> |
 | Repositório | <https://github.com/renan-utida/helmcare> |
 | Pasta docs/ | <https://github.com/renan-utida/helmcare/tree/main/docs> |
