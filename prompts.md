@@ -83,7 +83,24 @@ Exemplo: `08/11 - Domínio da API: "Crie as entidades do domínio seguindo o Con
  
 ## Physical Computing: IoT & IoB
  
-*(a preencher)*
+## Physical Computing: IoT & IoB
+
+- 06/11 - Leitura dos materiais: "Vou te mandar os materiais do semestre passado e deste semestre de Physical Computing, incluindo os checkpoints. Por enquanto, só leia e confirme que entendeu."
+- 06/11 - Resumo de estudo: "Monte um resumo do que vimos no geral nas aulas e nos checkpoints, para a gente se preparar para a Global Solution."
+- 07/11 - Critérios e plano: "Este é o enunciado da GS e o projeto HelmCare. Mapeie os critérios da disciplina e proponha o plano do circuito, os componentes, os pinos e as etapas, seguindo a Ficha e o Contrato."
+- 07/11 - Etapa 1, circuito e sensores: "Pode mandar o diagram.json, o config.h, o sketch.ino de leitura dos sensores, o libraries.txt e todos os comandos de git de uma vez."
+- 08/11 - Calibração do impacto: "Os eixos do MPU6050 no Wokwi vão só de -2 g a 2 g. Me explique o Inc, a temperatura e qual limiar de impacto faz sentido para a simulação."
+- 08/11 - README da etapa 1: "Atualize o iot/README.md com o circuito, os pinos, como rodar e o lado do slide switch (fio preto = capacete na cabeça)."
+- 09/11 - Etapa 2, máquina de estados e MQTT: "O Contrato chegou à versão 1.6. Vamos para a etapa 2: a máquina de estados, os eventos, os comandos e o reenvio do SOS por MQTT."
+- 10/11 - MQTT caindo: "As etapas do teste passaram, mas o MQTT cai. Pensei em client.setKeepAlive(60). Está certo? E não entendi como testar a queda."
+- 10/11 - Prints das evidências: "Mandei o vídeo dos testes. Consegue montar os prints necessários e me mandar? E está tudo certo agora?"
+- 10/11 - Tutorial dos testes: "Mantenha o código anterior do relógio e me mande um tutorial completo de como eu testo cada situação, de maneira bem descritiva."
+- 11/11 - Qualidade dos prints: "Gravei os testes 1, 2, 3A e 3B. Consegue melhorar a qualidade das imagens?"
+- 11/11 - README final: "Atualize o README de forma completa e intuitiva, com os prints, um sumário no começo, um link para voltar ao topo no fim de cada seção e o meu nome e a disciplina numa tabela."
+- 12/11 - Horários e desempenho: "Explique no README que os horários estão em UTC, confira se o OLED é redesenhado sem necessidade e meça o desempenho da simulação antes e depois dos ajustes."
+- 12/11 - Resultado das medições: "Este é o resultado do teste de desempenho. Atualize o README e me mande os arquivos alterados e os comandos de git de uma vez."
+- 19/11 - Roteiro e plano B: "Monte o roteiro do vídeo de até 4 minutos, o checklist de gravação e um plano B pelo HiveMQ caso a API não suba.
+- 19/11 - Entrega: "Tudo cumprido do que foi solicitado? Monte o .txt do entregável e a mensagem para a Central."
  
 ## Testing, Compliance & Quality Assurance
  
