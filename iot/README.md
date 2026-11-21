@@ -1,3 +1,5 @@
+<p align="center"><img src="../docs/marca/logo-horizontal.png" alt="Logo do HelmCare: um capacete de moto com uma linha de batimento cardíaco na viseira" width="420"></p>
+
 # HelmCare: módulo do capacete
 
 > **Do risco ao resgate, cuidado em cada corrida.**
